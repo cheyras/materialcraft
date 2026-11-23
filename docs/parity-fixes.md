@@ -59,6 +59,20 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-23 root comparisons
 
+### Whole first-renderer specular pass after the Switch correction
+
+Repeat the [original, rectangular and saved comparisons](#whole-and-reopened-eighth-specular-passes) for the first renderer's eighth specular pass with the [parameter-driven Switch Blend correction](#switch-blend-with-parameter-driven-endpoint-opacity). Count a pixel as exact when all four stored channel words, including zero signs, agree. The changed 128² and default 256² F16 renders now match 16,384/16,384 and 65,536/65,536 pixels. Seed 42 and the default at 128² each match 16,384/16,384.
+
+| Comparison | Settings | U8 exact / total | U16 exact / total | F16 exact / total | F32 exact / total | Maximum error |
+|---|---:|---:|---:|---:|---:|---:|
+| Original graph | 26 | 5,136/5,136 | 5,136/5,136 | 119,888/119,888 | 12,180/12,180 | 0 |
+| Independent rectangular inputs | 12 | 160/160 | 160/160 | 320/320 | 320/320 | 0 |
+| MaterialCraft SBS reopened in both applications | 5 | 128/128 | 32/32 | 16,416/16,416 | 128/128 | 0 |
+| Environment and material controls, full output | 5 | — | — | — | 81,920/81,920 | 0 |
+| Same five renders, first Pixel Processor | 5 | — | — | — | 81,920/81,920 | 0 |
+
+Each saved reference buffer also reproduced its original. The five 128² environment controls use the original eight inputs, a black or coordinate environment, black emissive, or black specular and roughness. The complete outputs resolve the [four earlier F16 zero-sign differences](#whole-specular-outputs-and-wired-irradiance-stages), including the one that recurred after saving. The original root qualifies for parity on these measured cases.
+
 ### Scalar float precision in nested graph instances
 
 A scalar float supplied by an instance default, an explicit constant or a constant expression retains literal precision inside the child graph. A value driven by an exposed parent parameter retains runtime precision. In an original Pixel Processor, take the sine of one full turn using the F32 constant 6.2831855. The fixed result has F32 bits `343bbd2e`. With the same turn supplied by an exposed parent input it has bits `80000000`. A called function writing a different variable preserves this distinction. MaterialCraft now tracks fixed scalar floats at graph boundaries and invalidates known operands by the names a called function writes.
