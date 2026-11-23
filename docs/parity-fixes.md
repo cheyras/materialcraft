@@ -87,6 +87,22 @@ Panorama Plane Light matched **212,736/212,736** original pixels across 32 setti
 
 The 49 earlier graphs for returned vectors, shared product pairs and scalar quotients retained 1,288,192/1,288,192 exact pixels across 307 renders. [Returned-vector probes](#pixel-products-carried-through-vector-lanes-and-calls) · [Quotient and interpolation probes](#pixel-quotients-and-volume-mask-interpolation)
 
+### Whole and reopened eighth specular passes
+
+Use the [26 original specular settings](#eighth-raytraced-specular-passes), including the default at 128² and 256², the changed 128² render and seed 42 at 128². Repeat the [12 independent rectangular fields](#rectangular-inputs-and-remaining-half-float-pixels-in-the-eighth-specular-passes) at 8 × 4 through 8 × 16. Each pixel counts only if all four stored channels match.
+
+Save the original graph with MaterialCraft, reopen it in both applications and compare the four rectangular handoff cases with their originals. Include a 128² F16 reopen, using the changed settings for pass 396 or defaults for pass 408. Each application reproduced its original pixels at the five settings reported below.
+
+For the [five environment and material controls](#environment-and-intermediate-precision-in-the-eighth-specular-passes), select F32 storage for the first connected pixel processor and keep the original output wiring. Read both outputs in the same cook. Pass 408 returns F16 at the output. Pass 396 returns F32 at the output, and all 81,920 reference pixels in its five controls contain values exactly representable in F16. Keep the original eight input fields, then change only the environment to black, the environment to the coordinate field, emissive to black, or specular and roughness to black. The general [reciprocal arithmetic correction](#reciprocal-division-through-pixel-function-calls) applies to these graphs. All package edits for intermediate readouts used disposable measurement copies.
+
+| Pass | Comparison | Settings | U8 exact / total | U16 exact / total | F16 exact / total | F32 exact / total | Maximum error |
+|---:|---|---:|---:|---:|---:|---:|---:|
+| 408 | Original matrix | 26 | 5,136/5,136 | 5,136/5,136 | 119,888/119,888 | 12,180/12,180 | 0 |
+| 408 | Independent rectangular fields | 12 | 160/160 | 160/160 | 320/320 | 320/320 | 0 |
+| 408 | Saved SBS, opened in both applications | 5 | 128/128 | 32/32 | 16,416/16,416 | 128/128 | 0 |
+| 408 | Environment and material controls, full graph | 5 | — | — | 81,920/81,920 | — | 0 |
+| 408 | Same five renders, first pixel processor | 5 | — | — | — | 81,920/81,920 | 0 |
+
 ### Reciprocal division through pixel function calls
 
 The two eighth specular passes divide a lighting term by the Z component of a normalized direction. Returning the environment lookup alone matched the 128-pixel scanline through (62,57) of the second pass. Returning the scalar lighting quotient exposed a rounding difference. Both operands matched at that pixel. In a separate original graph, the pixel expression `A / (1 / B)` reproduced A × B throughout the signed field. At (1,0) the inputs have F32 words `40763400` and `3f68c2ba`. A separate read of the inner reciprocal returns `3f8cc7a2`. The outer quotient returns `405fda66`. Supplying the one from a sampled channel returns `405fda65`. The latter control matched before the change.
