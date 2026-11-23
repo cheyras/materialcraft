@@ -73,6 +73,32 @@ For a separate check at 256² and seed 372421, compile the same original wrapper
 
 Maximum U16 error is zero throughout the three-setting desktop column. The desktop original and reopen also agree in 139,264/139,264 pixels per root. At the previously disputed 256² seed, MaterialCraft and the live desktop agree in 65,536/65,536 pixels per root. The same six, two and four discrepancies recur between the two reference rendering paths on all four one-worker runs per root. The eight-worker runs give more than one output for the same settings. The inventory retains the existing cross-worker differences. [Earlier seed and worker measurements](#computed-graph-seeds-on-load-evaluation-and-save)
 
+### Repeated desktop renders of the three early noise roots
+
+Use the same original parent and child files and ordinary saves as in the single-processor desktop comparison above. Select eight alternating eligible logical processors, then all sixteen. Each capture records its processor mask and restores the previous mask. Start at 256² with seed 372421, switch to 128 × 64 with seed 372177 and repeat the first request. Render 256² with seed 0, repeat the rectangle and return to the first request a third time. Reopen the ordinary save and repeat the sequence. Read the actual U16 output from the reference desktop.
+
+| Root | Eligible processors | Exact vs. MaterialCraft across six 256² captures at seed 372421, per capture | Maximum U16 error | Exact between repeats on the same open file, per comparison | Maximum repeat error | Stable desktop pixels matching MaterialCraft / all stable pixels |
+|---|---:|---:|---:|---:|---:|---:|
+| BNW Spots 1 | 8 | 65,530–65,536/65,536 | 2 | 65,530–65,536/65,536 | 2 | 65,530/65,530 |
+| BNW Spots 1 | 16 | 65,530–65,536/65,536 | 2 | 65,530–65,536/65,536 | 2 | 65,530/65,530 |
+| Clouds 1 | 8 | 65,532–65,535/65,536 | 7 | 65,534–65,535/65,536 | 7 | 65,532/65,533 |
+| Clouds 1 | 16 | 65,532–65,535/65,536 | 7 | 65,533–65,536/65,536 | 7 | 65,532/65,532 |
+| Clouds 2 | 8 | 65,531–65,534/65,536 | 2 | 65,531–65,536/65,536 | 2 | 65,530/65,531 |
+| Clouds 2 | 16 | 65,531–65,534/65,536 | 2 | 65,530–65,536/65,536 | 2 | 65,529/65,530 |
+
+Each rectangular capture matches 8,192/8,192 pixels, maximum 0. The seed-0 default-size checks give the following results on the original and its ordinary save. Each range covers those two captures.
+
+| Root | Eligible processors | Exact vs. MaterialCraft at seed 0, per capture | Maximum U16 error |
+|---|---:|---:|---:|
+| BNW Spots 1 | 8 | 65,536/65,536 | 0 |
+| BNW Spots 1 | 16 | 65,531–65,536/65,536 | 2 |
+| Clouds 1 | 8 | 65,529–65,532/65,536 | 4 |
+| Clouds 1 | 16 | 65,529–65,530/65,536 | 4 |
+| Clouds 2 | 8 | 65,534–65,535/65,536 | 2 |
+| Clouds 2 | 16 | 65,533–65,535/65,536 | 2 |
+
+At seed 372421, some BNW Spots 1 captures match the entire MaterialCraft buffer at each affinity. Clouds 1 has one stable differing pixel among the six eight-processor captures. Clouds 2 has one at each affinity. The six samples at each affinity establish repeatability only for those captures. All three remain in progress. [Single-processor desktop and standalone results](#live-desktop-and-standalone-rendering-of-three-noise-roots)
+
 ### Sequence evaluation and scalar random values
 
 Build an original function around two distinct Random(1) nodes. In Sequence, use the first draw directly, multiply it by zero in the returned expression, assign it to a variable, or use it in both the discarded input and the returned expression. Include a write with a second unused draw beside it, a conditional write and both signs of its control. Render the eleven variants at 16², with control +1 and −1 and graph seeds 0 and 17. Repeat after an ordinary MaterialCraft save and desktop reopen.
