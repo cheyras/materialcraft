@@ -47,7 +47,7 @@ impl ProductSum {
             negated: false,
             operation: "mulscalar",
             literal_divisor: false,
-            rounded_components: 0,
+            rounded_components: source.rounded_components,
             retained: Some(Box::new(Retained::Assigned(source))),
         }
     }
@@ -125,7 +125,7 @@ struct ProductUsage {
     repeated: bool,
 }
 
-fn selected_components(op: &Instruction) -> Option<u8> {
+pub(super) fn selected_components(op: &Instruction) -> Option<u8> {
     let count = match op.definition.id {
         "swizzle1" => 1,
         "swizzle2" => 2,

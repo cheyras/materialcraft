@@ -59,6 +59,26 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-23 root comparisons
 
+### Component reads and writes across pixel function calls
+
+In the shared Pixel Processor evaluator, a call can read individual components of a stored product. The observed components round at the multiplication. The other components retain their factors for an addition or subtraction. A getter evaluated before a later assignment keeps its earlier value. A getter evaluated after the assignment reads the replacement.
+
+Repeat the [called ray-step probes](#assigned-ray-steps-inside-pixel-function-calls) with the same signed procedural fields, including the 13 settings for each repeated call. In six additional graphs, return the leading components of the sum followed by the stored product's R, G, B, A, AR or GB components. Pass the step through a free variable or a connected function argument. In five further graphs, compare the fresh sum, a write before or after the sum, a write visible to the caller, and a free-variable write alongside a connected argument. Use 64 × 32 F32 and F16 at seed 379131, 32 × 64 F32 at 379172, 16 × 64 F32 at 394167 and 32² F32 at 394213.
+
+| Comparison | Renders | U8 exact / total · max | U16 exact / total · max | F16 exact / total · max | F32 exact / total · max |
+|---|---:|---:|---:|---:|---:|
+| Sixteen one-addition graphs | 16 | — | — | — | 32,768/32,768 · 0 |
+| Nine repeated addition, subtraction, observation and reassignment graphs | 117 | 27,648/27,648 · 0 | 27,648/27,648 · 0 | 27,648/27,648 · 0 | 119,808/119,808 · 0 |
+| Assignment guarded by literal true or false, free or connected step | 4 | — | — | — | 8,192/8,192 · 0 |
+| Six independent component selections | 30 | — | — | 12,288/12,288 · 0 | 36,864/36,864 · 0 |
+| Five read and write orders | 25 | — | — | 10,240/10,240 · 0 | 30,720/30,720 · 0 |
+| Assignment guarded by sampled alpha | 13 | 1,547/3,072 · 255 | 1,545/3,072 · 65,535 | 1,505/3,072 · 31.9316406 | 6,576/13,312 · 31.9348962 |
+| Getter also assigned to an unread variable before a write | 5 | — | — | 2,048/2,048 · 0 | 1,920/6,144 · 4.76837158e-07 |
+
+The sixteen one-addition cases previously matched 29,800/32,768 pixels. The six component selections previously matched 33,520/49,152. Seven existing MaterialCraft saves now match 96,256/96,256 pixels. The saved sampled-alpha graph matches 11,173/22,528, with the same per-format counts and maxima as the original. Seven additional saves cover the R, B and AR reads, the two write orders, the second assignment and the literal-true connected step. They match 65,536/65,536 pixels across 39 settings. Together the 15 saves reopened in the reference app and reproduced 184,320/184,320 original pixels.
+
+Both new regressions failed on the preceding evaluator. All 400 node release tests passed on the correction, along with formatting, strict workspace Clippy, dependency layers and WebAssembly checks. The [wired irradiance pass](#whole-specular-outputs-and-wired-irradiance-stages) remains in progress.
+
 ### Whole specular outputs and wired irradiance stages
 
 The first eighth specular pass (root 396) was rerun after correcting [floating-point Switch Blend](#signed-zero-when-switch-blend-selects-a-floating-point-color-input). All five [128² environment and material controls](#environment-and-intermediate-precision-in-the-eighth-specular-passes) now match 81,920/81,920 F32 output pixels and 81,920/81,920 F32 first-processor pixels. This includes the 31 zero signs in the black-specular control. The [original matrix and five saved cases](#whole-and-reopened-eighth-specular-passes) have four remaining zero-sign differences in F16. Three occur in the 256² default. The fourth occurs in the 128² changed case and repeats when reopened. All five saved reference images reproduced the originals.

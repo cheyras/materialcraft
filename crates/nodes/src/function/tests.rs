@@ -564,9 +564,15 @@ fn pixel_sums_retain_assigned_factors_until_a_component_is_observed() {
     assert_eq!(pixel(&graph), Value::Float4([0xc01e_2a90, 0xbf45_6d7a, 0x3e19_f2c0, 0x3f51_5a4e].map(f32::from_bits)));
 }
 
-#[test]
-fn called_pixel_sums_use_the_factors_of_a_free_or_wired_step() {
-    let sample = [0x3ef4_615d, 0xbf0c_f4e5, 0x3f25_886e, 0xbfbe_1bf6].map(f32::from_bits);
+#[derive(Clone, Copy)]
+enum StepRead {
+    Sum,
+    Blue,
+    BeforeWrite,
+    AfterWrite,
+}
+
+fn called_pixel_step(sample: [f32; 4], wired: bool, guard: Option<bool>, read: StepRead) -> Value {
     let variables = BTreeMap::from([("field".into(), Value::Float4(sample))]);
     let context = EvaluationContext {
         scope: super::FunctionScope::PixelProcessor,
@@ -577,50 +583,97 @@ fn called_pixel_sums_use_the_factors_of_a_free_or_wired_step() {
         tile: false,
         variables: &variables,
     };
-    for (wired, run_assignment) in [(false, true), (true, true), (false, false), (true, false)] {
-        let mut graph = FunctionGraph::default();
-        let field = graph.add("get_float4", &[], Some(Value::Text("field".into())));
-        let dir = graph.add("swizzle4", &[field], Some(Value::Int4([2, 0, 1, 3])));
-        let gain = graph.add("swizzle1", &[field], Some(Value::Int(3)));
-        let pos = graph.add("swizzle4", &[field], Some(Value::Int4([1, 2, 3, 0])));
-        let product = graph.add("mulscalar", &[dir, gain], None);
-        let set = graph.add("set", &[product], Some(Value::Text("stride".into())));
-        let setup = if run_assignment {
-            set
-        } else {
-            let skip = graph.add_constant(Value::Bool(false));
-            let zero = graph.add_constant(Value::Float4([0.0; 4]));
-            graph.add("ifelse", &[skip, set, zero], None)
-        };
-        let mut args = vec![("origin", pos)];
-        if wired {
-            args.push(("step", graph.add("get_float4", &[], Some(Value::Text("stride".into())))));
-        }
-        let mut body = FunctionGraph::default();
-        let origin = body.add("get_float4", &[], Some(Value::Text("origin".into())));
-        let step = body.add("get_float4", &[], Some(Value::Text(if wired { "step" } else { "stride" }.into())));
-        body.output = Some(body.add("add", &[origin, step], None));
-        let call = graph.add("instance", &[], None);
-        let node = graph.nodes.last_mut().unwrap();
-        node.instance = Some(materialcraft_core::GraphInstance {
-            label: String::new(),
-            package: String::new(),
-            graph: "advance".into(),
-            inputs: args.iter().map(|(name, _)| materialcraft_core::GraphPort { identifier: (*name).into(), type_code: 2048 }).collect(),
-            outputs: vec![materialcraft_core::GraphPort { identifier: "output".into(), type_code: 2048 }],
-            defaults: args.iter().map(|(name, _)| ((*name).into(), Value::Float4([0.0; 4]))).collect(),
-        });
-        node.inputs = args.iter().map(|(_, id)| Some(*id)).collect();
-        node.source = Some(Ok(std::sync::Arc::new(body)));
-        graph.output = Some(graph.add("sequence", &[setup, call], None));
-        let actual = compile(&graph, 0).unwrap().evaluate_pixel(&context, &mut EvaluationState::default()).unwrap();
-        let expected = if run_assignment {
-            [0xbfc1_67c9, 0xbd7f_2862, 0xbf2a_dd9e, 0x402b_b9b0].map(f32::from_bits)
-        } else {
-            [sample[1], sample[2], sample[3], sample[0]]
-        };
-        assert_eq!(actual, Value::Float4(expected), "wired {wired}, assignment executed {run_assignment}");
+    let mut graph = FunctionGraph::default();
+    let field = graph.add("get_float4", &[], Some(Value::Text("field".into())));
+    let dir = graph.add("swizzle4", &[field], Some(Value::Int4([2, 0, 1, 3])));
+    let gain = graph.add("swizzle1", &[field], Some(Value::Int(3)));
+    let pos = graph.add("swizzle4", &[field], Some(Value::Int4([1, 2, 3, 0])));
+    let product = graph.add("mulscalar", &[dir, gain], None);
+    let set = graph.add("set", &[product], Some(Value::Text("stride".into())));
+    let setup = if let Some(run) = guard {
+        let condition = graph.add_constant(Value::Bool(run));
+        let zero = graph.add_constant(Value::Float4([0.0; 4]));
+        graph.add("ifelse", &[condition, set, zero], None)
+    } else {
+        set
+    };
+    let mut args = vec![("origin", pos)];
+    if wired {
+        args.push(("step", graph.add("get_float4", &[], Some(Value::Text("stride".into())))));
     }
+    let mut body = FunctionGraph::default();
+    let origin = body.add("get_float4", &[], Some(Value::Text("origin".into())));
+    let step = body.add("get_float4", &[], Some(Value::Text(if wired { "step" } else { "stride" }.into())));
+    let sum = body.add("add", &[origin, step], None);
+    body.output = Some(match read {
+        StepRead::Sum | StepRead::Blue => sum,
+        StepRead::BeforeWrite => {
+            let answer = body.add("set", &[sum], Some(Value::Text("answer".into())));
+            let write = body.add("set", &[origin], Some(Value::Text("stride".into())));
+            let effects = body.add("sequence", &[answer, write], None);
+            let saved = body.add("get_float4", &[], Some(Value::Text("answer".into())));
+            body.add("sequence", &[effects, saved], None)
+        }
+        StepRead::AfterWrite => {
+            let write = body.add("set", &[origin], Some(Value::Text("stride".into())));
+            body.add("sequence", &[write, sum], None)
+        }
+    });
+    let call = graph.add("instance", &[], None);
+    let node = graph.nodes.last_mut().unwrap();
+    node.instance = Some(materialcraft_core::GraphInstance {
+        label: String::new(),
+        package: String::new(),
+        graph: "advance".into(),
+        inputs: args.iter().map(|(name, _)| materialcraft_core::GraphPort { identifier: (*name).into(), type_code: 2048 }).collect(),
+        outputs: vec![materialcraft_core::GraphPort { identifier: "output".into(), type_code: 2048 }],
+        defaults: args.iter().map(|(name, _)| ((*name).into(), Value::Float4([0.0; 4]))).collect(),
+    });
+    node.inputs = args.iter().map(|(_, id)| Some(*id)).collect();
+    node.source = Some(Ok(std::sync::Arc::new(body)));
+    let result = if matches!(read, StepRead::Blue) {
+        let color = graph.add("swizzle3", &[call], Some(Value::Int3([0, 1, 2])));
+        let stored = graph.add("get_float4", &[], Some(Value::Text("stride".into())));
+        let blue = graph.add("swizzle1", &[stored], Some(Value::Int(2)));
+        graph.add("vector4", &[color, blue], None)
+    } else {
+        call
+    };
+    graph.output = Some(graph.add("sequence", &[setup, result], None));
+    compile(&graph, 0).unwrap().evaluate_pixel(&context, &mut EvaluationState::default()).unwrap()
+}
+
+#[test]
+fn called_pixel_sums_use_the_factors_of_a_free_or_wired_step() {
+    let sample = [0x3ef4_615d, 0xbf0c_f4e5, 0x3f25_886e, 0xbfbe_1bf6].map(f32::from_bits);
+    for wired in [false, true] {
+        assert_eq!(
+            called_pixel_step(sample, wired, None, StepRead::Sum),
+            Value::Float4([0xbfc1_67c9, 0xbd7f_2862, 0xbf2a_dd9e, 0x402b_b9b0].map(f32::from_bits))
+        );
+        assert_eq!(called_pixel_step(sample, wired, Some(false), StepRead::Sum), Value::Float4([sample[1], sample[2], sample[3], sample[0]]));
+    }
+}
+
+#[test]
+fn called_pixel_sums_round_the_observed_components_of_the_stored_step() {
+    let sample = [0xbed0_b7e6, 0x3ee9_4b78, 0xbf01_df0b, 0xbf9a_729d].map(f32::from_bits);
+    let expected = Value::Float4([0x3f88_ad30, 0xbc7c_be30, 0xbfe0_d28a, 0xbf0c_bfd9].map(f32::from_bits));
+    for wired in [false, true] {
+        assert_eq!(called_pixel_step(sample, wired, None, StepRead::Blue), expected, "wired {wired}");
+    }
+}
+
+#[test]
+fn called_pixel_sums_follow_assignments_in_execution_order() {
+    let sample = [0xbed0_b7e6, 0x3ee9_4b78, 0xbf01_df0b, 0xbf9a_729d].map(f32::from_bits);
+    let sum = Value::Float4([0x3f88_ad30, 0xbc7c_be30, 0xbfe0_d289, 0x3f86_2e37].map(f32::from_bits));
+    for wired in [false, true] {
+        assert_eq!(called_pixel_step(sample, wired, None, StepRead::BeforeWrite), sum, "before write, wired {wired}");
+        assert_eq!(called_pixel_step(sample, wired, Some(true), StepRead::Sum), sum, "executed write, wired {wired}");
+    }
+    let origin = [sample[1], sample[2], sample[3], sample[0]];
+    assert_eq!(called_pixel_step(sample, false, None, StepRead::AfterWrite), Value::Float4(origin.map(|v| v + v)));
 }
 
 #[test]

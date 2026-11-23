@@ -1,25 +1,37 @@
 use super::{EvaluationState, Program, instruction::Instruction, product_sum::ProductSum, returned_product::float_width};
 use materialcraft_core::Value;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
-/// Factors from the current frame, or a snapshot supplied when its caller entered this frame.
 #[derive(Clone, Copy)]
-pub(super) enum Binding {
+enum Registers {
     Local { left: usize, right: usize, assignment: Option<usize> },
     Argument(usize),
 }
 
+/// Factors from this frame or its caller, and the components also read as a rounded product.
+#[derive(Clone, Copy)]
+pub(super) struct Binding {
+    registers: Registers,
+    pub(super) rounded_components: u8,
+}
+
 impl Binding {
     pub(super) fn read(self, state: &EvaluationState) -> Option<[Value; 2]> {
-        match self {
-            Self::Argument(slot) => state.assigned_arguments.get(slot)?.clone(),
-            Self::Local { left, right, assignment } => {
+        match self.registers {
+            Registers::Argument(slot) => state.assigned_arguments.get(slot)?.clone(),
+            Registers::Local { left, right, assignment } => {
                 if let Some(index) = assignment {
                     state.registers.get(index)?.as_ref()?;
                 }
                 Some([state.registers.get(left)?.as_ref()?.clone(), state.registers.get(right)?.as_ref()?.clone()])
             }
         }
+    }
+
+    fn import(self, arguments: &mut Vec<Self>) -> Self {
+        let slot = arguments.len();
+        arguments.push(self);
+        Self { registers: Registers::Argument(slot), ..self }
     }
 }
 
@@ -41,65 +53,103 @@ fn unit(op: &Instruction, instructions: &[Instruction]) -> Option<usize> {
         .then_some(input)
 }
 
+type ReadMasks = BTreeMap<String, u8>;
+
 #[derive(Default)]
 struct Uses {
-    reads: BTreeSet<String>,
+    reads: ReadMasks,
     writes: BTreeMap<String, usize>,
-    observed: BTreeSet<String>,
-    rounded: Vec<bool>,
+    rounded: Vec<u8>,
+    live: Vec<bool>,
+    ordered: bool,
+    loops: bool,
     calls: BTreeMap<usize, Uses>,
 }
 
 impl Uses {
     fn analyze(program: &Program) -> Self {
-        let mut uses = Self { rounded: vec![false; program.instructions.len()], ..Self::default() };
-        if let Some(output) = uses.rounded.get_mut(program.output) {
-            *output = true;
+        let len = program.instructions.len();
+        let mut uses = Self { rounded: vec![0; len], live: vec![false; len], ordered: true, ..Self::default() };
+        if let (Some(mask), Some(live)) = (uses.rounded.get_mut(program.output), uses.live.get_mut(program.output)) {
+            *mask = 15;
+            *live = true;
         }
         for (index, op) in program.instructions.iter().enumerate().rev() {
-            let observed = uses.rounded.get(index).copied().unwrap_or(true);
-            let mut mark = |input: usize, rounded: bool| {
-                if let Some(flag) = uses.rounded.get_mut(input) {
-                    *flag |= rounded;
+            if !uses.live[index] {
+                continue;
+            }
+            let observed = uses.rounded[index];
+            let mut mark = |input: usize, mask: u8| {
+                if let (Some(bits), Some(live)) = (uses.rounded.get_mut(input), uses.live.get_mut(input)) {
+                    *bits |= mask;
+                    *live = true;
                 }
             };
             if let Some(call) = &op.call {
                 let child = Self::analyze(&call.program);
                 for (name, register) in call.inputs.iter().zip(&op.inputs) {
-                    mark(*register, child.observed.contains(name));
+                    mark(*register, child.reads.get(name).copied().unwrap_or(0));
                 }
-                let free = |name: &String| !call.defaults.contains_key(name);
-                uses.reads.extend(child.reads.iter().filter(|name| free(name)).cloned());
-                uses.observed.extend(child.observed.iter().filter(|name| free(name)).cloned());
+                for (name, &mask) in &child.reads {
+                    if !call.defaults.contains_key(name) {
+                        *uses.reads.entry(name.clone()).or_default() |= mask;
+                    }
+                }
                 for (name, count) in &child.writes {
-                    if free(name) {
+                    if !call.defaults.contains_key(name) {
                         *uses.writes.entry(name.clone()).or_default() += count;
                     }
                 }
                 uses.calls.insert(index, child);
             } else if let Some(input) = unit(op, &program.instructions) {
                 mark(input, observed);
+            } else if let [input] = op.inputs.as_slice()
+                && let Some(mask) = super::product_sum::selected_components(op)
+            {
+                mark(*input, mask);
             } else {
                 match (op.definition.id, op.inputs.as_slice()) {
-                    ("add" | "sub", _) => {}
-                    ("sequence", &[_, last]) | ("passthrough", &[last]) => mark(last, observed),
+                    ("add" | "sub", &[left, right]) => {
+                        mark(left, 0);
+                        mark(right, 0);
+                    }
+                    ("sequence", &[first, last]) => {
+                        mark(first, 0);
+                        mark(last, observed);
+                    }
+                    ("passthrough", &[last]) => mark(last, observed),
+                    ("ifelse", &[condition, yes, no]) => {
+                        mark(condition, 15);
+                        for &shared in &op.control_registers {
+                            mark(shared, 0);
+                        }
+                        let test = program.instructions.get(condition);
+                        if let Some(Instruction { value: Some(Value::Bool(value)), .. }) = test.filter(|op| op.definition.id == "const_bool") {
+                            mark(if *value { yes } else { no }, observed);
+                        } else {
+                            uses.ordered = false;
+                            mark(yes, observed);
+                            mark(no, observed);
+                        }
+                    }
                     ("set", &[input]) => {
-                        mark(input, observed || program.instructions.get(input).and_then(product).is_none());
+                        mark(input, if program.instructions.get(input).and_then(product).is_some() { observed } else { 15 });
                         if let Some(name) = variable(op) {
                             *uses.writes.entry(name.to_owned()).or_default() += 1;
                         }
                     }
                     ("get_float1" | "get_float2" | "get_float3" | "get_float4", []) => {
                         if let Some(name) = variable(op) {
-                            uses.reads.insert(name.to_owned());
-                            if observed {
-                                uses.observed.insert(name.to_owned());
-                            }
+                            *uses.reads.entry(name.to_owned()).or_default() |= observed;
                         }
                     }
                     _ => {
+                        if op.definition.id == "while" {
+                            uses.ordered = false;
+                            uses.loops = true;
+                        }
                         for &input in &op.inputs {
-                            mark(input, true);
+                            mark(input, 15);
                         }
                     }
                 }
@@ -119,40 +169,51 @@ fn has_assignment(program: &Program) -> bool {
 pub(super) fn identify(program: &mut Program) {
     if program.instructions.iter().any(|op| op.call.is_some()) && has_assignment(program) {
         let uses = Uses::analyze(program);
-        install(program, &uses, &uses.observed, BTreeMap::new());
+        install(program, &uses, &uses.reads, BTreeMap::new());
     }
 }
 
-fn install(program: &mut Program, uses: &Uses, observed: &BTreeSet<String>, mut names: BTreeMap<String, Binding>) {
+fn install(program: &mut Program, uses: &Uses, observed: &ReadMasks, mut names: BTreeMap<String, Binding>) {
     let instructions = &program.instructions;
-    // An outer binding must remain unchanged throughout the call. Repeated assignments in a loop can replace cached factors.
-    names.retain(|name, _| !uses.writes.contains_key(name));
+    // A dynamic branch can skip a write. Only a unique, executed assignment is eligible in that case.
+    if !uses.ordered {
+        names.retain(|name, _| !uses.writes.contains_key(name));
+    }
     let mut sources = vec![None; instructions.len()];
+    let mut setters = BTreeMap::new();
     let mut products_written = BTreeMap::<usize, usize>::new();
-    let straight = instructions.iter().all(|op| !matches!(op.definition.id, "ifelse" | "while"));
-    if !instructions.iter().any(|op| op.definition.id == "while") {
-        for op in instructions {
-            if let ("set", &[input]) = (op.definition.id, op.inputs.as_slice()) {
+    if !uses.loops {
+        for (op, &live) in instructions.iter().zip(&uses.live) {
+            if live && let ("set", &[input]) = (op.definition.id, op.inputs.as_slice()) {
                 *products_written.entry(input).or_default() += 1;
             }
         }
         for (index, setter) in instructions.iter().enumerate() {
-            if let ("set", &[input], Some(name)) = (setter.definition.id, setter.inputs.as_slice(), variable(setter))
-                && uses.writes.get(name) == Some(&1)
+            if uses.live[index]
+                && let ("set", &[input], Some(name)) = (setter.definition.id, setter.inputs.as_slice(), variable(setter))
+                && (uses.ordered || uses.writes.get(name) == Some(&1))
                 && products_written.get(&input) == Some(&1)
-                && !observed.contains(name)
-                && !uses.observed.contains(name)
-                && uses.rounded.get(input) == Some(&false)
-                && let Some((left, right)) = instructions.get(input).and_then(product)
+                && let Some(product_op) = instructions.get(input)
+                && let Some((left, right)) = product(product_op)
             {
-                names.insert(name.to_owned(), Binding::Local { left, right, assignment: Some(index) });
-                if let Some(slot) = sources.get_mut(input) {
-                    *slot = Some(Binding::Local { left, right, assignment: None });
+                let mask = (1_u8 << float_width(product_op.type_code)) - 1;
+                let rounded_components = observed.get(name).copied().unwrap_or(0) | uses.reads.get(name).copied().unwrap_or(0) | uses.rounded[input];
+                if mask & !rounded_components == 0 {
+                    continue;
                 }
+                let binding = Binding { registers: Registers::Local { left, right, assignment: Some(index) }, rounded_components };
+                setters.insert(index, binding);
+                if !uses.ordered {
+                    names.insert(name.to_owned(), binding);
+                }
+                sources[input] = Some(Binding { registers: Registers::Local { left, right, assignment: None }, ..binding });
             }
         }
     }
     for index in 0..program.instructions.len() {
+        if !uses.live[index] {
+            continue;
+        }
         let (previous, current) = program.instructions.split_at_mut(index);
         let Some(op) = current.first_mut() else { continue };
         let source = |input: usize| sources.get(input).copied().flatten();
@@ -160,36 +221,42 @@ fn install(program: &mut Program, uses: &Uses, observed: &BTreeSet<String>, mut 
             let Some(child) = uses.calls.get(&index) else { continue };
             let mut imported = BTreeMap::new();
             for (name, binding) in &names {
-                if !call.defaults.contains_key(name) && child.reads.contains(name) && !child.observed.contains(name) && !child.writes.contains_key(name) {
-                    imported.insert(name.clone(), Binding::Argument(call.assigned_products.len()));
-                    call.assigned_products.push(*binding);
+                if !call.defaults.contains_key(name) && child.reads.contains_key(name) && (child.ordered || !child.writes.contains_key(name)) {
+                    imported.insert(name.clone(), binding.import(&mut call.assigned_products));
                 }
             }
             for (name, register) in call.inputs.iter().zip(&op.inputs) {
-                if child.reads.contains(name)
-                    && !child.observed.contains(name)
-                    && !child.writes.contains_key(name)
+                if child.reads.contains_key(name)
                     && let Some(binding) = source(*register)
                 {
-                    imported.insert(name.clone(), Binding::Argument(call.assigned_products.len()));
-                    call.assigned_products.push(binding);
+                    imported.insert(name.clone(), binding.import(&mut call.assigned_products));
                 }
             }
             install(&mut call.program, child, observed, imported);
+            if uses.ordered {
+                names.retain(|name, _| !child.writes.contains_key(name) || call.defaults.contains_key(name));
+            }
             continue;
         }
+        if uses.ordered
+            && op.definition.id == "set"
+            && let Some(name) = variable(op)
+        {
+            if let Some(&binding) = setters.get(&index) {
+                names.insert(name.to_owned(), binding);
+            } else {
+                names.remove(name);
+            }
+        }
         let forwarded = match (op.definition.id, op.inputs.as_slice()) {
-            ("get_float1" | "get_float2" | "get_float3" | "get_float4", []) => variable(op).and_then(|name| names.get(name)).copied().filter(|binding| {
-                // In straight-line code an earlier getter can retain the value from before the Set.
-                !matches!(binding, Binding::Local { assignment: Some(set), .. } if !straight || *set >= index)
-            }),
+            ("get_float1" | "get_float2" | "get_float3" | "get_float4", []) => {
+                variable(op).and_then(|name| names.get(name)).copied().filter(|binding| uses.ordered || matches!(binding.registers, Registers::Argument(_)))
+            }
             ("passthrough", &[i]) => source(i),
             _ => unit(op, previous).and_then(source),
         };
-        if let Some(binding) = forwarded
-            && let Some(slot) = sources.get_mut(index)
-        {
-            *slot = Some(binding);
+        if let Some(binding) = forwarded {
+            sources[index] = Some(binding);
         }
         if let ("add" | "sub", &[left, right]) = (op.definition.id, op.inputs.as_slice()) {
             let a = sources.get(left).copied().flatten();
