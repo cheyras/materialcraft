@@ -247,9 +247,14 @@ fn compile_nested(graph: &FunctionGraph, seed: u32, depth: usize, remaining: &mu
 /// A write can replace an argument before its next read.
 pub(super) fn remove_written_arguments<T>(program: &Program, arguments: &mut BTreeMap<&str, T>) {
     for op in &program.instructions {
-        if op.call.as_ref().is_some_and(|call| call.exports) {
-            arguments.clear();
-            return;
+        if arguments.is_empty() {
+            break;
+        }
+        if let Some(call) = &op.call
+            && call.exports
+        {
+            // A callee's unrelated assignments leave the caller's known operands available.
+            remove_written_arguments(&call.program, arguments);
         }
         if op.definition.id == "set"
             && let Some(materialcraft_core::Value::Text(name)) = &op.value

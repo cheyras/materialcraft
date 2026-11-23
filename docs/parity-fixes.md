@@ -59,6 +59,26 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-23 root comparisons
 
+### Scalar float precision in nested graph instances
+
+A scalar float supplied by an instance default, an explicit constant or a constant expression retains literal precision inside the child graph. A value driven by an exposed parent parameter retains runtime precision. In an original Pixel Processor, take the sine of one full turn using the F32 constant 6.2831855. The fixed result has F32 bits `343bbd2e`. With the same turn supplied by an exposed parent input it has bits `80000000`. A called function writing a different variable preserves this distinction. MaterialCraft now tracks fixed scalar floats at graph boundaries and invalidates known operands by the names a called function writes.
+
+Use the signed procedural RGBA fields from the [pixel interpolation comparison](#packed-products-in-the-second-endpoint-of-a-pixel-interpolation). Use field indices 0, 1, 2, 0, 0 and 1 with seeds 435071 + 19j for j from 0 through 5. Read the red channel with nearest sampling. Set the exposed turns to 1, .1875, −.38157, .723561, 0 and .375. Output sine, cosine, the F32 angle in radians and the sampled red channel. Compare top-level reads, literal 1 and .375, nested defaults, explicit values, a .375 + .625 expression, a parent read and a parent-driven selection between 1 and .375. Repeat the phase calculation in a called function and after a call that writes a sampled value to an unrelated variable.
+
+| Comparison | Renders | Exact pixels / total | Maximum component error |
+|---|---:|---:|---:|
+| Fifteen F32 graphs, before | 90 | 129,024/215,040 | 1.74845553e−7 |
+| Same F32 graphs, corrected | 90 | 215,040/215,040 | 0 |
+| Six controls, U8, U16 and F16 at the first three settings | 54 | 49,152/49,152 per format | 0 |
+| Eight MaterialCraft saves opened in both applications, F32 | 48 | 114,688/114,688 | 0 |
+| Earlier returned-product, shared-product and quotient controls | 307 | 1,288,192/1,288,192 | 0 |
+
+The six format controls use top-level literal and exposed turns, a child default, an explicit child value, a parent read after an unrelated write, and the constant expression. The saves include two top-level graphs and six parent/child pairs with relative dependencies. Each saved reference image reproduced its original. The regression alternates default, explicit and parent-driven inputs on a shared cache. It failed on the preceding evaluator. All 470 evaluation and node release tests passed, along with formatting, strict workspace Clippy, dependency layers and WebAssembly.
+
+For the first renderer's eighth irradiance pass, repeat the [nine connected-index settings](#irradiance-with-a-connected-pass-index) with its existing SBS graph. All 4,608/4,608 F16 pixels and 9/9 float indices match, maximum zero. With the [four saved intermediate readouts](#whole-specular-outputs-and-wired-irradiance-stages), each processor, the first Switch and the final image match 2,560/2,560 F16 pixels. The four final images and index values reproduce the original reference outputs. At row 14 in the two 32² controls, the three rotation columns, world and rotated hits, sampling coordinates, samples and lighting terms match 896/896 F32 pixels over 14 readouts. The first two reference columns contain −1.74845553e−7 and +1.74845553e−7 off the diagonal.
+
+Separate probes also assign to the same name as the exposed angle. At turns 1, .1875 and 0, the top-level write, a parent-driven argument shadowed in a call, and an unrelated write through two calls match 18,432/18,432 F32 pixels. Four other read/write combinations in child graphs still differ at all 24,576 pixels. Writing the exposed name before another call reads it has maximum error 18.8408465 across the output channels. Shadowing a fixed input or reusing a getter evaluated before a write has maximum error 1.74845553e−7. These are independent controls for assignment order.
+
 ### Rectangular image inputs on graph instances
 
 When a connected image crosses a graph boundary, axes more than one doubling or halving from their target move first. The final sampling pass adjusts both axes to the requested dimensions. Each pass stores its result at the input bridge's precision. A 32² F32 image feeding a 16 × 8 F16 bridge therefore goes through 32 × 16. MaterialCraft previously used 16² as the intermediate. The connected bridge now shares the atomic input filters' choice of intermediate dimensions.

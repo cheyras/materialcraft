@@ -123,7 +123,11 @@ pub(crate) fn resolve_parameters(
     }
 
     let fixed = if node.def == "graph_instance" {
-        parameters.iter().filter(|(name, value)| matches!(value, Value::Int(_)) && !dynamic.contains(*name)).map(|(name, _)| name.clone()).collect()
+        parameters
+            .iter()
+            .filter(|(name, value)| matches!(value, Value::Int(_) | Value::Float(_)) && !dynamic.contains(*name))
+            .map(|(name, _)| name.clone())
+            .collect()
     } else {
         Vec::new()
     };

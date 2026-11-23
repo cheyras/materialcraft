@@ -279,6 +279,73 @@ fn cached_instances_distinguish_fixed_and_bound_integer_arguments() {
 }
 
 #[test]
+fn instanced_float_angles_keep_their_precision_across_an_unrelated_write() {
+    use materialcraft_core::{ExposedParameter, FunctionGraph, GraphInstance, GraphPort, OutputFormat};
+    let (parent, instance) = instancing("Parent", "Angle");
+    let mut child = Graph::new("Angle");
+    child.exposed.push(ExposedParameter {
+        id: "turn".into(),
+        label: "Turn".into(),
+        default: Value::Float(1.0),
+        connectable: false,
+        clamp: false,
+        description: String::new(),
+        group: String::new(),
+        editor: None,
+        step: None,
+        min: -2.0,
+        max: 2.0,
+        options: Vec::new(),
+    });
+    let mut body = FunctionGraph::default();
+    let one = body.add_constant(Value::Float(1.0));
+    body.output = Some(body.add("set", &[one], Some(Value::Text("scratch".into()))));
+    let mut expression = FunctionGraph::default();
+    let write = expression.add("instance", &[], None);
+    let call = expression.nodes.last_mut().unwrap();
+    call.instance = Some(GraphInstance {
+        label: String::new(),
+        graph: "Remember".into(),
+        package: String::new(),
+        inputs: Vec::new(),
+        outputs: vec![GraphPort { identifier: "output".into(), type_code: 256 }],
+        defaults: Default::default(),
+    });
+    call.source = Some(Ok(std::sync::Arc::new(body)));
+    let turn = expression.add("get_float1", &[], Some(Value::Text("turn".into())));
+    let tau = expression.add_constant(Value::Float(std::f32::consts::TAU));
+    let angle = expression.add("mul", &[turn, tau], None);
+    let sine = expression.add("sin", &[angle], None);
+    expression.output = Some(expression.add("sequence", &[write, sine], None));
+    let processor = child.add_node("pixel_processor", [0.0; 2]);
+    let pixel = child.node_mut(processor).unwrap();
+    pixel.base.format = OutputFormat::F32;
+    pixel.params.insert("function".into(), Value::Function(Box::new(expression)));
+    let output = child.add_node("output", [0.0; 2]);
+    child.connect(processor, "output", output, "input").unwrap();
+    let mut package = Package::new("Fixed and bound turns");
+    package.graphs.extend([parent, child]);
+    let mut options = Options::new(&no_res);
+    options.overrides.insert("driver".into(), Value::Float(1.0));
+    let cache = Mutex::new(Cache::default());
+    for (explicit, bound) in [(false, false), (true, false), (true, true), (true, false)] {
+        let node = package.graphs[0].node_mut(instance).unwrap();
+        if explicit {
+            node.params.insert("turn".into(), Value::Float(1.0));
+        }
+        if bound {
+            node.bindings.insert("turn".into(), "driver".into());
+        } else {
+            node.bindings.remove("turn");
+        }
+        let result = cook(&package, 0, &options, &cache);
+        assert_eq!(result.nodes[&instance].error, None);
+        let red = result.image(instance, 0).unwrap().get(0, 0, false)[0];
+        assert_eq!(red.to_bits(), if bound { (-0.0_f32).to_bits() } else { 0x343b_bd2e }, "explicit {explicit}, bound {bound}");
+    }
+}
+
+#[test]
 fn graph_instances_cook_their_subgraph() {
     let (mut p, ..) = sample();
 
