@@ -21,7 +21,7 @@ pub(super) fn compile_program(
     let mut program = compile_nested(graph, seed, 0, &mut remaining)?;
     mark_literals(&mut program, literal_inputs.iter().map(|name| (name.as_str(), ())).collect());
     super::reciprocal::identify_products(&mut program, BTreeMap::new());
-    plan_pixel_operations(&mut program, pixel);
+    plan_pixel_operations(&mut program, pixel, true);
     Ok(program)
 }
 
@@ -269,13 +269,13 @@ fn mark_literals(program: &mut Program, mut arguments: BTreeMap<&str, ()>) {
     }
 }
 
-fn plan_pixel_operations(program: &mut Program, pixel: Option<&super::EvaluationContext<'_>>) -> super::returned_product::Lanes {
+fn plan_pixel_operations(program: &mut Program, pixel: Option<&super::EvaluationContext<'_>>, root: bool) -> super::returned_product::Lanes {
     let mut returned = BTreeMap::new();
     for index in 0..program.instructions.len() {
         let (previous, current) = program.instructions.split_at_mut(index);
         if let Some(op) = current.first_mut() {
             if let Some(call) = &mut op.call {
-                let lanes = plan_pixel_operations(&mut call.program, None);
+                let lanes = plan_pixel_operations(&mut call.program, None, false);
                 if lanes.iter().any(Option::is_some) {
                     returned.insert(index, lanes);
                 }
@@ -288,7 +288,7 @@ fn plan_pixel_operations(program: &mut Program, pixel: Option<&super::Evaluation
     super::branch_assignments::identify(program);
     super::vector::identify_pattern_components(program);
     super::branch_random::identify(program);
-    let exported = super::returned_product::identify(program, returned);
+    let exported = super::returned_product::identify(program, returned, root);
     program.loop_sums =
         program.instructions.iter().enumerate().filter_map(|(index, op)| super::loop_sum::LoopSum::identify(program, op).map(|sum| (index, sum))).collect();
     exported

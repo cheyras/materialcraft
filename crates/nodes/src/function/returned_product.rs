@@ -1,6 +1,6 @@
 use super::{EvaluationState, Program, arithmetic::flush_subnormal, instruction::Instruction, product_sum::ProductSum, reciprocal::Factor, value_type};
 use materialcraft_core::Value;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 /// Registers and components of the factors in the call that evaluated a product.
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -169,7 +169,7 @@ pub(super) fn forwarded<T: Copy>(op: &Instruction, instructions: &[Instruction],
     Some(out)
 }
 
-pub(super) fn identify(program: &mut Program, mut returned: BTreeMap<usize, Lanes>) -> Lanes {
+pub(super) fn identify(program: &mut Program, mut returned: BTreeMap<usize, Lanes>, root: bool) -> Lanes {
     let empty = || std::array::from_fn(|_| None);
     if returned.is_empty()
         && !program
@@ -184,10 +184,50 @@ pub(super) fn identify(program: &mut Program, mut returned: BTreeMap<usize, Lane
     let mut origins: Vec<Origins> = Vec::with_capacity(program.instructions.len());
     let mut products: Vec<(Source, Reads)> = Vec::new();
     let mut sums = Vec::new();
+    // With straight-line evaluation the instructions visit each assignment before its subsequent reads.
+    // A nested call can also expose the rounded assignment to its caller.
+    let mut assigned = (root
+        && program.instructions.iter().any(|op| op.definition.id == "set")
+        && program.instructions.iter().all(|op| op.call.is_none() && !matches!(op.definition.id, "ifelse" | "while")))
+    .then(BTreeMap::new);
+    let mut unit_products = BTreeSet::new();
     for (index, op) in program.instructions.iter().enumerate() {
         if let Some(lanes) = forwarded(op, &program.instructions, &origins, None) {
             origins.push(lanes);
             continue;
+        }
+        if let Some(assigned) = &mut assigned {
+            let source = |input: usize| origins.get(input).copied().unwrap_or([None; 4]);
+            let lanes = match (op.definition.id, op.inputs.as_slice(), &op.value) {
+                ("set", &[input], Some(Value::Text(name))) => {
+                    let lanes = source(input);
+                    if lanes.iter().flatten().all(|&id| products.get(id).is_some_and(|(p, _)| p.operation == Operation::Multiply)) {
+                        assigned.insert(name.as_str(), lanes);
+                        Some(lanes)
+                    } else {
+                        assigned.remove(name.as_str());
+                        None
+                    }
+                }
+                ("get_float1" | "get_float2" | "get_float3" | "get_float4", [], Some(Value::Text(name))) => assigned.get(name.as_str()).copied(),
+                ("sequence", &[_, last], _) | ("passthrough", &[last], _) => Some(source(last)),
+                ("mulscalar", &[input, scale], _)
+                    if program.instructions.get(scale).is_some_and(|op| op.definition.id == "const_float1" && op.value == Some(Value::Float(1.0))) =>
+                {
+                    let lanes = source(input);
+                    if lanes.iter().any(Option::is_some) {
+                        unit_products.insert(index);
+                        Some(lanes)
+                    } else {
+                        None
+                    }
+                }
+                _ => None,
+            };
+            if let Some(lanes) = lanes {
+                origins.push(lanes);
+                continue;
+            }
         }
 
         for source in op.inputs.iter().filter_map(|i| origins.get(*i)).flatten().flatten() {
@@ -203,9 +243,10 @@ pub(super) fn identify(program: &mut Program, mut returned: BTreeMap<usize, Lane
             _ => None,
         };
         if width > 0
-            && op.pixel_product_sum.is_none()
             && let Some(sides) = sides
             && sides.iter().flatten().any(Option::is_some)
+            && (op.pixel_product_sum.is_none()
+                || op.inputs.iter().take(2).any(|input| unit_products.contains(input)) && sides.iter().any(|side| side.iter().all(Option::is_none)))
         {
             for (left, right) in sides[0].iter().zip(sides[1]) {
                 if let Some(id) = left.xor(right)

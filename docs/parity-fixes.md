@@ -57,6 +57,31 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 - **2026-11-13 - Unconnected output images:** Unconnected output bridges now produce transparent RGBA instead of grayscale. The importer separately retains each output's declared image type so saving an unconnected output preserves the graph interface. Both material templates match all 1,179,648 RGBA8 pixels across six recorded cases. All 2,560 direct grayscale/color declaration probe pixels also match, and both declared image types survive save/reload.
 
+## 2026-11-23 root comparisons
+
+### Stored products in pixel expressions and irradiance ray steps
+
+A straight-line pixel expression can assign a vector product to a variable and add it to several positions. For each component consumed only by additions, the evaluator now rounds the multiply and add together. Returning the stored blue component alongside the sum preserves the rounded blue product in both places. A subsequent assignment takes effect at the next read. The change applies to the shared expression evaluator.
+
+Use the original signed RGBA32F fields and seven settings from the [packed interpolation comparison](#packed-products-in-the-second-endpoint-of-a-pixel-interpolation). At each texel use (B,R,G,A) for the direction, A for the scale and (G,B,A,R) for the starting position. Compare the stored step, the starting position, one and eight direct additions, one, two and eight additions of the assigned step, the two-addition result with the stored blue component in alpha, and a reassignment to the starting position before the second addition. Repeat the one- and eight-addition graphs with a multiplication by literal one between the read and the add. At 64 × 32 in F32, the earlier evaluator matched 564, 420 and 367 of 2,048 pixels on the one-, two- and eight-addition assigned graphs. All three now match 2,048/2,048.
+
+For independent fields use 16 × 64, 64 × 16 and 32 × 32, with index j from zero. Let q = (x + width × y + 394123 + 53j + 713c) × 1597334677 + 3812015801 modulo 2³² for component c. Replace q with ((q XOR (q >> 16)) × 2246822519) modulo 2³². Use bit 13 for the sign, 123 + (q modulo 5) for the biased exponent, and bits 1 through 23 for the fraction. Use seed 394167 + 23j. Run one addition, eight additions, the observed blue and reassignment on all three F32 fields. Repeat the first in U8, U16 and F16. Save and reopen those first four graphs from the original set plus the eight-addition literal-one graph, then the eight-addition and blue readouts from the independent set. Both applications reproduced their originals in every saved comparison.
+
+| Comparison | Renders | U8 exact / total · max | U16 exact / total · max | F16 exact / total · max | F32 exact / total · max |
+|---|---:|---:|---:|---:|---:|
+| Eleven original expressions, before correction | 77 | 22,528/22,528 · 0 | 22,519/22,528 · 1 | 22,521/22,528 · 0.00000762939453 | 66,949/112,640 · 0.00000762939453 |
+| Eleven original expressions, corrected | 77 | 22,528/22,528 · 0 | 22,528/22,528 · 0 | 22,528/22,528 · 0 | 112,640/112,640 · 0 |
+| Four expressions on independent fields | 24 | 4,096/4,096 · 0 | 4,096/4,096 · 0 | 4,096/4,096 · 0 | 12,288/12,288 · 0 |
+| Seven SBS saves reopened in both applications | 47 | 12,288/12,288 · 0 | 12,288/12,288 · 0 | 12,288/12,288 · 0 | 57,344/57,344 · 0 |
+
+To reproduce the remaining difference in [irradiance pass 395](#irradiance-with-a-connected-pass-index), use the changed 64² setting and read its first pixel processor. In a disposable save, route that processor to the graph output. The reference F16 image matched all 4,096 pixels of the original intermediate. The two applications match 4,094/4,096 in F16, maximum 0.00390625, and 3,023/4,096 in F32, maximum 0.000645160675. On row 20, return the eight light contributions separately. Summing the eight from the last back to the first reproduces all 64 summed pixels in each application. At x = 28 the third contribution differs in the emissive term. The environment term, emissive cosine and hit flag match across the row.
+
+Expose the direction, length, starting position and position after 0, 1, 4, 8 and 15 shadow calls. The direction, length and stored step each match 64/64. Starting with each application's first position, adding the rounded step reproduces all five MaterialCraft readouts. Rounding the direction times length together with each position reproduces all five reference readouts. At (28,20), sixteen advances yield hit Y = 0.648965240 in MaterialCraft and 0.648965716 in the reference. The corresponding emissive V coordinates are 0.0906677246 and 0.0906674862. The change moves one fractional filter weight across a rounding boundary. Independently weighting the same stored U16 texels reproduces all 64 samples in each application.
+
+For a separate called-function comparison at 64 × 32 F32, place the assignment in the pixel expression or in a function with a connected field argument. In each scope, try reading the step inside an addition helper, renaming the variable, returning an assigned result, reassigning the step after the addition, updating the caller's position with and without an extra argument, passing a wired step into that update, and passing both operands explicitly. Give each function and node a unique identifier in its package. For all 16 controls the reference agrees with a single rounded multiply-add at 32,768/32,768 pixels. MaterialCraft matches 9,024/32,768, maximum 0.000000476837158. Carrying the factors into nested calls remains open. Root 395 retains its previous inventory status.
+
+The regression failed on the previous build and passed after the evaluator change. The 49 earlier product, quotient and interpolation graphs retained 1,288,192/1,288,192 exact pixels in 307 renders. All 395 release node tests, formatting, strict workspace Clippy, dependency layers and WebAssembly checks passed.
+
 ## 2026-11-22 root comparisons
 
 ### Packed products in the second endpoint of a pixel interpolation

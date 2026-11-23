@@ -528,6 +528,43 @@ fn pixel_interpolation_contracts_only_unobserved_product_lanes_in_its_second_end
 }
 
 #[test]
+fn pixel_sums_retain_assigned_factors_until_a_component_is_observed() {
+    let sample = [0x3ef4_615d, 0xbf0c_f4e5, 0x3f25_886e, 0xbfbe_1bf6].map(f32::from_bits);
+    let variables = BTreeMap::from([("sample".into(), Value::Float4(sample))]);
+    let context = EvaluationContext {
+        scope: super::FunctionScope::PixelProcessor,
+        image_formats: &[],
+        position: [0.5; 2],
+        size: [1.0; 2],
+        images: &[],
+        tile: false,
+        variables: &variables,
+    };
+    let pixel = |graph: &FunctionGraph| compile(graph, 0).unwrap().evaluate_pixel(&context, &mut EvaluationState::default()).unwrap();
+    let mut graph = FunctionGraph::default();
+    let sample = graph.add("get_float4", &[], Some(Value::Text("sample".into())));
+    let direction = graph.add("swizzle4", &[sample], Some(Value::Int4([2, 0, 1, 3])));
+    let scale = graph.add("swizzle1", &[sample], Some(Value::Int(3)));
+    let origin = graph.add("swizzle4", &[sample], Some(Value::Int4([1, 2, 3, 0])));
+    let product = graph.add("mulscalar", &[direction, scale], None);
+    let stride = || Some(Value::Text("stride".into()));
+    let assign = graph.add("set", &[product], stride());
+    let mut position = origin;
+    for expected in [[0xbfc1_67c9, 0xbd7f_2862, 0xbf2a_dd9e, 0x402b_b9b0], [0xc01e_2a90, 0xbf45_6d7a, 0x3e19_f2c2, 0x409c_739a]] {
+        let step = graph.add("get_float4", &[], stride());
+        position = graph.add("add", &[position, step], None);
+        graph.output = Some(graph.add("sequence", &[assign, position], None));
+        assert_eq!(pixel(&graph), Value::Float4(expected.map(f32::from_bits)));
+    }
+    let rgb = graph.add("swizzle3", &[position], Some(Value::Int3([0, 1, 2])));
+    let step = graph.add("get_float4", &[], stride());
+    let blue = graph.add("swizzle1", &[step], Some(Value::Int(2)));
+    let observed = graph.add("vector4", &[rgb, blue], None);
+    graph.output = Some(graph.add("sequence", &[assign, observed], None));
+    assert_eq!(pixel(&graph), Value::Float4([0xc01e_2a90, 0xbf45_6d7a, 0x3e19_f2c0, 0x3f51_5a4e].map(f32::from_bits)));
+}
+
+#[test]
 fn pixel_product_sums_round_once_unless_the_product_is_also_read() {
     let values = [0x3fe34b19, 0x400d3c6f, 0xc0732711, 0x3f9665e4].map(|bits| Value::Float(f32::from_bits(bits)));
     let variables: BTreeMap<_, _> = ["a", "b", "c", "d"].into_iter().map(str::to_owned).zip(values).collect();
