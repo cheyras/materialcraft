@@ -59,6 +59,19 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-23 root comparisons
 
+### Whole and reopened first-renderer irradiance pass
+
+Repeat the [17 default-index settings](#first-renderer-eighth-irradiance-pass) and the [nine connected-index settings](#irradiance-with-a-connected-pass-index) after the [instance input and rotation correction](#scalar-float-precision-in-nested-graph-instances). The original seven procedural inputs, graph expressions and output connections are retained. Each of the 26 image outputs and 26 next-index float values matches, including the default at 256² and seed 42 at 128².
+
+| Comparison | Settings | U8 exact / total | U16 exact / total | F16 exact / total | F32 exact / total | Float indices exact / total | Maximum error |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Default index | 17 | 4,352/4,352 | 4,352/4,352 | 102,656/102,656 | 8,960/8,960 | 17/17 | 0 |
+| Connected index | 9 | — | — | 4,608/4,608 | — | 9/9 | 0 |
+| Reopened standalone graph | 5 | 256/256 | 256/256 | 256/256 | 512/512 | 5/5 | 0 |
+| Reopened parent linked to the saved child | 4 | — | — | 2,560/2,560 | — | 4/4 | 0 |
+
+For the standalone reopen, save the original graph with MaterialCraft and compare its image and typed index outputs in both applications. At 16² repeat the default and changed shadow readouts in F32 and the three small U8, U16 and F16 readouts. For the connected path save a wrapper with a relative dependency on that same saved child. Reopen the emitted files and set the start index to −1, .5, 3 and 7.25 at seeds 11, 43, 61 and 211. The stored images and typed next-index values reproduce their original reference outputs. The original graph reached parity for the measured cases.
+
 ### Whole first-renderer specular pass after the Switch correction
 
 Repeat the [original, rectangular and saved comparisons](#whole-and-reopened-eighth-specular-passes) for the first renderer's eighth specular pass with the [parameter-driven Switch Blend correction](#switch-blend-with-parameter-driven-endpoint-opacity). Count a pixel as exact when all four stored channel words, including zero signs, agree. The changed 128² and default 256² F16 renders now match 16,384/16,384 and 65,536/65,536 pixels. Seed 42 and the default at 128² each match 16,384/16,384.
