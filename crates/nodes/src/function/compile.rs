@@ -240,7 +240,8 @@ fn compile_nested(graph: &FunctionGraph, seed: u32, depth: usize, remaining: &mu
         output,
         seed,
         sequence_prefixes,
-        pattern_draws: BTreeMap::new(),
+        processor_branches: BTreeMap::new(),
+        pattern_branches: BTreeMap::new(),
         pattern_components: BTreeMap::new(),
         loop_sums: BTreeMap::new(),
     })
@@ -304,7 +305,7 @@ fn plan_pixel_operations(program: &mut Program, pixel: Option<&super::Evaluation
     super::product_sum::identify(&mut program.instructions, readers.as_deref());
     super::branch_assignments::identify(program);
     super::vector::identify_pattern_components(program);
-    super::branch_random::identify(program);
+    super::branch_inputs::identify(program);
     let exported = super::returned_product::identify(program, returned, root);
     program.loop_sums =
         program.instructions.iter().enumerate().filter_map(|(index, op)| super::loop_sum::LoopSum::identify(program, op).map(|sum| (index, sum))).collect();

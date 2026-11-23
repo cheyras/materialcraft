@@ -12,7 +12,7 @@ mod arithmetic;
 mod assigned_product;
 mod binary_exponential;
 mod branch_assignments;
-mod branch_random;
+mod branch_inputs;
 mod catalog;
 mod compile;
 mod evaluation_context;

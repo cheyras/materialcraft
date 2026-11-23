@@ -99,6 +99,21 @@ Each rectangular capture matches 8,192/8,192 pixels, maximum 0. The seed-0 defau
 
 At seed 372421, some BNW Spots 1 captures match the entire MaterialCraft buffer at each affinity. Clouds 1 has one stable differing pixel among the six eight-processor captures. Clouds 2 has one at each affinity. The six samples at each affinity establish repeatability only for those captures. All three remain in progress. [Single-processor desktop and standalone results](#live-desktop-and-standalone-rendering-of-three-noise-roots)
 
+### Conditional inputs shared across function branches
+
+Build fourteen original functions that select between two arms. Share a Random(1) between an arm and the result, or between both arms. Place a separate draw before the shared draw in each arm. For an assignment, initialize a float to .125, assign .625 in one arm and read it from the other. Add a quarter of the assigned result after the conditional. Swap the arms and include both possible conditions. Additional controls use a stored range, a graph input as the range and an assignment read by the condition. Run each at 16² for graph seeds 0 and 17 and both signs of the control. Repeat on ordinary saves reopened in the reference desktop.
+
+| Function context | Previous exact samples · maximum error | Corrected original exact samples | Corrected reopened exact samples |
+|---|---:|---:|---:|
+| FX-Map quadrant opacity, F32 pixels | 11,776/14,336 · 0.5 | 14,336/14,336 | 14,336/14,336 |
+| Pixel Processor, F32 pixels | 11,776/14,336 · 1.094946325 | 14,336/14,336 | 14,336/14,336 |
+| Uniform Color parameter, RGBA F32 pixels | 9,216/14,336 · 0.5 | 14,336/14,336 | 14,336/14,336 |
+| Value Processor, typed floats | 36/56 · 0.5 | 56/56 | 56/56 |
+
+Maximum error is zero in both corrected columns and between original and reopened desktop results. A shared write in the later arm takes effect after the earlier arm reads its variable. Sharing a draw across the arms preserves a selected arm’s preceding draw. The function evaluator now uses that order for shared writes and eligible random draws. Private arm expressions still evaluate lazily.
+
+Ten earlier conditional graphs match 94,720/94,720 pixels across 70 renders. White Noise v2 matches 10,240/10,240 intermediate pixels across ten ports and 69,120/69,120 root pixels across 72 captures. The grayscale Tile Generator matches 284,416/284,416 across its 55 distinct settings. All maximum errors are zero. Discarded loops and random graph arguments have separate outstanding measurements. [Loop controls](#sequence-evaluation-and-scalar-random-values)
+
 ### Sequence evaluation and scalar random values
 
 Build an original function around two distinct Random(1) nodes. In Sequence, use the first draw directly, multiply it by zero in the returned expression, assign it to a variable, or use it in both the discarded input and the returned expression. Include a write with a second unused draw beside it, a conditional write and both signs of its control. Render the eleven variants at 16², with control +1 and −1 and graph seeds 0 and 17. Repeat after an ordinary MaterialCraft save and desktop reopen.
@@ -112,7 +127,7 @@ Build an original function around two distinct Random(1) nodes. In Sequence, use
 
 A discarded draw leaves the next random value available. A write, a draw used elsewhere or a draw multiplied by zero in the returned expression can still advance the stream. Scalar Value Processor starts its stream at the zero-coordinate pixel hash. A second test uses the first draw, a zero-weighted draw and a shared draw, with twelve caller seeds from 0 through 372421, a relative seed offset of +3 and two sizes (16² and 128 × 32). All 72/72 typed results match on the original and the reopened graphs, maximum 0. Each original desktop result above also matches the reopened desktop result.
 
-Two further controls put a three-iteration loop on the discarded side of Sequence. Its body either discards Random(1) or assigns the draw. The reference returns the first draw after either loop. These cases still differ in MaterialCraft. Across both loops and four settings, FX-Map matches 0/2,048, maximum 0.386968136, Pixel Processor matches 0/2,048, maximum 0.961201191 and Value Processor matches 0/8, maximum 0.662862062. Seven further controls outside those two loops, including an empty loop, produce 7,168/7,168, maximum 0 in FX-Map, 7,168/7,168, maximum 0 in Pixel Processor and 24/28, maximum 0.45432511 in Value Processor. The four scalar differences occur when a false conditional arm shares a draw with another expression. Random expressions passed as graph arguments are also under separate investigation.
+Two further controls put a three-iteration loop on the discarded side of Sequence. Its body either discards Random(1) or assigns the draw. The reference returns the first draw after either loop. These cases still differ in MaterialCraft. Across both loops and four settings, FX-Map matches 0/2,048, maximum 0.386968136, Pixel Processor matches 0/2,048, maximum 0.961201191 and Value Processor matches 0/8, maximum 0.662862062. Seven further controls outside those two loops, including an empty loop, produce 7,168/7,168, maximum 0 in FX-Map, 7,168/7,168, maximum 0 in Pixel Processor and 24/28, maximum 0.45432511 in Value Processor. Those four scalar differences occurred when a false conditional arm shared a draw with another expression. The later conditional comparison measures that case after the correction. [Conditional results](#conditional-inputs-shared-across-function-branches) Random expressions passed as graph arguments are also under separate investigation.
 
 ### Sampling properties on graph inputs and outputs
 

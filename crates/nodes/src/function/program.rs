@@ -9,7 +9,8 @@ pub struct Program {
     pub(crate) instructions: Vec<Instruction>,
     pub(crate) output: usize,
     pub(crate) seed: u32,
-    pub(super) pattern_draws: std::collections::BTreeMap<usize, super::branch_random::PatternDraws>,
+    pub(super) processor_branches: std::collections::BTreeMap<usize, super::branch_inputs::BranchInputs>,
+    pub(super) pattern_branches: std::collections::BTreeMap<usize, super::branch_inputs::BranchInputs>,
     pub(super) pattern_components: std::collections::BTreeMap<usize, super::vector::PatternComponent>,
     pub(super) sequence_prefixes: Vec<super::sequence_prefix::Visit>,
     pub(super) loop_sums: std::collections::BTreeMap<usize, super::loop_sum::LoopSum>,
@@ -371,10 +372,13 @@ impl Program {
                     let condition = state.values.pop().ok_or("missing branch condition")?;
                     let take_true = value_type::boolean(&condition)?;
                     let selected = self.input(index, if take_true { 1 } else { 2 })?;
-                    let (shared, after_selected) = match context.scope {
-                        super::FunctionScope::PixelProcessor => (self.instruction(index)?.control_registers.as_slice(), false),
-                        super::FunctionScope::FxMap => self.pattern_draws.get(&index).map_or((&[][..], false), |draws| (draws.skipped(take_true), take_true)),
-                        _ => (&[][..], false),
+                    let branches = if context.scope == super::FunctionScope::FxMap { &self.pattern_branches } else { &self.processor_branches };
+                    let (shared, after_selected) = if let Some(inputs) = branches.get(&index) {
+                        (inputs.skipped(take_true), take_true)
+                    } else if context.scope == super::FunctionScope::PixelProcessor {
+                        (self.instruction(index)?.control_registers.as_slice(), false)
+                    } else {
+                        (&[][..], false)
                     };
                     let selected = || if prefix { Prefix(selected) } else { Enter(selected) };
                     if !after_selected {
