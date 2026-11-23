@@ -59,6 +59,37 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-23 root comparisons
 
+### Graph output size functions and signed offsets
+
+MaterialCraft now reads, evaluates and saves a graph's output size expression and its absolute, parent-relative or input-relative mode. The evaluator resolves the caller's arguments and axes before cooking the child and evaluating its seed. This applies to instances and to the root graph. The graph inspector reports the effective size. An explicit export size applies once and leaves the authored graph settings intact.
+
+Build an original child that outputs a grayscale Random(1) field. Call it at 16 × 16, 32 × 16 and 16 × 32 with outer seeds 0, 42 and 19. For the two relative modes, start with offsets (0,0), (−1,+1), (+1,−1) and (−6,0). Also drive the child from a parent integer pair, or choose between (−1,+1) and (+1,−1) by comparing one lane of `$size` or `$sizelog2` with a float threshold. Use (3,4) and (4,3) for the corresponding absolute settings. For the wired controls, feed the instance a procedural image with offsets (+1,−1), and read the child through a blur with zero parent-relative offset. Use one desktop worker. Compare the native dimensions, storage type and pixel values, save through the ordinary SBS writer, reopen in the desktop and repeat.
+
+| Shared graph behavior | Settings | Original exact / total | Reopened exact / total |
+|---|---:|---:|---:|
+| Seed predicates on both axes with a relative size | 108 | 46,080/46,080 | 46,080/46,080 |
+| Stored offsets and both relative modes | 72 | 23,424/23,424 | 23,424/23,424 |
+| Instance with a differently sized image input | 36 | 11,776/11,776 | 11,776/11,776 |
+| Offsets across the one-texel boundary | 12 | 448/448 | 448/448 |
+| U8, U16, F16 and F32 storage | 12 | 5,120/5,120 | 5,120/5,120 |
+| Constant, driven and conditional size expressions | 81 | 26,496/26,496 | 26,496/26,496 |
+| Absolute and inherited function input dimensions | 56 | 10,752/10,752 | 10,752/10,752 |
+| Seed function below one texel and literal controls | 90 | 1,920/1,920 | 1,920/1,920 |
+| Size function below one texel | 48 | 1,200/1,200 | 1,200/1,200 |
+
+All 515 settings across 54 groups match 127,216/127,216 pixels on each side, with maximum absolute error 0. The two desktop readbacks also match each other at every pixel. An absolute size function reads zero for both size variables. In a relative function, a 16-wide parent followed by a horizontal offset of −6 carries exponent −2 below the one-texel allocation. An additional offset of +3 gives a width of 2. A seed function at the intermediate graph sees an allocated width of 1 and log width of 0.
+
+For the catalog check, open Hemisphere and Shape Base and set the preview's parent size through the desktop graph API. Leave the graph's output size expression active. Repeat the earlier 18 Hemisphere and 61 Shape Base settings, then the seven square, wide and tall settings below, including the four storage formats and both values of `non_square`. Compare each original with MaterialCraft, reopen the ordinary save in both applications, and compare the two desktop outputs directly.
+
+| Root | Settings | MaterialCraft vs. original | MaterialCraft vs. reopen | Desktop original vs. reopen | Max error |
+|---|---:|---:|---:|---:|---:|
+| Hemisphere | 18 earlier + 7 | 173,568/173,568 | 173,568/173,568 | 173,568/173,568 | 0 |
+| Shape Base | 61 earlier + 7 | 344,064/344,064 | 344,064/344,064 | 344,064/344,064 | 0 |
+
+The earlier Shape Base comparison forced the graph's output dimensions when the desktop reported an unspecified preview parent. That overwrote the size expression in memory. For those same 61 settings the earlier procedure read 460,544 pixels. A fresh desktop session with the preview parent set explicitly read 341,760. The seven additional settings read 2,304 pixels, including four enabled rectangular parents that each produce 16 × 16. The earlier forced-size measurements remain reproducible under that procedure. Hemisphere returns to measured parity. The first three FX-Map roots retain their separate 256² differences. [Earlier shape and rectangle settings](#rectangular-hemisphere-and-shape-base-output-sizes) [Seed and worker-count measurements](#computed-graph-seeds-on-load-evaluation-and-save)
+
+The stored-offset and computed-size regressions failed on the previous implementation. Across the five affected crates, 907 release tests passed and eight were ignored. The engine command panic regression, formatting, strict workspace Clippy, dependency layers and WebAssembly checks passed. The native release desktop also opened the ordinary Hemisphere save and cooked the 32 × 16 parent to a 16 × 16 output.
+
 ### Rectangular Hemisphere and Shape Base output sizes
 
 Open Hemisphere and Shape Base from the catalog in the reference desktop. For each graph render the default 16² at seed 0 in F32. Set `non_square` to true for 32 × 16 at seed 42 in U8 and F32, then for 16 × 32 at seed 690727 in F16 and U16. Set it to false for 32 × 16 at seed 19 and 16 × 32 at seed 0 in F32. Read the dimensions and native output bits. Repeat by opening an ordinary MaterialCraft SBS save in the desktop.

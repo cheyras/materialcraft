@@ -133,6 +133,25 @@ fn export_size_keeps_proportions_and_clamps() {
     assert!(dims(&s, json!(0)).iter().all(|d| *d == (64, 32)));
     assert!(dims(&s, json!(32)).iter().all(|d| *d == (32, 16)));
     assert_eq!(s.pkg.graphs[0].absolute_output_size, Some([6, 5]));
+
+    s.pkg.graphs[0].absolute_output_size = None;
+    s.pkg.graphs[0].size = [7, 6];
+    let shift = materialcraft_engine::core::GraphSizeOffset::Parent([-1, 1]);
+    s.pkg.graphs[0].relative_output_size = Some(shift);
+    assert!(dims(&s, json!(0)).iter().all(|d| *d == (64, 128)));
+    assert!(dims(&s, json!(32)).iter().all(|d| *d == (16, 32)));
+    assert_eq!(s.pkg.graphs[0].relative_output_size, Some(shift));
+
+    use materialcraft_engine::core::{FunctionGraph, Value as GraphValue};
+    let function = FunctionGraph::constant(GraphValue::Int2([0, 2]));
+    s.pkg.graphs[0].output_size_function = Some(function.clone());
+    assert!(dims(&s, json!(0)).iter().all(|d| *d == (128, 256)));
+    assert!(dims(&s, json!(64)).iter().all(|d| *d == (32, 64)));
+    assert!(dims(&s, json!([32, 16])).iter().all(|d| *d == (32, 16)));
+    assert_eq!(s.pkg.graphs[0].output_size_function.as_ref(), Some(&function));
+    let info = execute(&mut s, "session.inspect", &json!({})).unwrap();
+    assert_eq!(info["graph"]["size"], json!([128, 256]));
+    assert_eq!(info["graph"]["outputSizeMode"], "relativeToParent");
 }
 
 /// A scratch folder for one test, removed when dropped

@@ -11,7 +11,9 @@ use super::sbs_value::{exposed_type_code, input_default_xml};
 use super::type_code;
 use super::xml::{format_float, is_parameters_element, xml_escape};
 use crate::{FormatError, Result};
-use materialcraft_core::{ComponentUsage, Connection, Graph, MAX_SIZE_LOG2, MIN_SIZE_LOG2, MISSING_NODE, Node, NodeId, Package, Value, missing_ports};
+use materialcraft_core::{
+    BaseParameter, ComponentUsage, Connection, Graph, MAX_SIZE_LOG2, MIN_SIZE_LOG2, MISSING_NODE, Node, NodeId, Package, Value, missing_ports,
+};
 use materialcraft_nodes::find;
 use std::collections::{BTreeMap, HashMap};
 use std::fmt::Write as _;
@@ -146,12 +148,16 @@ impl SbsWriter {
         }
 
         out.push_str("</compNodes><baseParameters>");
+        let (size_mode, size) = graph.output_size_setting();
         let base = materialcraft_core::BaseParameters {
-            size_mode: if graph.absolute_output_size.is_some() { materialcraft_core::SizeMode::Absolute } else { Default::default() },
-            size: graph.absolute_output_size.unwrap_or_default(),
+            size_mode,
+            size,
             seed: graph.seed,
             seed_mode: graph.seed_mode,
-            functions: graph.seed_function.clone().map(|function| (materialcraft_core::BaseParameter::RandomSeed, function)).into_iter().collect(),
+            functions: [(BaseParameter::OutputSize, &graph.output_size_function), (BaseParameter::RandomSeed, &graph.seed_function)]
+                .into_iter()
+                .filter_map(|(parameter, function)| function.clone().map(|function| (parameter, function)))
+                .collect(),
             format: graph.format,
             format_mode: materialcraft_core::ParameterInheritance::Absolute,
             pixel_ratio: graph.pixel_ratio,

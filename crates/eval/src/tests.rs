@@ -2040,3 +2040,132 @@ fn nested_blurs_filter_the_original_caller_texture() {
         assert!(result.data().iter().zip(expected.data()).all(|(a, b)| a.to_bits() == b.to_bits()), "{filter}");
     }
 }
+
+#[test]
+fn relative_graph_size_offsets_resolve_before_the_children_at_each_instance() {
+    let (mut parent, instance) = instancing("Parent", "Field");
+    parent.size = [5, 4];
+    let mut child = Graph::new("Field");
+    let fill = child.add_node("uniform", [0.0; 2]);
+    let output = child.add_node("output", [1.0, 0.0]);
+    child.connect(fill, "output", output, "input").unwrap();
+    let mut pkg = Package::new("Graph dimensions");
+    pkg.graphs.extend([parent, child]);
+    let cache = Mutex::new(Cache::default());
+    use materialcraft_core::GraphSizeOffset::{Input, Parent};
+    for (offset, node_offset, expected) in
+        [(Parent([-1, 1]), [0, 0], [16, 32]), (Input([1, -1]), [0, 0], [64, 8]), (Parent([-7, 0]), [3, 0], [2, 16]), (Input([0, 0]), [0, 0], [32, 16])]
+    {
+        pkg.graphs[1].relative_output_size = Some(offset);
+        pkg.graphs[1].node_mut(fill).unwrap().base.size = node_offset;
+        let result = cook(&pkg, 0, &Options::new(&no_res), &cache);
+        assert_eq!(result.nodes[&instance].error, None);
+        let image = result.image(instance, 0).unwrap();
+        assert_eq!([image.width(), image.height()], expected);
+    }
+}
+
+#[test]
+fn computed_graph_output_sizes_read_instance_arguments_and_parent_axes() {
+    use materialcraft_core::{ExposedParameter, FunctionGraph, GraphSizeOffset, ValueType};
+    let (mut package, instance, _) = instanced_seed_field();
+    package.graphs[0].size = [5, 4];
+    let child = &mut package.graphs[1];
+    let input = ExposedParameter {
+        id: "axes".into(),
+        label: "Axes".into(),
+        default: Value::Int2([-1, 1]),
+        connectable: false,
+        min: -20.0,
+        max: 20.0,
+        clamp: false,
+        step: None,
+        editor: None,
+        description: String::new(),
+        group: String::new(),
+        options: Vec::new(),
+    };
+    child.exposed.push(input);
+    child.output_size_function = Some(FunctionGraph::input("axes", ValueType::Integer2));
+    let options = Options::new(&no_res);
+    let cache = Mutex::new(Cache::default());
+    for (absolute, mode, axes, expected) in [
+        (None, Some(GraphSizeOffset::Parent([0, 0])), [-1, 1], [16, 32]),
+        (None, Some(GraphSizeOffset::Input([0, 0])), [1, -1], [64, 8]),
+        (Some([0, 0]), None, [3, 4], [8, 16]),
+    ] {
+        package.graphs[1].absolute_output_size = absolute;
+        package.graphs[1].relative_output_size = mode;
+        package.graphs[0].node_mut(instance).unwrap().params.insert("axes".into(), Value::Int2(axes));
+        let result = cook(&package, 0, &options, &cache);
+        assert_eq!(result.nodes[&instance].error, None);
+        let image = result.image(instance, 0).unwrap();
+        assert_eq!([image.width(), image.height()], expected);
+    }
+}
+
+#[test]
+fn computed_graph_output_sizes_test_both_axes_before_applying_their_offsets() {
+    use materialcraft_core::{FunctionGraph, GraphSizeOffset, ValueType};
+    let (mut package, instance, _) = instanced_seed_field();
+    package.graphs[0].size = [5, 4];
+    let options = Options::new(&no_res);
+    let cache = Mutex::new(Cache::default());
+    for (name, axis, threshold, absolute, expected) in [
+        ("$size", 0, 16.0, false, [64, 8]),
+        ("$size", 1, 16.0, false, [16, 32]),
+        ("$sizelog2", 0, 4.0, false, [64, 8]),
+        ("$sizelog2", 1, 4.0, false, [16, 32]),
+        ("$size", 0, 0.0, true, [8, 16]),
+        ("$size", 0, -0.5, true, [16, 8]),
+        ("$sizelog2", 1, 0.0, true, [8, 16]),
+        ("$sizelog2", 1, -0.5, true, [16, 8]),
+    ] {
+        let mut function = FunctionGraph::input(name, ValueType::Float2);
+        let channel = function.add("swizzle1", &[function.output.unwrap()], Some(Value::Int(axis)));
+        let limit = function.add_constant(Value::Float(threshold));
+        let pass = function.add("gt", &[channel, limit], None);
+        let high = function.add_constant(Value::Int2(if absolute { [4, 3] } else { [1, -1] }));
+        let low = function.add_constant(Value::Int2(if absolute { [3, 4] } else { [-1, 1] }));
+        function.output = Some(function.add("ifelse", &[pass, high, low], None));
+        let child = &mut package.graphs[1];
+        child.absolute_output_size = absolute.then_some([0; 2]);
+        child.relative_output_size = (!absolute).then_some(GraphSizeOffset::Parent([0; 2]));
+        child.output_size_function = Some(function);
+        let result = cook(&package, 0, &options, &cache);
+        assert_eq!(result.nodes[&instance].error, None);
+        let image = result.image(instance, 0).unwrap();
+        assert_eq!([image.width(), image.height()], expected);
+    }
+    package.graphs[1].output_size_function = Some(FunctionGraph::constant(Value::Bool(true)));
+    let invalid = cook(&package, 0, &options, &cache);
+    assert!(invalid.nodes[&instance].error.as_deref().unwrap().contains("graph output size"));
+}
+
+#[test]
+fn graph_seed_functions_use_the_allocated_size_below_one_texel() {
+    use materialcraft_core::{FunctionGraph, GraphSizeOffset, ParameterInheritance, ValueType};
+    let (mut package, instance, _) = instanced_seed_field();
+    package.graphs[0].size = [4, 4];
+    package.graphs[1].relative_output_size = Some(GraphSizeOffset::Parent([-6, 0]));
+    package.graphs[1].seed_mode = ParameterInheritance::Absolute;
+    let mut literal = package.clone();
+    let options = Options::new(&no_res);
+    let cache = Mutex::new(Cache::default());
+    for (name, limit, expected) in [("$size", 0.5, 5), ("$size", 1.0, 0), ("$sizelog2", -0.5, 5), ("$sizelog2", 0.0, 0)] {
+        let mut function = FunctionGraph::input(name, ValueType::Float2);
+        let axis = function.add("swizzle1", &[function.output.unwrap()], Some(Value::Int(0)));
+        let threshold = function.add_constant(Value::Float(limit));
+        let pass = function.add("gt", &[axis, threshold], None);
+        let yes = function.add_constant(Value::Int(5));
+        let no = function.add_constant(Value::Int(0));
+        function.output = Some(function.add("ifelse", &[pass, yes, no], None));
+        package.graphs[1].seed_function = Some(function);
+        literal.graphs[1].seed = expected;
+        let result = cook(&package, 0, &options, &cache);
+        let control = cook(&literal, 0, &options, &cache);
+        let image = result.image(instance, 0).unwrap();
+        assert_eq!([image.width(), image.height()], [1, 16]);
+        assert_eq!(image.data(), control.image(instance, 0).unwrap().data());
+    }
+}

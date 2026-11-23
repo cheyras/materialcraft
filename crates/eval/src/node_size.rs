@@ -8,7 +8,8 @@ pub fn node_size(graph: &Graph, definition: Option<&NodeDefinition>, node: &Node
     {
         return limit([width, height], maximum);
     }
-    let parent = crate::ResolvedBaseParameters { size: graph.size_px(), ..Default::default() };
+    let (size, size_underflow) = graph.resolved_output_size(None, None);
+    let parent = crate::ResolvedBaseParameters { size, size_underflow, ..Default::default() };
     let input = input
         .filter(|_| !definition.is_some_and(|definition| definition.generator))
         .map(|(width, height)| crate::ResolvedBaseParameters { size: [width, height], ..parent });

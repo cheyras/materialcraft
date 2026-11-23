@@ -60,6 +60,18 @@ pub fn session(session: &Session, requested_graph: Option<usize>) -> J {
             "pins": graph.pins,
         });
         result["physicalSize"] = json!(graph.physical_size);
+        if let Some(function) = &graph.output_size_function {
+            result["outputSizeFunction"] = json!(function);
+            match materialcraft_eval::graph_output_size(graph, session.environment) {
+                Ok(size) => result["size"] = json!(size),
+                Err(error) => result["sizeError"] = json!(error),
+            }
+        }
+        if graph.absolute_output_size.is_some() || graph.relative_output_size.is_some() || graph.output_size_function.is_some() {
+            let (mode, value) = graph.output_size_setting();
+            result["outputSizeMode"] = json!(mode);
+            result["outputSizeValue"] = json!(value);
+        }
         if let Some(function) = &graph.seed_function {
             result["seedFunction"] = json!(function);
         }

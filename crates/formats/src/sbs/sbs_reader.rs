@@ -188,8 +188,13 @@ impl<'text> SbsReader<'text, '_> {
     pub(super) fn read_graph(&mut self, element: XmlNode<'_, 'text>, name: String) -> Graph {
         let mut graph = Graph::new(&name);
         let mut base = read_base_params(child_element(element, "baseParameters"), self.warnings);
-        if BaseParameter::OutputSize.inheritance(&base) == ParameterInheritance::Absolute && !base.functions.contains_key(&BaseParameter::OutputSize) {
-            graph.absolute_output_size = Some(base.size);
+        use materialcraft_core::{GraphSizeOffset, SizeMode};
+        graph.output_size_function = base.functions.remove(&BaseParameter::OutputSize);
+        match base.size_mode {
+            SizeMode::Absolute => graph.absolute_output_size = Some(base.size),
+            SizeMode::RelativeToParent => graph.relative_output_size = Some(GraphSizeOffset::Parent(base.size)),
+            SizeMode::RelativeToInput if base.size != [0; 2] => graph.relative_output_size = Some(GraphSizeOffset::Input(base.size)),
+            SizeMode::RelativeToInput => {}
         }
         graph.format = if BaseParameter::Format.inheritance(&base) == ParameterInheritance::Absolute { base.format } else { OutputFormat::Inherit };
         graph.seed = base.seed;

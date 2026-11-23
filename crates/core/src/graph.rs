@@ -31,6 +31,12 @@ pub struct Graph {
     /// An authored absolute output size, in log2 texels, independent of the default parent size.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub absolute_output_size: Option<[i32; 2]>,
+    /// The signed graph output size offset from its caller.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub relative_output_size: Option<crate::GraphSizeOffset>,
+    /// Authored function supplying the two output size exponents or offsets.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub output_size_function: Option<crate::FunctionGraph>,
     #[serde(default)]
     pub format: OutputFormat,
     #[serde(default)]
@@ -97,6 +103,8 @@ impl Graph {
             pins: Vec::new(),
             size: [10, 10],
             absolute_output_size: None,
+            relative_output_size: None,
+            output_size_function: None,
             format: OutputFormat::U16,
             seed: 0,
             seed_mode: crate::ParameterInheritance::default(),
@@ -122,7 +130,7 @@ impl Graph {
 
     /// All editable Function canvases, including processor and parameter functions
     pub fn functions(&self) -> impl Iterator<Item = &crate::FunctionGraph> {
-        self.function.iter().chain(self.seed_function.iter()).chain(
+        self.function.iter().chain(self.output_size_function.iter()).chain(self.seed_function.iter()).chain(
             self.nodes
                 .iter()
                 .flat_map(|node| node.base.functions.values().chain(node.functions.values()).chain(node.params.values().flat_map(value_functions))),
@@ -130,7 +138,7 @@ impl Graph {
     }
 
     pub fn functions_mut(&mut self) -> impl Iterator<Item = &mut crate::FunctionGraph> {
-        self.function.iter_mut().chain(self.seed_function.iter_mut()).chain(
+        self.function.iter_mut().chain(self.output_size_function.iter_mut()).chain(self.seed_function.iter_mut()).chain(
             self.nodes.iter_mut().flat_map(|node| {
                 node.base.functions.values_mut().chain(node.functions.values_mut()).chain(node.params.values_mut().flat_map(value_functions_mut))
             }),
@@ -147,6 +155,7 @@ impl Graph {
     pub fn instances_mut(&mut self) -> impl Iterator<Item = &mut crate::GraphInstance> {
         self.function
             .iter_mut()
+            .chain(self.output_size_function.iter_mut())
             .chain(self.seed_function.iter_mut())
             .flat_map(|function| function.nodes.iter_mut().filter_map(|node| node.instance.as_mut()))
             .chain(self.nodes.iter_mut().flat_map(|node| {
@@ -249,14 +258,44 @@ impl Graph {
         self.inputs.get(id).or_else(|| self.exposed.iter().find(|e| e.id == id).map(|e| &e.default))
     }
 
-    /// Graph size in pixels
+    /// Default parent size used when the graph has no caller.
+    pub fn parent_size_px(&self) -> [u32; 2] {
+        self.size.map(|axis| 1 << axis.clamp(MIN_SIZE_LOG2, MAX_SIZE_LOG2))
+    }
+
+    /// Literal graph size in pixels. Cooking also evaluates the output size function.
     pub fn size_px(&self) -> [u32; 2] {
-        self.output_size_px(self.size.map(|side| 1 << side.clamp(MIN_SIZE_LOG2, MAX_SIZE_LOG2)))
+        self.resolved_output_size(None, None).0
     }
 
     /// Resolve this graph's output for the caller's parent size, including graph instances.
     pub fn output_size_px(&self, parent: [u32; 2]) -> [u32; 2] {
-        self.absolute_output_size.map_or(parent, |size| size.map(|side| 1 << side.clamp(0, MAX_SIZE_LOG2 as i32)))
+        self.resolved_output_size(Some((parent, [0; 2])), None).0
+    }
+
+    /// The SBS size setting before applying it to a particular caller.
+    pub fn output_size_setting(&self) -> (crate::SizeMode, [i32; 2]) {
+        use crate::{GraphSizeOffset, SizeMode};
+        match (self.absolute_output_size, self.relative_output_size) {
+            (Some(size), _) => (SizeMode::Absolute, size),
+            (_, Some(GraphSizeOffset::Parent(offset))) => (SizeMode::RelativeToParent, offset),
+            (_, Some(GraphSizeOffset::Input(offset))) => (SizeMode::RelativeToInput, offset),
+            _ => (SizeMode::RelativeToInput, [0; 2]),
+        }
+    }
+
+    /// Resolve both the allocated dimensions and the portion of the requested size below one texel.
+    pub fn resolved_output_size(&self, parent: Option<([u32; 2], [i32; 2])>, evaluated: Option<[i32; 2]>) -> ([u32; 2], [i32; 2]) {
+        let (mode, literal) = self.output_size_setting();
+        let size = evaluated.unwrap_or(literal);
+        if mode == crate::SizeMode::Absolute {
+            return (size.map(|side| 1 << side.clamp(0, MAX_SIZE_LOG2 as i32)), [0; 2]);
+        }
+        let (extent, underflow) = parent.unwrap_or_else(|| (self.parent_size_px(), [0; 2]));
+        if size == [0; 2] {
+            return (extent, underflow);
+        }
+        crate::offset_dimensions(extent, underflow, size)
     }
 }
 

@@ -386,8 +386,16 @@ pub fn export_outputs(s: &Session, request: &ExportRequest) -> Result<Vec<Export
     let mut package = s.pkg.clone();
     if let Some(size) = request.size {
         let graph = package.graph_mut(request.graph)?;
-        graph.size = size.log2_size(graph.size_px().map(u32::ilog2));
+        let basis = match size {
+            crate::ExportSize::LargerSide(_) => {
+                materialcraft_eval::graph_output_size(graph, s.environment).map_err(|error| bad("file.export", error))?.map(u32::ilog2)
+            }
+            crate::ExportSize::Exact(_) => graph.size,
+        };
+        graph.size = size.log2_size(basis);
+        graph.output_size_function = None;
         graph.absolute_output_size = None;
+        graph.relative_output_size = None;
     }
 
     let graph = package.graph(request.graph)?;

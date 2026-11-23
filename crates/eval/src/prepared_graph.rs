@@ -25,7 +25,8 @@ impl<'a> PreparedGraph<'a> {
             .collect();
 
         let mut parent_base = crate::resolved_base_parameters::ResolvedBaseParameters::graph(graph, options);
-        let base_error = parent_base.evaluate_graph_seed(graph, options, variables).err();
+        let base_error =
+            parent_base.evaluate_graph_size(graph, options, variables).and_then(|()| parent_base.evaluate_graph_seed(graph, options, variables)).err();
         Self { index, order, ports, parent_base, base_error }
     }
 

@@ -88,7 +88,10 @@ impl SystemVariable {
                     _ => [0.0; 2],
                 };
                 Value::Float2(std::array::from_fn(|axis| {
-                    if requested[axis] < 0.0 && context.size[axis] == 1.0 {
+                    if context.size[axis] == 0.0 {
+                        // An absolute graph size function has no inherited dimensions.
+                        0.0
+                    } else if requested[axis] < 0.0 && context.size[axis] == 1.0 {
                         // The raster has one texel, but functions retain the signed size exponent.
                         if self == Self::SizeLog2 { requested[axis] } else { 1_i32.wrapping_shl(requested[axis] as i32 as u32) as f32 }
                     } else if self == Self::SizeLog2 {

@@ -28,10 +28,11 @@ impl ResolvedBaseParameters {
     pub(crate) fn graph(graph: &Graph, options: &crate::Options<'_>) -> Self {
         let parent = options.parent_base;
         let parent_ratio = options.parent_pixel_ratio.or_else(|| parent.map(|base| base.pixel_ratio));
+        let (size, size_underflow) = graph.resolved_output_size(parent.map(|base| (base.size, base.size_underflow)), None);
         Self {
-            size: parent.map_or_else(|| graph.size_px(), |base| graph.output_size_px(base.size)),
+            size,
             dynamic_size: graph.absolute_output_size.is_none() && parent.is_some_and(|base| base.dynamic_size),
-            size_underflow: parent.filter(|_| graph.absolute_output_size.is_none()).map_or([0; 2], |base| base.size_underflow),
+            size_underflow,
             seed: resolve_seed(graph.seed_mode, graph.seed, parent.map_or(0, |base| base.seed)),
             format: match graph.format {
                 OutputFormat::Inherit => parent.map_or(OutputFormat::Inherit, |base| base.format),
@@ -43,24 +44,53 @@ impl ResolvedBaseParameters {
         }
     }
 
-    pub(crate) fn evaluate_graph_seed(&mut self, graph: &Graph, options: &crate::Options<'_>, variables: &BTreeMap<String, Value>) -> Result<(), String> {
-        let Some(function) = &graph.seed_function else { return Ok(()) };
-        let parent_seed = options.parent_base.map_or(0, |base| base.seed);
-        let starting_seed = resolve_seed(graph.seed_mode, 0, parent_seed);
+    fn graph_function_value(
+        self,
+        parameter: BaseParameter,
+        function: &materialcraft_core::FunctionGraph,
+        options: &crate::Options<'_>,
+        variables: &BTreeMap<String, Value>,
+    ) -> Result<(Value, bool), String> {
         let mut variables = variables.clone();
         self.variables(&mut variables);
-        let (value, _) = compile_with_literal_inputs(function, starting_seed, &options.literal_inputs)
+        compile_with_literal_inputs(function, self.seed, &options.literal_inputs)
             .and_then(|program| {
-                crate::parameter_function::evaluate(
+                let dynamic = !program.output_is_literal() && !program.depends_only_on_image_size();
+                let (value, _) = crate::parameter_function::evaluate(
                     &program,
-                    materialcraft_core::ValueType::Integer,
+                    parameter.value_type(),
                     &mut variables,
                     self.size,
                     crate::parameter_function::ChannelMode::Opaque,
                     None,
-                )
+                )?;
+                Ok((value, dynamic))
             })
-            .map_err(|error| format!("graph random seed: {error}"))?;
+            .map_err(|error| format!("graph {}: {error}", parameter.label().to_ascii_lowercase()))
+    }
+
+    pub(crate) fn evaluate_graph_size(&mut self, graph: &Graph, options: &crate::Options<'_>, variables: &BTreeMap<String, Value>) -> Result<(), String> {
+        let Some(function) = &graph.output_size_function else { return Ok(()) };
+        let parent = options.parent_base.map(|base| (base.size, base.size_underflow));
+        let (size, size_underflow) = if graph.output_size_setting().0 == materialcraft_core::SizeMode::Absolute {
+            ([0; 2], [0; 2])
+        } else {
+            parent.unwrap_or_else(|| (graph.parent_size_px(), [0; 2]))
+        };
+        let context = Self { size, size_underflow, ..*self };
+        let (value, dynamic) = context.graph_function_value(BaseParameter::OutputSize, function, options, variables)?;
+        let Value::Int2(offset) = value else { return Err("graph output size requires an integer pair".into()) };
+        (self.size, self.size_underflow) = graph.resolved_output_size(parent, Some(offset));
+        self.dynamic_size |= dynamic;
+        Ok(())
+    }
+
+    pub(crate) fn evaluate_graph_seed(&mut self, graph: &Graph, options: &crate::Options<'_>, variables: &BTreeMap<String, Value>) -> Result<(), String> {
+        let Some(function) = &graph.seed_function else { return Ok(()) };
+        let parent_seed = options.parent_base.map_or(0, |base| base.seed);
+        // Graph seed functions see the allocated dimensions even when descendants retain a negative size exponent.
+        let context = Self { seed: resolve_seed(graph.seed_mode, 0, parent_seed), size_underflow: [0; 2], ..*self };
+        let (value, _) = context.graph_function_value(BaseParameter::RandomSeed, function, options, variables)?;
         let Value::Int(offset) = value else { return Err("graph random seed requires an integer".into()) };
         self.seed = resolve_seed(graph.seed_mode, offset, parent_seed);
         Ok(())
@@ -70,12 +100,7 @@ impl ResolvedBaseParameters {
         let dimensions = |base: Self| (base.size, base.size_underflow);
         let size_mode = BaseParameter::OutputSize.inheritance(base);
         let (size_base, underflow) = size_mode.resolve(([1; 2], [0; 2]), input.map(dimensions), dimensions(parent));
-        let shift: [i32; 2] = std::array::from_fn(|axis| underflow[axis].saturating_add(base.size[axis].clamp(-12, 13)));
-
-        // Internal images may be one texel; the editor minimum would break size functions
-        let size = std::array::from_fn(|axis| (f64::from(size_base[axis]) * 2f64.powi(shift[axis])).round().clamp(1.0, 8192.0) as u32);
-        let size_underflow =
-            std::array::from_fn(|axis| if size_base[axis].is_power_of_two() { shift[axis].saturating_add(size_base[axis].ilog2() as i32).min(0) } else { 0 });
+        let (size, size_underflow) = materialcraft_core::offset_dimensions(size_base, underflow, base.size);
 
         let inherited_pixel_size = base.pixel_size_mode.resolve([1.0; 2], input.map(|base| base.pixel_size), parent.pixel_size);
         Self {

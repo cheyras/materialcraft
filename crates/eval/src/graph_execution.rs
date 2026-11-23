@@ -6,21 +6,24 @@ use std::{
     sync::{Mutex, atomic::Ordering},
 };
 
+/// Resolve a document graph's output dimensions without allocating or cooking its textures.
+pub fn graph_output_size(graph: &materialcraft_core::Graph, environment: materialcraft_core::EvaluationEnvironment) -> Result<[u32; 2], String> {
+    if graph.output_size_function.is_none() {
+        return Ok(graph.size_px());
+    }
+    let mut options = Options::new(&|_| None);
+    options.environment = environment;
+    let mut base = crate::ResolvedBaseParameters::graph(graph, &options);
+    base.evaluate_graph_size(graph, &options, &graph_variables(graph, &options))?;
+    Ok(base.size)
+}
+
 pub fn cook(package: &Package, graph_index: usize, options: &Options, cache: &Mutex<Cache>) -> Cooked {
     let started_ms = now_ms();
     let mut cooked = Cooked::default();
     let Some(graph) = package.graphs.get(graph_index) else { return cooked };
 
-    // Exposed parameter values: the graph's own, then the caller's overrides
-    let mut variables: BTreeMap<String, Value> =
-        graph.exposed.iter().filter_map(|exposed| graph.input_value(&exposed.id).map(|value| (exposed.id.clone(), value.clone()))).collect();
-    for (name, value) in &options.overrides {
-        variables.insert(name.clone(), value.clone());
-    }
-    variables.insert("$time".into(), Value::Float(options.environment.time_seconds));
-    variables.insert("$uvtile".into(), Value::Int2(options.environment.uv_tile));
-    variables.insert("$normalformat".into(), Value::Int(options.environment.normal_format));
-    variables.insert("$physicalsize".into(), Value::Float3(graph.physical_size));
+    let variables = graph_variables(graph, options);
 
     let prepared = PreparedGraph::new(package, graph, options, &variables);
     for &id in &prepared.order {
@@ -36,4 +39,18 @@ pub fn cook(package: &Package, graph_index: usize, options: &Options, cache: &Mu
     }
     cooked.ms = (now_ms() - started_ms) as f32;
     cooked
+}
+
+fn graph_variables(graph: &materialcraft_core::Graph, options: &Options) -> BTreeMap<String, Value> {
+    // Exposed parameter values: the graph's own, then the caller's overrides
+    let mut variables: BTreeMap<String, Value> =
+        graph.exposed.iter().filter_map(|exposed| graph.input_value(&exposed.id).map(|value| (exposed.id.clone(), value.clone()))).collect();
+    for (name, value) in &options.overrides {
+        variables.insert(name.clone(), value.clone());
+    }
+    variables.insert("$time".into(), Value::Float(options.environment.time_seconds));
+    variables.insert("$uvtile".into(), Value::Int2(options.environment.uv_tile));
+    variables.insert("$normalformat".into(), Value::Int(options.environment.normal_format));
+    variables.insert("$physicalsize".into(), Value::Float3(graph.physical_size));
+    variables
 }

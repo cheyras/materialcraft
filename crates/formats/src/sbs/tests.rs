@@ -617,3 +617,44 @@ fn graph_seed_functions_round_trip_with_their_inheritance() {
     assert_eq!(function.node(function.output.unwrap()).unwrap().value, Some(materialcraft_core::Value::Int(5)));
     assert_eq!(read_sbs(&saved, "copy.sbs", &no_linked_files).unwrap().pkg.graphs[0].functions().count(), 1);
 }
+
+#[test]
+fn relative_graph_size_offsets_keep_their_axes_and_inheritance_on_save() {
+    for (mode, axes) in [(1, [-1, 1]), (2, [1, -1]), (1, [0, 0]), (2, [-6, 0])] {
+        let [x, y] = axes;
+        let xml = format!(
+            r#"<package><content><graph><identifier v="Field"/><baseParameters><parameter><name v="outputsize"/><relativeTo v="{mode}"/><paramValue><constantValueInt2 v="{x} {y}"/></paramValue></parameter></baseParameters></graph></content></package>"#
+        );
+        let pkg = read_sbs(xml.as_bytes(), "field.sbs", &no_linked_files).unwrap().pkg;
+        let saved = write_sbs(&pkg).unwrap();
+        let doc = roxmltree::Document::parse(std::str::from_utf8(&saved).unwrap()).unwrap();
+        let element = doc.descendants().find(|n| n.has_tag_name("baseParameters")).unwrap();
+        let base = super::base_parameters::read_base_params(Some(element), &mut Default::default());
+        let expected = if mode == 1 { materialcraft_core::SizeMode::RelativeToParent } else { materialcraft_core::SizeMode::RelativeToInput };
+        assert_eq!((base.size_mode, base.size), (expected, axes));
+        assert_eq!(read_sbs(&saved, "copy.sbs", &no_linked_files).unwrap().pkg.graphs[0].size_px(), pkg.graphs[0].size_px());
+    }
+}
+
+#[test]
+fn computed_graph_output_sizes_round_trip_with_their_inheritance() {
+    use materialcraft_core::{BaseParameter, SizeMode, Value};
+    for (raw, expected) in [(0, SizeMode::Absolute), (1, SizeMode::RelativeToParent), (2, SizeMode::RelativeToInput)] {
+        let xml = format!(
+            r#"<package><content><graph><identifier v="Dimensions"/><baseParameters>
+          <parameter><name v="outputsize"/><relativeTo v="{raw}"/><paramValue><dynamicValue>
+            <rootnode v="41"/><paramNodes><paramNode><uid v="41"/><function v="const_int2"/><type v="32"/>
+            <funcDatas><funcData><name v="const_int2"/><constantValue><constantValueInt2 v="-1 1"/></constantValue></funcData></funcDatas>
+            </paramNode></paramNodes></dynamicValue></paramValue></parameter></baseParameters></graph></content></package>"#
+        );
+        let package = read_sbs(xml.as_bytes(), "dimensions.sbs", &no_linked_files).unwrap().pkg;
+        let saved = write_sbs(&package).unwrap();
+        let document = roxmltree::Document::parse(std::str::from_utf8(&saved).unwrap()).unwrap();
+        let element = document.descendants().find(|n| n.has_tag_name("baseParameters")).unwrap();
+        let base = super::base_parameters::read_base_params(Some(element), &mut Default::default());
+        let function = base.functions.get(&BaseParameter::OutputSize).expect("the saved size has its authored function");
+        assert_eq!(base.size_mode, expected);
+        assert_eq!(function.node(function.output.unwrap()).unwrap().value, Some(Value::Int2([-1, 1])));
+        assert_eq!(read_sbs(&saved, "copy.sbs", &no_linked_files).unwrap().pkg.graphs[0].functions().count(), 1);
+    }
+}

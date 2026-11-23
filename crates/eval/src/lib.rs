@@ -28,7 +28,7 @@ mod value_input_label;
 
 pub use cache::Cache;
 pub use cooked::Cooked;
-pub use graph_execution::cook;
+pub use graph_execution::{cook, graph_output_size};
 pub use graph_output::{output_usage, outputs};
 pub use node_execution::error_image;
 pub use node_output::NodeOutput;
