@@ -73,6 +73,21 @@ For a separate check at 256² and seed 372421, compile the same original wrapper
 
 Maximum U16 error is zero throughout the three-setting desktop column. The desktop original and reopen also agree in 139,264/139,264 pixels per root. At the previously disputed 256² seed, MaterialCraft and the live desktop agree in 65,536/65,536 pixels per root. The same six, two and four discrepancies recur between the two reference rendering paths on all four one-worker runs per root. The eight-worker runs give more than one output for the same settings. The inventory retains the existing cross-worker differences. [Earlier seed and worker measurements](#computed-graph-seeds-on-load-evaluation-and-save)
 
+### Sequence evaluation and scalar random values
+
+Build an original function around two distinct Random(1) nodes. In Sequence, use the first draw directly, multiply it by zero in the returned expression, assign it to a variable, or use it in both the discarded input and the returned expression. Include a write with a second unused draw beside it, a conditional write and both signs of its control. Render the eleven variants at 16², with control +1 and −1 and graph seeds 0 and 17. Repeat after an ordinary MaterialCraft save and desktop reopen.
+
+| Function context | Original exact samples | Reopened exact samples | Maximum absolute error |
+|---|---:|---:|---:|
+| FX-Map quadrant opacity, F32 pixels | 11,264/11,264 | 11,264/11,264 | 0 |
+| Pixel Processor, F32 pixels | 11,264/11,264 | 11,264/11,264 | 0 |
+| Uniform Color parameter, RGBA F32 pixels | 11,264/11,264 | 11,264/11,264 | 0 |
+| Value Processor, typed floats | 44/44 | 44/44 | 0 |
+
+A discarded draw leaves the next random value available. A write, a draw used elsewhere or a draw multiplied by zero in the returned expression can still advance the stream. Scalar Value Processor starts its stream at the zero-coordinate pixel hash. A second test uses the first draw, a zero-weighted draw and a shared draw, with twelve caller seeds from 0 through 372421, a relative seed offset of +3 and two sizes (16² and 128 × 32). All 72/72 typed results match on the original and the reopened graphs, maximum 0. Each original desktop result above also matches the reopened desktop result.
+
+Two further controls put a three-iteration loop on the discarded side of Sequence. Its body either discards Random(1) or assigns the draw. The reference returns the first draw after either loop. These cases still differ in MaterialCraft. Across both loops and four settings, FX-Map matches 0/2,048, maximum 0.386968136, Pixel Processor matches 0/2,048, maximum 0.961201191 and Value Processor matches 0/8, maximum 0.662862062. Seven further controls outside those two loops, including an empty loop, produce 7,168/7,168, maximum 0 in FX-Map, 7,168/7,168, maximum 0 in Pixel Processor and 24/28, maximum 0.45432511 in Value Processor. The four scalar differences occur when a false conditional arm shares a draw with another expression. Random expressions passed as graph arguments are also under separate investigation.
+
 ### Pixel size on graph instance outputs
 
 At 128² and seed 0, the Gaussian source in Bricks 01 returns a 64² U16 field with pixel size (2,2). The input to Blur matches the reference in all 4,096 pixels. The filter intensity is 1.61. The instance previously returned the caller's unit pixel size to downstream filters. Blur then copied the field and matched just 53/4,096, maximum U16 error 21,379.

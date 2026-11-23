@@ -234,7 +234,16 @@ fn compile_nested(graph: &FunctionGraph, seed: u32, depth: usize, remaining: &mu
 
     let output = indices.get(&output).copied().ok_or("missing result instruction")?;
 
-    Ok(Program { instructions, output, seed, pattern_draws: BTreeMap::new(), pattern_components: BTreeMap::new(), loop_sums: BTreeMap::new() })
+    let sequence_prefixes = super::sequence_prefix::identify(&instructions, output);
+    Ok(Program {
+        instructions,
+        output,
+        seed,
+        sequence_prefixes,
+        pattern_draws: BTreeMap::new(),
+        pattern_components: BTreeMap::new(),
+        loop_sums: BTreeMap::new(),
+    })
 }
 
 /// A write can replace an argument before its next read.

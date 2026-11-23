@@ -11,6 +11,7 @@ pub struct Program {
     pub(crate) seed: u32,
     pub(super) pattern_draws: std::collections::BTreeMap<usize, super::branch_random::PatternDraws>,
     pub(super) pattern_components: std::collections::BTreeMap<usize, super::vector::PatternComponent>,
+    pub(super) sequence_prefixes: Vec<super::sequence_prefix::Visit>,
     pub(super) loop_sums: std::collections::BTreeMap<usize, super::loop_sum::LoopSum>,
 }
 
@@ -154,12 +155,11 @@ impl Program {
 
     fn random_stream(&self, context: &EvaluationContext<'_>) -> FunctionRandom {
         let seed = context.variables.get("$randomseed").and_then(Value::as_i32).map_or(self.seed, |seed| seed as u32);
-        if context.scope == super::FunctionScope::PixelProcessor {
-            FunctionRandom::pixel(seed, context.position)
-        } else if context.scope == super::FunctionScope::FxMap {
-            FunctionRandom::image(seed)
-        } else {
-            FunctionRandom::uniform(seed)
+        match context.scope {
+            super::FunctionScope::PixelProcessor => FunctionRandom::pixel(seed, context.position),
+            super::FunctionScope::ValueProcessor => FunctionRandom::pixel(seed, [0.0; 2]),
+            super::FunctionScope::FxMap => FunctionRandom::image(seed),
+            super::FunctionScope::Node => FunctionRandom::uniform(seed),
         }
     }
 
@@ -185,6 +185,8 @@ impl Program {
         state.assignments.clear();
         state.registers.clear();
         state.registers.resize(self.instructions.len(), None);
+        state.visited_prefixes.clear();
+        state.visited_prefixes.resize(self.sequence_prefixes.len(), false);
         state.steps.push(Enter(self.output));
 
         while let Some(step) = state.steps.pop() {
@@ -216,8 +218,12 @@ impl Program {
                             state.values.push(kind.default_value());
                         }
                         "ifelse" => {
-                            state.steps.push(Branch(index));
+                            state.steps.push(Branch { instruction: index, prefix: false });
                             state.steps.push(Enter(self.input(index, 0)?));
+                        }
+                        "sequence" if !self.sequence_prefixes.is_empty() => {
+                            state.steps.push(Enter(self.input(index, 1)?));
+                            state.steps.push(Prefix(self.input(index, 0)?));
                         }
                         "sequence" => {
                             state.steps.push(Sequence(index));
@@ -341,7 +347,27 @@ impl Program {
                     let register = state.registers.get_mut(index).ok_or("invalid function register")?;
                     *register = Some(value.clone());
                 }
-                Branch(index) => {
+                Prefix(index) => {
+                    use super::sequence_prefix::Visit;
+                    if state.registers.get(index).is_some_and(Option::is_some)
+                        || state.visited_prefixes.get_mut(index).is_some_and(|seen| std::mem::replace(seen, true))
+                    {
+                        continue;
+                    }
+                    match self.sequence_prefixes.get(index).copied().unwrap_or(Visit::Value) {
+                        Visit::Skip => {}
+                        Visit::Value => {
+                            state.steps.push(Discard);
+                            state.steps.push(Enter(index));
+                        }
+                        Visit::Inputs => state.steps.extend(self.instruction(index)?.inputs.iter().rev().copied().map(Prefix)),
+                        Visit::Branch => {
+                            state.steps.push(Branch { instruction: index, prefix: true });
+                            state.steps.push(Enter(self.input(index, 0)?));
+                        }
+                    }
+                }
+                Branch { instruction: index, prefix } => {
                     let condition = state.values.pop().ok_or("missing branch condition")?;
                     let take_true = value_type::boolean(&condition)?;
                     let selected = self.input(index, if take_true { 1 } else { 2 })?;
@@ -350,21 +376,24 @@ impl Program {
                         super::FunctionScope::FxMap => self.pattern_draws.get(&index).map_or((&[][..], false), |draws| (draws.skipped(take_true), take_true)),
                         _ => (&[][..], false),
                     };
+                    let selected = || if prefix { Prefix(selected) } else { Enter(selected) };
                     if !after_selected {
-                        state.steps.push(Enter(selected));
+                        state.steps.push(selected());
                     }
                     for &index in shared.iter().rev() {
-                        if state.registers.get(index).is_some_and(Option::is_none) {
+                        if prefix {
+                            state.steps.push(Prefix(index));
+                        } else if state.registers.get(index).is_some_and(Option::is_none) {
                             state.steps.push(Discard);
                             state.steps.push(Enter(index));
                         }
                     }
                     if after_selected {
-                        state.steps.push(Enter(selected));
+                        state.steps.push(selected());
                     }
                 }
                 Discard => {
-                    state.values.pop().ok_or("missing shared branch draw")?;
+                    state.values.pop().ok_or("missing discarded function value")?;
                 }
                 Sequence(index) => {
                     state.values.pop().ok_or("missing sequence result")?;

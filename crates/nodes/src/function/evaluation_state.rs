@@ -7,6 +7,7 @@ use std::collections::BTreeMap;
 pub struct EvaluationState {
     pub(crate) steps: Vec<EvaluationStep>,
     pub(crate) values: Vec<Value>,
+    pub(super) visited_prefixes: Vec<bool>,
     pub(crate) registers: Vec<Option<Value>>,
     pub(crate) variables: BTreeMap<String, Value>,
     pub(crate) assignments: BTreeMap<String, Value>,
