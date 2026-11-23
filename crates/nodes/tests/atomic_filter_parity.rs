@@ -854,6 +854,10 @@ fn reduced_sharpen_reads_neighbors_one_source_texel_apart() {
 #[test]
 fn empty_raster_preserves_transparent_rgb_and_rejects_mismatched_background_kind() {
     for id in ["text", "svg"] {
+        let constant = [("color_mode", Value::Bool(false)), ("background", Value::Color([0.0, 1.0, 0.0, 0.25]))];
+        let output = cook(id, &[], &constant, [16, 16], false);
+        assert_eq!(output.get_gray(0, 0, false), 1.0 / 3.0, "{id} grayscale background");
+
         let pixel = [0.25, 0.5, 0.75, 0.0];
         let color = Some(Image::filled(16, 16, Kind::Color, pixel));
         let gray = Some(Image::filled(16, 16, Kind::Gray, [0.25; 4]));

@@ -2952,6 +2952,7 @@ dependencies = [
  "harfrust 0.13.3",
  "materialcraft-core",
  "rayon",
+ "read-fonts 0.43.3",
  "unicode-bidi",
  "vello_cpu",
 ]

@@ -3,13 +3,14 @@ use std::collections::BTreeMap;
 
 use craft_font_catalog::{FontOutline, RunGlyph, RunInput, ShapePlanCache, shape_run};
 use harfrust::{Direction, Shaper};
+use read_fonts::TableProvider;
 use vello_cpu::{
     Pixmap, RenderContext, Resources,
     color::palette::css::WHITE,
     kurbo::{Affine, BezPath, Rect, Shape},
 };
 
-use crate::{CookContext, CookResult, raster::composite};
+use crate::{CookContext, CookResult, raster::composite_text};
 
 // A short string can repeat a complex glyph across many wrapping tiles. Bound the
 // outline storage and submitted path elements independently of the character count.
@@ -99,11 +100,16 @@ impl Drawing {
 /// Draw a Text node with the bytes of its resolved package font.
 pub fn text_with_font(context: &CookContext<'_>, bytes: &[u8]) -> CookResult {
     let face = FontOutline::from_bytes(bytes, 0, &[]).map_err(|e| e.to_string())?;
-    let metrics = face.metrics();
-    if metrics.units_per_em == 0 {
+    if face.metrics().units_per_em == 0 {
         return Err("font has no design units per em".into());
     }
     let font = harfrust::FontRef::from_index(bytes, 0).map_err(|e| e.to_string())?;
+    let header = font.hhea().map_err(|e| e.to_string())?;
+    let height_units = f64::from(header.ascender().to_i16()) - f64::from(header.descender().to_i16());
+    if height_units <= 0.0 {
+        return Err("font has no positive horizontal line height".into());
+    }
+    let pitch = height_units + f64::from(header.line_gap().to_i16());
     let data = harfrust::ShaperData::new(&font);
     let shaper = data.shaper(&font).build();
     let plans = ShapePlanCache::default();
@@ -116,7 +122,7 @@ pub fn text_with_font(context: &CookContext<'_>, bytes: &[u8]) -> CookResult {
     let [a, b, c, d] = context.v4("matrix").map(f64::from);
     let inverse = if a * d == b * c { Affine::IDENTITY } else { Affine::new([a, b, c, d, 0.0, 0.0]).inverse() };
     let [x, y] = context.v2("position").map(f64::from);
-    let scale = f64::from(context.f("fontsize").max(0.0)) / f64::from(metrics.units_per_em);
+    let scale = f64::from(context.f("fontsize").max(0.0)) / height_units;
     let frame = Affine::scale_non_uniform(f64::from(width), f64::from(height))
         * Affine::translate((0.5 + x, 0.5 + y))
         * inverse
@@ -124,7 +130,6 @@ pub fn text_with_font(context: &CookContext<'_>, bytes: &[u8]) -> CookResult {
     if !frame.as_coeffs().into_iter().all(f64::is_finite) {
         return Err("non-finite text transform".into());
     }
-    let pitch = f64::from(metrics.ascent - metrics.descent + metrics.leading);
     let text = context.text("text").chars().take(super::text::MAX_CHARS).collect::<String>().replace("\\n", "\n");
     let mut cache = BTreeMap::new();
     let mut outline_budget = MAX_ELEMENTS;
@@ -164,9 +169,8 @@ pub fn text_with_font(context: &CookContext<'_>, bytes: &[u8]) -> CookResult {
     let mut target = Pixmap::new(width, height);
     drawing.context.flush();
     drawing.context.render(&mut target, &mut Resources::new());
-    Ok(vec![composite(context, |x, y| {
+    Ok(vec![composite_text(context, |x, y| {
         let index = y as usize * usize::from(width) + x as usize;
-        let alpha = target.data().get(index).map_or(0.0, |pixel| f32::from(pixel.a) / 255.0);
-        [1.0, 1.0, 1.0, alpha]
+        target.data().get(index).map_or(0.0, |pixel| f32::from(pixel.a) / 255.0)
     })])
 }

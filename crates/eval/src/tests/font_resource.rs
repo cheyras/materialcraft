@@ -2,7 +2,7 @@ use super::*;
 use materialcraft_core::{OutputFormat, Resource, ResourceBytes};
 
 /// A two-glyph TrueType face. U+0041 is a rectangle with a variable cap height.
-fn rectangle_font(height: i16) -> Vec<u8> {
+fn rectangle_font(height: i16, metrics: [i16; 3]) -> Vec<u8> {
     fn words(values: &[i16]) -> Vec<u8> {
         values.iter().flat_map(|value| value.to_be_bytes()).collect()
     }
@@ -21,7 +21,7 @@ fn rectangle_font(height: i16) -> Vec<u8> {
     head[40..44].copy_from_slice(&words(&[512, height]));
     let mut hhea = vec![0; 36];
     hhea[..4].copy_from_slice(&0x10000u32.to_be_bytes());
-    hhea[4..12].copy_from_slice(&words(&[768, -256, 0, 640]));
+    hhea[4..12].copy_from_slice(&words(&[metrics[0], metrics[1], metrics[2], 640]));
     hhea[34..].copy_from_slice(&2i16.to_be_bytes());
     let mut maxp = vec![0; 32];
     maxp[..4].copy_from_slice(&0x10000u32.to_be_bytes());
@@ -71,11 +71,11 @@ fn package_font_outlines_render_and_invalidate_the_parent_instance() {
     child.connect(text, "output", output, "input").unwrap();
     let mut package = Package::new("Original lettering");
     package.graphs = vec![parent, child];
-    package.resources.push(Resource::new("Ink", "Ink.ttf", ResourceBytes::new(rectangle_font(512))));
+    package.resources.push(Resource::new("Ink", "Ink.ttf", ResourceBytes::new(rectangle_font(512, [768, -256, 0]))));
     let cache = Mutex::new(Cache::default());
     let options = Options::new(&no_res);
     for (height, first_row) in [(512, 8), (256, 12)] {
-        package.resources[0].bytes = ResourceBytes::new(rectangle_font(height));
+        package.resources[0].bytes = ResourceBytes::new(rectangle_font(height, [768, -256, 0]));
         let direct = cook(&package, 1, &options, &cache);
         assert!(direct.nodes[&text].error.is_none(), "{:?}", direct.nodes[&text].error);
         let nested = cook(&package, 0, &options, &cache);
@@ -89,5 +89,62 @@ fn package_font_outlines_render_and_invalidate_the_parent_instance() {
             }
         }
         assert!(cook(&package, 0, &options, &cache).nodes[&instance].cached);
+    }
+}
+
+fn text_sample(size: [u32; 2], metrics: [i16; 3], params: &[(&str, Value)]) -> (Package, NodeId) {
+    let mut graph = Graph::new("Print");
+    graph.size = size;
+    graph.format = OutputFormat::F32;
+    let id = graph.add_node("text", [0.0; 2]);
+    let node = graph.node_mut(id).unwrap();
+    node.params.insert("fontdata".into(), Value::Text("Ink".into()));
+    node.params.extend(params.iter().map(|(name, value)| (name.to_string(), value.clone())));
+    let mut package = Package::new("Original type");
+    package.resources.push(Resource::new("Ink", "Ink.ttf", ResourceBytes::new(rectangle_font(512, metrics))));
+    package.graphs.push(graph);
+    (package, id)
+}
+
+#[test]
+fn package_font_uses_horizontal_height_and_line_gap() {
+    let (package, id) = text_sample([6, 6], [1536, -512, 512], &[("text", Value::Text("A\nA".into())), ("fontsize", Value::Float(0.25))]);
+    let cooked = cook(&package, 0, &Options::new(&no_res), &Mutex::new(Cache::default()));
+    assert_eq!(cooked.nodes[&id].error, None);
+    let image = cooked.image(id, 0).unwrap();
+    for y in 0..64 {
+        for x in 0..64 {
+            let ink = (30..34).contains(&x) && ((28..32).contains(&y) || (48..52).contains(&y));
+            assert_eq!(image.get_gray(x, y, false), f32::from(ink), "({x}, {y})");
+        }
+    }
+}
+
+#[test]
+fn package_font_coverage_interpolates_the_background_channels() {
+    let (mut package, id) = text_sample(
+        [5, 4],
+        [768, -256, 0],
+        &[
+            ("text", Value::Text("A".into())),
+            ("fontsize", Value::Float(0.5)),
+            ("position", Value::Float2([1.0 / 128.0, 0.0])),
+            ("background", Value::Color([1.0, 0.0, 0.0, 0.25])),
+        ],
+    );
+    let cache = Mutex::new(Cache::default());
+    for color in [false, true] {
+        package.graphs[0].node_mut(id).unwrap().params.insert("color_mode".into(), Value::Bool(color));
+        let cooked = cook(&package, 0, &Options::new(&no_res), &cache);
+        assert_eq!(cooked.nodes[&id].error, None);
+        let image = cooked.image(id, 0).unwrap();
+        for (x, code) in [(0, 0), (12, 191), (18, 255), (20, 64)] {
+            let alpha = f32::from(code as u8) / 255.0;
+            if color {
+                assert_eq!(image.get(x, 6, false), [1.0, alpha, alpha, (1.0 - alpha).mul_add(0.25, alpha)]);
+            } else {
+                assert_eq!(image.get_gray(x, 6, false), (1.0 - alpha).mul_add(1.0 / 3.0, alpha));
+            }
+        }
     }
 }

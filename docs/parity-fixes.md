@@ -59,6 +59,30 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-23 root comparisons
 
+### Font line height and coverage over a constant background
+
+Give a generated TrueType A a 512 × 512 rectangular outline, an advance of 640 and 1,024 units per em. Render two lines of A at size .25, centered at offset (0,−.125) on a 64² F32 output. Start at horizontal ascent 768, descent −256 and gap 0. Independently change the horizontal header, the typographic and Windows metrics in the OS/2 table, and the typographic-metrics selection bit. Include two version-4 OS/2 tables with the bit enabled. Across the twelve fonts, the vertical scale is `pixel_height / (ascender - descender)`. The baseline interval is `scale * (ascender - descender + line_gap)`. For example, horizontal metrics (896,−256,128) use a scale denominator of 1,152 and a baseline interval of 1,280 design units. The twelve MaterialCraft renders match **49,152/49,152 pixels**, maximum error 0. Three of these graphs saved and reopened in both applications match **12,288/12,288**, maximum error 0. [OpenType horizontal header fields](https://learn.microsoft.com/en-us/typography/opentype/spec/hhea)
+
+Render the rectangular A at 32 × 16, size .5, offset (1/128,0). Use grayscale and RGBA outputs. Set the background to red with alpha .25, green with .5, blue with 0 or (.1875,.4375,.625,.375). The measured grayscale background is the arithmetic mean of RGB. Coverage interpolates each output channel from its background value to white, including alpha. All counts below require every channel of a pixel to match the one-worker F32 readback.
+
+| Original graph | Previous exact / total · max | Current exact / total · max |
+|---|---:|---:|
+| Text, four backgrounds and two output types | 2,128/4,096 · 0.749019593 | 4,096/4,096 · 0 |
+| SVG, opaque red and half-opacity white rectangles on the same backgrounds | 1,664/4,096 · 0.498039186 | 3,072/4,096 · 0.498039186 |
+| Six settings with the licensed monospace face, seven dimensions each | 73,641/83,328 · 1 | 81,267/83,328 · 0.631372556 |
+
+For the monospace controls, use 0, 0123, 01 and 23 on successive lines, A, a period, and the Points Preview label sheet. Use the same linked font bytes in each application, with the sizes, transforms and alignments stored in the graph. Render 8², 16², 16 × 8, 8 × 16, 32², 64² and 128 × 64. Across six ordinary package saves (three line-metric graphs, the label sheet at four sizes, tinted RGBA Text and grayscale SVG), the reference output before and after saving agrees for **21,952/21,952 · 0**. MaterialCraft against the reopened reference gives **21,101/21,952 · 0.631372556**. The remaining SVG differences include the authored half-opacity rectangle. Independent diagonal SVG edges at 32 × 16 give **3,664/4,096 · 0.623529404**. The original square and triangular font controls across transforms give **261,700/262,144 · 0.584313743** in 96 renders and **48,994/49,152 · 0.584313743** in 18 renders of prior saves. [Outline shapes and transform settings](#package-font-outlines-and-point-preview)
+
+Repeat the whole Points Preview comparison using the same two-row procedural field, counts, offsets, settings and seeds. Each saved-library comparison resolves the same licensed font on both sides. The reference catalog chooses a different font file. [Root settings and inputs](#stored-and-wired-values-at-graph-instance-inputs)
+
+| View | Previous, full save · max | Current, full save · max | Current, original catalog · max |
+|---|---:|---:|---:|
+| Points only | 5,376/5,376 · 0 | 5,376/5,376 · 0 | 5,376/5,376 · 0 |
+| Labels only | 5,087/5,376 · 0.494117673 | 5,338/5,376 · 0.164705887 | 5,103/5,376 · 0.380392157 |
+| Both, including empty input | 7,063/7,168 · 0.419607846 | 7,155/7,168 · 0.113725491 | 7,066/7,168 · 0.356862746 |
+
+Point-only controls remain exact. Visible labels keep this root in progress.
+
 ### Stored and wired values at graph instance inputs
 
 Connect a typed graph input directly to an output. In the caller place an instance with an open input, an explicit argument, a wire from a Value Processor, or both an argument and a wire. The reference uses the declared default when the port is open. A wire supplies the value when the argument is absent. An explicit constant or parameter function supplies the value even with a wire present. MaterialCraft now resolves the argument using the bridge's declared type. The same-package and linked-package paths use the same port information.
