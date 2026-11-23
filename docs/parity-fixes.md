@@ -145,6 +145,18 @@ Read each generator, its downstream filters and the root output through the desk
 
 In BNW Spots 1 the differing field feeds Transformation 2D and Blend, then Levels. The inspected transformation matches 32,764/32,768, maximum 1. A later eight-processor inspection of the same setting matches the entire single-processor output. The three roots retain their in-progress status. [Earlier repeated desktop captures](#repeated-desktop-renders-of-the-three-early-noise-roots)
 
+#### Replaying the differing generator samples
+
+At each U16 setting in the table above, cook the corresponding FX-Map in MaterialCraft. Verify that its generated field equals the one-processor field, then supply it to the same downstream graph as an image input at its native dimensions and precision. The unmodified field reproduces every pixel of the one-processor root output. For each eight-processor read, change only the texels that differ in the inspected FX-Map. BNW Spots 1 and Clouds 1 each require the one-code changes shown above when a generator difference is present. For the first Clouds 2 read, add one at (20,58) and subtract one at (35,113) and (79,232).
+
+| Root | Exact replay / total on the first eight-processor read · maximum U16 codes | Exact replay across four eight-processor reads · maximum U16 codes |
+|---|---:|---:|
+| BNW Spots 1 | 32,768/32,768 · 0 | 131,072/131,072 · 0 |
+| Clouds 1 | 16,384/16,384 · 0 | 65,536/65,536 · 0 |
+| Clouds 2 | 32,768/32,768 · 0 | 131,068/131,072 · 2 |
+
+The first replay reproduces all seven, three and three differing output pixels respectively. For Clouds 2 the other three replays leave two, one and one differing pixels, with maximum errors of 2, 1 and 2 codes. The desktop can reevaluate the generator and terminal output on separate port reads. The measurements isolate the input differences that explain each exact replay.
+
 ### Filtering root outputs through two graph instances
 
 Wrap each of BNW Spots 1, Clouds 1 and Clouds 2 in an original child and parent. Wire the parent instance output into Blur and keep the catalog graph intact. Set tiling on the nested source to none for U8, horizontal for U16 and vertical for F16. Use Blur intensity 12. For F32 set the nested source pixel ratio to stretch (0) and drive Blur intensity with 12 times the inherited pixel ratio. Use the default caller for U8 and F16, and the changed caller from the seed comparison for U16 and F32. Render 64² with seed zero, 128 × 64 with seed 372177 and 64 × 128 with seed 372421. Reopen a normal MaterialCraft save in the desktop and repeat. [Seed caller construction](#computed-graph-seeds-on-load-evaluation-and-save)
