@@ -1064,6 +1064,48 @@ fn half_pattern_backgrounds_store_integer_inputs_on_different_size_paths() {
 }
 
 #[test]
+fn connected_input_sizes_share_the_last_two_dimensional_filter_pass() {
+    use materialcraft_core::{OutputFormat, SizeMode};
+    let (mut parent, instance) = instancing("Parent", "Resize");
+    let source = parent.add_node("input_color", [0.0; 2]);
+    let source_base = &mut parent.node_mut(source).unwrap().base;
+    source_base.size_mode = SizeMode::Absolute;
+    source_base.format = OutputFormat::F32;
+    parent.connect(source, "output", instance, "input").unwrap();
+    let mut child = Graph::new("Resize");
+    let bridge = child.add_node("input_color", [0.0; 2]);
+    let inner_base = &mut child.node_mut(bridge).unwrap().base;
+    inner_base.size_mode = SizeMode::Absolute;
+    inner_base.size = [4, 3];
+    inner_base.format = OutputFormat::F16;
+    let output = child.add_node("output", [0.0; 2]);
+    child.connect(bridge, "output", output, "input").unwrap();
+    let mut package = Package::new("Rectangular input");
+    package.graphs.extend([parent, child]);
+    let mut options = Options::new(&no_res);
+    let cache = Mutex::new(Cache::default());
+    let high = 1.0 + 1.0 / 1024.0;
+    for (size, red, green) in [([5, 5], high, 1.0), ([6, 4], 1.0, high), ([5, 4], 1.0, 1.0)] {
+        package.graphs[0].node_mut(source).unwrap().base.size = size;
+        let image = Image::generate(1 << size[0], 1 << size[1], Kind::Color, |x, y| {
+            let r = if x % 2 == 0 { 1.0 } else { high };
+            let g = if y % 2 == 0 { 1.0 } else { high };
+            [r, g, -r, -g]
+        });
+        options.inputs.insert("input".into(), image);
+        let result = cook(&package, 0, &options, &cache);
+        assert_eq!(result.nodes[&instance].error, None);
+        let image = result.image(instance, 0).unwrap();
+        assert_eq!((image.width(), image.height()), (16, 8));
+        assert!(
+            image.data().as_chunks::<4>().0.iter().all(|&pixel| pixel == [red, green, -red, -green]),
+            "source {size:?}, first {:?}",
+            image.get(0, 0, false)
+        );
+    }
+}
+
+#[test]
 fn bound_image_resizing_reads_the_upstream_float_format_inside_instances() {
     use materialcraft_core::{OutputFormat, SizeMode};
     let (mut parent, instance) = instancing("Parent", "Resized");

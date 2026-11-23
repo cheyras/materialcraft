@@ -36,7 +36,7 @@ pub use parameter_definition::ParameterDefinition;
 pub use parameter_descriptor::ParameterDescriptor;
 pub use port_definition::PortDefinition;
 pub use port_kind::PortKind;
-pub use texture_sampler::{resize_bound_image, resize_input_level};
+pub use texture_sampler::{resize_bound_image, resize_connected_image, resize_input_level};
 
 pub type CookResult = Result<Vec<craft_texture::Image>, String>;
 pub type Cook = fn(&CookContext<'_>) -> CookResult;

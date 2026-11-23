@@ -277,7 +277,8 @@ pub(crate) fn cook_node(
             } else {
                 crate::external_image::base_level_only(&image, (w, h), kind, source, base.format)
             };
-            let image = materialcraft_nodes::resize_bound_image(image, (w, h), kind, format, base.format, tiling);
+            let resize = if wired { materialcraft_nodes::resize_connected_image } else { materialcraft_nodes::resize_bound_image };
+            let image = resize(image, (w, h), kind, format, base.format, tiling);
             if base_level { NodeOutput::BaseLevel(image) } else { NodeOutput::Image(image) }
         });
         Ok(vec![output])

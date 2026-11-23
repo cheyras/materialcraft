@@ -83,20 +83,9 @@ fn resized_texture(context: &CookContext, port: usize, mode: InputResize) -> Opt
             _ => U16,
         }
     };
-    let advance = |now: u32, end: u32| {
-        if now.saturating_mul(2) < end {
-            now.saturating_mul(2)
-        } else if end.saturating_mul(2) < now {
-            now.div_ceil(2)
-        } else {
-            now
-        }
-    };
     loop {
-        // Leave each axis within one doubling or halving for the final two-dimensional filter.
         let current = (image.width(), image.height());
-        let intermediate = (advance(current.0, target.0), advance(current.1, target.1));
-        let (w, h) = if intermediate == current { target } else { intermediate };
+        let (w, h) = crate::texture_sampler::next_filter_size(current, target);
         image = crate::texture_sampler::resize_input_level(&image, w, h, source, context.tiling_axes());
         image = prepare_pattern_background(image, mode, source, (w, h) == target && (w > size.0 || h > size.1));
         // A final reduction can feed the Levels curve directly. An enlargement stores the

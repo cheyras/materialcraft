@@ -6,15 +6,49 @@ pub fn resize_input_level(image: &Image, width: u32, height: u32, format: Output
     Image::generate_uv(width, height, image.kind(), |u, v| sample(image, [u, v], tiling, format, None))
 }
 
-/// Resize a raster through stored levels, converting its channels after the first sampling pass.
-pub fn resize_bound_image(mut image: Image, size: (u32, u32), kind: Kind, mut source: OutputFormat, output: OutputFormat, tiling: [bool; 2]) -> Image {
-    let size = craft_texture::clamp_size(size.0, size.1);
-    let next = |current: u32, target: u32| {
-        if current < target { current.saturating_mul(2).min(target) } else { current.div_ceil(2).max(target) }
+/// Leave each axis within one doubling or halving for the final two-dimensional filter.
+pub(crate) fn next_filter_size(current: (u32, u32), target: (u32, u32)) -> (u32, u32) {
+    let advance = |now: u32, end: u32| {
+        if now.saturating_mul(2) < end {
+            now.saturating_mul(2)
+        } else if end.saturating_mul(2) < now {
+            now.div_ceil(2)
+        } else {
+            now
+        }
     };
+    let intermediate = (advance(current.0, target.0), advance(current.1, target.1));
+    if intermediate == current { target } else { intermediate }
+}
+
+/// Resize a raster bound directly to an input, converting its channels after the first sampling pass.
+pub fn resize_bound_image(image: Image, size: (u32, u32), kind: Kind, source: OutputFormat, output: OutputFormat, tiling: [bool; 2]) -> Image {
+    resize_stored_levels(image, size, kind, source, output, tiling, |current, target| {
+        let next = |from: u32, to: u32| if from < to { from.saturating_mul(2).min(to) } else { from.div_ceil(2).max(to) };
+        (next(current.0, target.0), next(current.1, target.1))
+    })
+}
+
+/// A graph connection uses the same final two-axis filter as an atomic node input.
+pub fn resize_connected_image(image: Image, size: (u32, u32), kind: Kind, source: OutputFormat, output: OutputFormat, tiling: [bool; 2]) -> Image {
+    resize_stored_levels(image, size, kind, source, output, tiling, next_filter_size)
+}
+
+fn resize_stored_levels(
+    mut image: Image,
+    size: (u32, u32),
+    kind: Kind,
+    mut source: OutputFormat,
+    output: OutputFormat,
+    tiling: [bool; 2],
+    next_size: impl Fn((u32, u32), (u32, u32)) -> (u32, u32),
+) -> Image {
+    let size = craft_texture::clamp_size(size.0, size.1);
     loop {
-        if (image.width(), image.height()) != size {
-            image = resize_input_level(&image, next(image.width(), size.0), next(image.height(), size.1), source, tiling);
+        let current = (image.width(), image.height());
+        if current != size {
+            let (w, h) = next_size(current, size);
+            image = resize_input_level(&image, w, h, source, tiling);
         }
         // Later levels read the stored channels, including any RGB-to-gray conversion.
         if image.kind() != kind {

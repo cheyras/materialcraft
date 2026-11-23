@@ -59,6 +59,30 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-23 root comparisons
 
+### Rectangular image inputs on graph instances
+
+When a connected image crosses a graph boundary, axes more than one doubling or halving from their target move first. The final sampling pass adjusts both axes to the requested dimensions. Each pass stores its result at the input bridge's precision. A 32² F32 image feeding a 16 × 8 F16 bridge therefore goes through 32 × 16. MaterialCraft previously used 16² as the intermediate. The connected bridge now shares the atomic input filters' choice of intermediate dimensions.
+
+Connect a parent color input to a child color input fixed at 16 × 8. Wire the child input directly to its output. At size index j, use parent dimensions (16,8), (16,16), (32,16), (32,32), (64,64), (128,32), (64,16), (4,4), (8,2), (32,4), (128,2), (8,64), (4,1), (2,2) and (128,128), in that order. Set seed s = 430031 + 37j. For channel c and width w, compute the unsigned 32-bit word q = (x + wy + s + 701c) × 1597334677 + 3812015801, then q = (q XOR (q >> 16)) × 2246822519, wrapping both products. Generate F32 sign bit (q >> 15) & 1, biased exponent 120 + q mod 10, and fraction (q >> 1) & 0x7fffff. Compare all four stored channels at every output pixel.
+
+| Parent → child storage | Settings | Previous exact / total · max | Corrected exact / total · max |
+|---|---:|---:|---:|
+| F32 → F16 | 15 | 913/1,920 · .00390625 | 1,920/1,920 · 0 |
+| F16 → F16 | 15 | 904/1,920 · .00390625 | 1,920/1,920 · 0 |
+| F32 → F32 | 15 | 929/1,920 · 4.76837158e−7 | 1,920/1,920 · 0 |
+| U16 → F32 | 15 | 969/1,920 · 1.15036964e−5 | 1,920/1,920 · 0 |
+| F16 → U8 | 15 | 1,046/1,920 · 191 levels | 1,920/1,920 · 0 |
+| U8 → U16 | 15 | 1,338/1,920 · 1 level | 1,920/1,920 · 0 |
+| F32 → U16 | 15 | 1,074/1,920 · 49,151 levels | 1,920/1,920 · 0 |
+
+Bind the same files directly to F16, F32 and U16 bridges for 45 additional controls. All 5,760/5,760 pixels match. Save the F32 → F16, F32 → F32 and U8 → U16 child packages with MaterialCraft, then save their corresponding parents with relative references to the saved children. Also save the direct F16 graph. All four saved graphs reopened in both applications. Their 7,680/7,680 pixels matched across applications and reproduced the original reference outputs.
+
+For a smaller regression, alternate R by column and G by row between 1 and 1 + 1/1024. Set B = −R and A = −G. With the same F16 child, the 32² source produces R = 1 + 1/1024 and G = 1. The 64 × 16 source exchanges those results. Compare both and the 32 × 16 and 16 × 8 controls at seeds 431039 + 41j. The four outputs improved from 256/512 to 512/512 pixels, maximum error from .0009765625 to zero. The regression failed before the change. Formatting, the evaluation and node release tests, strict workspace Clippy, dependency layers and WebAssembly checks passed.
+
+Repeat the [nine connected-index irradiance settings](#eighth-irradiance-pass-with-default-and-connected-indices). They now match **4,603/4,608 F16 pixels** and **9/9 typed indices**, maximum errors .001953125 and zero. The .5 case improved from 991/1,024 to 1,023/1,024. Both 7.25 cases improved from 1,007/1,024 to 1,024/1,024. The four output-format requests at index 3 each retain 255/256. The saved inner graph reproduced every original reference output in the four processor readouts. The first processor and both Switches have identical exact counts at all four settings.
+
+In the 32² row-14 probe, capture the 16 × 8 environment bridge, the 32² emissive bridge and their F32 sample coordinates at the third light call. Recomputing the two filtered samples from each application's own bridge and coordinates reproduces all 256 measured samples across two pass indices and both applications. The corrected environment bridge matches all 128 pixels on the actual field. A separate rotation difference remains before the emissive lookup.
+
 ### Copied steps in called pixel sums
 
 The shared pixel evaluator now follows a floating-point product copied to another variable. A later addition can use its original factors after the first variable is overwritten. Reading a component of the copy separately rounds that component. The same behavior applies when the next addition or the component read is in the caller or a subsequent function call.
