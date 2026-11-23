@@ -59,6 +59,20 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-23 root comparisons
 
+### Reopening a portable copy with detached function packages
+
+Start with an SBS graph calling a private function package by a relative filename. For the waveform series, use the earlier detached hash file with format version `0.1.3` and the same seven sizes, seeds, changed parameters and additional fixed fields. Use **Save Copy As** to write an `.mcraft` file. Open that copy in MaterialCraft and use **Save Copy As** to write `graph.sbs` in a fresh directory. The resulting waveform SBS references two adjacent function packages under `resources/packages/`. Both use version `1.1.0.202401`. The source caller and detached file retained their original bytes. [Earlier waveform cases](#reopened-starburst-symmetry-tile-and-waveform-graphs)
+
+Open the exported SBS, apply each original setting and store the requested U8, U16, F16 or F32 precision on the node feeding the output. Save the case, compile it in the reference renderer and read its one-worker D3D11 F32 output. Compare all channels to MaterialCraft. Also compare each application with the original raw buffer at the original storage precision.
+
+| Waveform settings | Renders | Cross-app exact pixels | Each application vs. original | Maximum error |
+|---|---:|---:|---:|---:|
+| First saved series | 20 | 109,056/109,056 | 109,056/109,056 | 0 |
+| Second saved series | 10 | 44,288/44,288 | 44,288/44,288 | 0 |
+| Additional fixed fields | 13 | 26,624/26,624 | 26,624/26,624 | 0 |
+
+An independent 16² F32 caller at seed 596087 returns (.5625, 0, .53125, .75). Keep its relative function link and change only the detached package's format version. The standalone compiler rejected `0.1.3`, `1.0.0` and `1.1.0` before it produced a render. The same fixture compiled with `0.1.3.0`, `0.1.3.202401`, `1.0.0.201701`, `1.1.0.0` and `1.1.0.202401`. All 1,280/1,280 pixels matched, maximum zero. Exporting the three-part fixture through the portable-copy route gave another 256/256 exact pixels. The ordinary loose-file route still preserves the external file's identity. Its earlier desktop result with the untouched three-part dependency remains 167,194/179,968, with maxima of 65,535 U16 levels and 1 in F32. [Loose-file handoff](#version-of-a-detached-function-package-and-waveform-reopening)
+
 ### Font line height and coverage over a constant background
 
 Give a generated TrueType A a 512 × 512 rectangular outline, an advance of 640 and 1,024 units per em. Render two lines of A at size .25, centered at offset (0,−.125) on a 64² F32 output. Start at horizontal ascent 768, descent −256 and gap 0. Independently change the horizontal header, the typographic and Windows metrics in the OS/2 table, and the typographic-metrics selection bit. Include two version-4 OS/2 tables with the bit enabled. Across the twelve fonts, the vertical scale is `pixel_height / (ascender - descender)`. The baseline interval is `scale * (ascender - descender + line_gap)`. For example, horizontal metrics (896,−256,128) use a scale denominator of 1,152 and a baseline interval of 1,280 design units. The twelve MaterialCraft renders match **49,152/49,152 pixels**, maximum error 0. Three of these graphs saved and reopened in both applications match **12,288/12,288**, maximum error 0. [OpenType horizontal header fields](https://learn.microsoft.com/en-us/typography/opentype/spec/hhea)
