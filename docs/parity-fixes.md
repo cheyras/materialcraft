@@ -59,6 +59,31 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-23 root comparisons
 
+### Whole specular outputs and wired irradiance stages
+
+The first eighth specular pass (root 396) was rerun after correcting [floating-point Switch Blend](#signed-zero-when-switch-blend-selects-a-floating-point-color-input). All five [128² environment and material controls](#environment-and-intermediate-precision-in-the-eighth-specular-passes) now match 81,920/81,920 F32 output pixels and 81,920/81,920 F32 first-processor pixels. This includes the 31 zero signs in the black-specular control. The [original matrix and five saved cases](#whole-and-reopened-eighth-specular-passes) have four remaining zero-sign differences in F16. Three occur in the 256² default. The fourth occurs in the 128² changed case and repeats when reopened. All five saved reference images reproduced the originals.
+
+| Render set | Settings | U8 exact / total · max | U16 exact / total · max | F16 exact / total · max | F32 exact / total · max |
+|---|---:|---:|---:|---:|---:|
+| Specular, original matrix | 26 | 5,136/5,136 · 0 | 5,136/5,136 · 0 | 119,884/119,888 · 0 | 12,180/12,180 · 0 |
+| Specular, rectangular controls | 12 | 160/160 · 0 | 160/160 · 0 | 320/320 · 0 | 320/320 · 0 |
+| Specular, saved SBS opened in both applications | 5 | 128/128 · 0 | 32/32 · 0 | 16,415/16,416 · 0 | 128/128 · 0 |
+| Irradiance, default index through 64² | 14 | 4,352/4,352 · 0 | 4,352/4,352 · 0 | 4,352/4,352 · 0 | 8,960/8,960 · 0 |
+| Irradiance, wired pass indices | 9 | — | — | 4,537/4,608 · 0.001953125 | — |
+
+For the 256² specular readout, open a MaterialCraft save with the three processor results and both Switch outputs exposed. Keep their original precision and render settings. The reference reproduced the 65,536 original output pixels. All five outputs are F16. At (0,102), (0,103) and (0,180) the selected first processor stored 8000 on green and the first Switch stored 0000. All its other pixels matched the selected input. The second Switch matched the first on 65,536/65,536 pixels. This same-precision comparison remains open.
+
+The irradiance rows use [the original 14 unwired settings through 64² and nine wired settings](#irradiance-with-a-connected-pass-index) after the [called ray-step correction](#assigned-ray-steps-inside-pixel-function-calls). The 23 next-pass outputs match 23/23 typed floats, maximum zero. For the wired comparison, save the inner graph with MaterialCraft. Expose each processor and the first Switch as image outputs in a disposable copy. Connect the same original wrapper to this relative SBS dependency and open it in both applications. Each saved reference output matched its original. The next-pass value also matched in all four readouts. Each pair below reports exact F16 pixels and maximum component error.
+
+| Pass index · size · seed | First processor | Second processor | Third processor | First Switch | Final output |
+|---|---:|---:|---:|---:|---:|
+| −1 · 16² · 11 | 256/256 · 0 | 254/256 · 0.005859375 | 255/256 · 0.0009765625 | 256/256 · 0 | 256/256 · 0 |
+| .5 · 32² · 43 | 991/1,024 · 0.001953125 | 970/1,024 · 0.00390625 | 1,009/1,024 · 0.001953125 | 991/1,024 · 0.001953125 | 991/1,024 · 0.001953125 |
+| 3 · 16² · 61 | 255/256 · 0.0009765625 | 255/256 · 0.0009765625 | 256/256 · 0 | 255/256 · 0.0009765625 | 255/256 · 0.0009765625 |
+| 7.25 · 32² · 211 | 1,007/1,024 · 0.001953125 | 988/1,024 · 0.001953125 | 1,004/1,024 · 0.001953125 | 1,007/1,024 · 0.001953125 | 1,007/1,024 · 0.001953125 |
+
+At the three positive indices the selected first processor already contains every difference that reaches the output. Both roots remain in progress.
+
 ### Assigned ray steps inside pixel function calls
 
 In the first eighth irradiance pass (root 395), the parent pixel function stores direction times step length. The shadow function reads this step and adds it to its current position. The shared evaluator can now retain both factors across calls, including steps passed through a connected argument. It rounds the product and the addition together when the callee reads the assigned step only for the sum.
