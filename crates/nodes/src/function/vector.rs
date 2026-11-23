@@ -24,7 +24,10 @@ pub(super) fn identify_pattern_components(program: &mut super::Program) {
     }
     let mut sources = Vec::with_capacity(instructions.len());
     let mut projections = Vec::new();
+    let mut generated = Vec::new();
+    let mut ranges = Vec::with_capacity(instructions.len());
     for (index, op) in instructions.iter().enumerate() {
+        let start = instructions.len() + generated.len();
         let mut lanes = [None; 4];
         if let Some(forwarded) = super::returned_product::forwarded(op, instructions, &sources, Some(PatternComponent::Zero)) {
             lanes = forwarded;
@@ -33,6 +36,8 @@ pub(super) fn identify_pattern_components(program: &mut super::Program) {
             {
                 program.pattern_components.insert(index, source);
             }
+        } else if let Some(projected) = super::pattern_channel_operations::project(op, instructions, &sources, &mut generated) {
+            lanes = projected;
         } else if let Some(call) = &op.call {
             if let Some(arguments) = &call.pattern_arguments {
                 lanes = arguments.channels.map(|register| register.map(PatternComponent::Scalar));
@@ -45,11 +50,20 @@ pub(super) fn identify_pattern_components(program: &mut super::Program) {
             lanes[0] = Some(PatternComponent::Scalar(index));
         }
         sources.push(lanes);
+        ranges.push(start..instructions.len() + generated.len());
     }
     for (index, projection) in projections {
         if let Some(call) = program.instructions.get_mut(index).and_then(|op| op.call.as_mut()) {
             call.pattern_arguments = Some(projection);
         }
+    }
+    if !generated.is_empty() {
+        for op in program.instructions.iter_mut().filter(|op| op.definition.id == "while") {
+            // Each repetition also invalidates the scalar channels derived from its condition or body.
+            let repeated: Vec<_> = op.control_registers.iter().filter_map(|&i| ranges.get(i)).flat_map(|r| r.clone()).collect();
+            op.control_registers.extend(repeated);
+        }
+        program.instructions.extend(generated);
     }
 }
 

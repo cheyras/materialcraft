@@ -73,6 +73,34 @@ For a separate check at 256² and seed 372421, compile the same original wrapper
 
 Maximum U16 error is zero throughout the three-setting desktop column. The desktop original and reopen also agree in 139,264/139,264 pixels per root. At the previously disputed 256² seed, MaterialCraft and the live desktop agree in 65,536/65,536 pixels per root. The same six, two and four discrepancies recur between the two reference rendering paths on all four one-worker runs per root. The eight-worker runs give more than one output for the same settings. The inventory retains the existing cross-worker differences. [Earlier seed and worker measurements](#computed-graph-seeds-on-load-evaluation-and-save)
 
+### Selected channels in pattern expressions
+
+In an original single-square pattern, connect four independent random scalars to a four-component vector. Make a second vector the same way. Choose between the vectors with a boolean, multiply them component by component, or interpolate between them with a scalar factor of .375. Swizzle the first or last component into opacity. To observe how many draws the expression consumes, multiply the swizzled result by zero and add a new random draw. Test both gate values and seeds 0 and 17 at 16² in F32. Across the direct, nested, arithmetic and next-draw controls, 112 renders match 28,672/28,672 pixels, maximum error 0. Supplying a four-component interpolation factor in a further 16 probes still gives 0/4,096 exact pixels, maximum F32 error .59443158.
+
+The pattern evaluator previously drew every channel before selecting one. It now evaluates the scalar operands of the requested channel, preserving the chosen branch and the order of shared random draws. The isolated grayscale Tile Generator luminance pair (1,0) on a 4 × 14 grid now matches 4,096/4,096 U16 pixels at each of seeds 0 and 17, maximum error 0. This holds for literal grid counts and for a column input, a row input plus ten and a jitter input, including after ordinary saves.
+
+For a connected-source check, generate a grayscale U8 ramp of .75u + .25v at quarter width and height. Connect it to the Source pin. In the first instance select the source image, set the gap to .06, scale to 1.12 and luminance variation and contrast to (.49,.95). In the second instance select the square and set the luminance pair to (1,0). Set the row offset to .25, pattern-specific pair to (0,0) and blend mode to 2 on both. Render each at 64² with seed 0, a 4 × 14 grid and zero row jitter, then at 64 × 32 with seed 17, a 5 × 7 grid and .375 jitter, and at 32 × 128 with seed 12071, a 3 × 5 grid and .125 jitter. Use neutral grayscale Levels inheriting input dimensions to select the actual terminal U8, U16, F16 and F32 storage. Reopen the ordinary MaterialCraft saves in the reference desktop.
+
+| Tile Generator comparison | Settings | Exact pixels | Maximum error |
+|---|---:|---:|---:|
+| Grayscale root, earlier whole-root matrix | 55 | 284,416/284,416 | 0 |
+| Grayscale root, archived saves reopened in the desktop | 43 | 179,968/179,968 | 0 |
+| Source and square matrix, original vs. desktop | 24 | 81,920/81,920 | 0 |
+| Same matrix, saved vs. desktop | 24 | 81,920/81,920 | 0 |
+| Desktop original vs. reopened save | 24 | 81,920/81,920 | 0 |
+| Related Tile Generator in the separate catalog package | 221 | 757,504/757,504 | 0 |
+
+With both the graph-color display correction and the pattern fix, Bricks 01 gives the following Base Color results. For the raw rows a pixel matches when all three U8 channel values agree. The last row compares the actual displayed RGB pixels from the two 1:1 2D views.
+
+| Bricks 01 Base Color | Exact pixels | Maximum byte error |
+|---|---:|---:|
+| 64², defaults, seed 0 | 4,096/4,096 | 0 |
+| 64², luminosity .65, seed 19 | 4,094/4,096 | 1 |
+| 128², defaults, seed 0 | 13,283/16,384 | 43 |
+| 256² 2D views, defaults, seed 0 | 55,976/65,536 | 53 |
+
+At 64² and defaults, eight of the nine raw material outputs match every pixel. Normal matches 4,084/4,096 with maximum U16 error 1. At 256², mean displayed RGB is (153.61,115.32,91.40) in MaterialCraft and (153.55,115.21,91.28) in the reference. The whole material still has measured differences at higher resolutions. [Earlier comparison with the display correction alone](#stored-graph-color-in-the-2d-view)
+
 ### Stored graph color in the 2D view
 
 Display the Base Color output of Bricks 01 at 1:1 with the default sRGB interpretation. With seed 0 and a 64² parent, all 4,096 pixels captured from the reference viewport match its raw U8 RGB output, maximum error 0. The old MaterialCraft viewport applied a linear-light to sRGB conversion to those already encoded numbers. The same conversion brightened graph thumbnails and the color sampler.

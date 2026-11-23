@@ -206,20 +206,7 @@ fn compile_nested(graph: &FunctionGraph, seed: u32, depth: usize, remaining: &mu
         let input_type = |index: usize| inputs.get(index).and_then(|index| instructions.get(*index)).map_or(256, |instruction| instruction.type_code);
         let inferred = super::inferred_type::inferred_type(&node.op, value.as_ref(), input_type);
         let type_code = call.as_ref().map_or_else(|| if node.type_code == 0 { inferred } else { node.type_code }, |call| call.program.output_type());
-        let operation = |inputs, value, call| Instruction {
-            id,
-            definition,
-            inputs,
-            value,
-            type_code,
-            literal: false,
-            literal_divisor: false,
-            reciprocal_factor: None,
-            pixel_product_sum: None,
-            pixel_interval: None,
-            control_registers: Vec::new(),
-            call,
-        };
+        let operation = |inputs, value, call| Instruction { call, ..Instruction::new(id, definition, inputs, value, type_code) };
         let mut inputs = inputs;
         if definition.id == "rand"
             && type_code == 256

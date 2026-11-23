@@ -22,6 +22,23 @@ pub(crate) struct Instruction {
 }
 
 impl Instruction {
+    pub(super) fn new(id: u32, definition: &'static FunctionDefinition, inputs: Vec<usize>, value: Option<Value>, type_code: u32) -> Self {
+        Self {
+            id,
+            definition,
+            inputs,
+            value,
+            type_code,
+            literal: false,
+            literal_divisor: false,
+            reciprocal_factor: None,
+            pixel_product_sum: None,
+            pixel_interval: None,
+            control_registers: Vec::new(),
+            call: None,
+        }
+    }
+
     pub(super) fn depends_only_on_operands(&self) -> bool {
         self.call.is_none() && !self.inputs.is_empty() && !matches!(self.definition.id, "rand" | "samplelum" | "samplecol" | "set" | "while")
     }
