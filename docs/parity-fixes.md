@@ -73,6 +73,20 @@ For a separate check at 256² and seed 372421, compile the same original wrapper
 
 Maximum U16 error is zero throughout the three-setting desktop column. The desktop original and reopen also agree in 139,264/139,264 pixels per root. At the previously disputed 256² seed, MaterialCraft and the live desktop agree in 65,536/65,536 pixels per root. The same six, two and four discrepancies recur between the two reference rendering paths on all four one-worker runs per root. The eight-worker runs give more than one output for the same settings. The inventory retains the existing cross-worker differences. [Earlier seed and worker measurements](#computed-graph-seeds-on-load-evaluation-and-save)
 
+### Intermediate noise outputs and the order of overlapping pattern draws
+
+Capture all node outputs of BNW Spots 1 and Clouds 1 and 2 directly in the live desktop. Use 256² and seed 372421, then 128 × 64 and seed 372177, with Disorder .96875 wherever exposed. Also capture the 128² defaults with seed 0. Every captured port stores U16. Compare the stored components at each port against the release evaluator. The terminal images at the first two settings also match the corresponding nested caller in the desktop.
+
+| Whole graph including its intermediate ports | Exact pixels across the three settings | Maximum stored error |
+|---|---:|---:|
+| BNW Spots 1 | 496,640/496,640 | 0 |
+| Clouds 1 | 681,472/681,472 | 0 |
+| Clouds 2 | 411,136/411,136 | 0 |
+
+To distinguish the two reference render paths on original geometry, build a full seven-level quadrant tree on a white 128² F32 buffer. Give its sixteen grandchild groups independent additive gains. Offset each group's leaves back to the first quarter on both axes and set their square pattern size to (.875,.875). Set the lower-index group's gain to −1, the higher-index group's gain to 2⁻²⁵ and the other fourteen gains to zero. Repeat for all 120 pairs with seed 136404. Where the squares overlap, addition of the small term before or after subtraction of one gives distinguishable F32 results.
+
+On one logical processor, MaterialCraft matches the live desktop in 1,966,080/1,966,080 pixels, maximum error 0. Compiling the same graph normally and using the standalone D3D11 renderer with one explicit worker gives 1,891,328/1,966,080 against that desktop, maximum 2⁻²⁵. Exactly 73 of the 120 pairs change the 32² overlap. The standalone order is ascending group index. The observed desktop order is 12, 13, 8, 9, 14, 0, 1, 15, 2, 11, 6, 7, 10, 3, 4, 5. The six-level 120-pair control matches 491,520/491,520 desktop pixels. Seven eight-level controls still give 454,656/458,752 against the desktop, maximum 2⁻²⁵. The eight-level case remains open. [Earlier pair construction and measurements](#compositing-complete-seven-level-additive-quadrant-trees)
+
 ### Selected channels in pattern expressions
 
 In an original single-square pattern, connect four independent random scalars to a four-component vector. Make a second vector the same way. Choose between the vectors with a boolean, multiply them component by component, or interpolate between them with a scalar factor of .375. Swizzle the first or last component into opacity. To observe how many draws the expression consumes, multiply the swizzled result by zero and add a new random draw. Test both gate values and seeds 0 and 17 at 16² in F32. Across the direct, nested, arithmetic and next-draw controls, 112 renders match 28,672/28,672 pixels, maximum error 0. Supplying a four-component interpolation factor in a further 16 probes still gives 0/4,096 exact pixels, maximum F32 error .59443158.
