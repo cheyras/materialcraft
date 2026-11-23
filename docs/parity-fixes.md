@@ -59,6 +59,26 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-23 root comparisons
 
+### Spline preprocessing with empty inputs and complete library saves
+
+Use the [original circle, tangent and striped mask fields](#spline-preprocessing-with-wired-counts). Instantiate the unmodified preprocessing graph and expose either its RGBA image or its integer count. Compare the disconnected default, connected counts (0,1), (1,1) and (2,1), and a spacing-driven (2,1) case. For the first three connected cases choose side 3, amount mode 0 and one spline per spline. For the last choose side 1, amount mode 1 and spacing .09375. The counts were 0, 0, 1, 2 and 21. The images were 2048 × 16 except for the spacing-driven output at 2048 × 32.
+
+Run each output at 16² seed 0, 16 × 32 seed 466061 and 32 × 16 seed 42. Also run the disconnected default with all three image inputs empty at 16² seed 0. Save the ten original test graphs through MaterialCraft and reopen them in both applications. The earlier four-format check added 32,768/32,768 exact pixels at each of U8, U16, F16 and F32.
+
+| Comparison | Exact RGBA pixels | Exact integer outputs | Maximum error |
+|---|---:|---:|---:|
+| Original graphs, explicit one-worker renderer | 622,592/622,592 | 16/16 | 0 |
+| Ten reopened test graphs | 622,592/622,592 | 16/16 | 0 |
+| Reference originals versus reopened test graphs | 622,592/622,592 | 16/16 | 0 |
+| Desktop readback of six original or reopened controls | 131,072/131,072 | 3/3 | 0 |
+| Entire library saved from its catalog entry | 131,072/131,072 | 3/3 | 0 |
+| Entire library saved from its disk path | 131,072/131,072 | 3/3 | 0 |
+| Disk save with a locally edited math dependency | 131,072/131,072 | 3/3 | 0 |
+
+For each complete library save, open the project’s unmodified spline package with the shared OFL font available and save outside the library. Point a fresh image or integer test graph at this saved file. Repeat the disconnected default, one-spline case and spacing case. The reference also reproduced all three original images and counts for each source path. The desktop supplied the formerly missing zero-count pixels through an instance. Its direct whole-library zero-count render did not return an image during the observation window.
+
+The disk-open save previously wrote relative paths to four unchanged, self-contained graph packages. The reference compiler rejected all six controls at dependency loading. The shared save command now uses portable library links for byte-identical, resource-free packages whose processing graphs and functions have no external calls. The corrected full-library save carries five catalog links including the existing math library. A separate save with four changed integer lanes in the local math package retained that relative filename and the four portable graph links. A dependency with its own external link retained its filesystem identity in the regression test. All 281 engine release tests, the hostile-command test, formatting, strict workspace Clippy, dependency layers and WebAssembly passed. The preprocessing root reached parity for the measured cases.
+
 ### Unused and unavailable relative functions
 
 Create eight original caller and function-package pairs with unique graph names, file UIDs and relative filenames. The caller samples red from the [original two rectangular float fields](#packed-products-in-the-second-endpoint-of-a-pixel-interpolation) at texel centers. Its output is (call result + .21875, sampled red, .53125, .75). The function takes one float argument and returns .34375. Use 64 × 32 F32 at seed 463071 and 32 × 64 U16 at seed 463094. Change only the dependency header between the two versions in each pair.

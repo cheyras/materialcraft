@@ -232,12 +232,12 @@ fn package_reference(_package: &Package, destination: &str, source: &str) -> Str
         use materialcraft_formats::sbs::library;
         use std::path::Path;
 
-        // A function library with external calls or resources can rely on other local edits.
+        // A package with external graph or function links or resources can rely on other local edits.
         if Path::new(source).is_absolute()
             && let Some(dependency) = _package.dependencies.get(source)
             && dependency.resources.is_empty()
             && !dependency.graphs.is_empty()
-            && dependency.graphs.iter().all(|graph| graph.function.is_some() && graph.instances().all(|instance| instance.package.is_empty()))
+            && dependency.graphs.iter().all(|graph| graph.instances().all(|instance| instance.package.is_empty()))
             && !library::contains_file(Path::new(destination))
             && let Ok(root) = library::root().canonicalize()
             && let Some(uri) = library::bundled_package_uri(&root, Path::new(source))

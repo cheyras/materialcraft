@@ -191,6 +191,26 @@ fn saving_a_library_graph_opened_from_disk_keeps_its_portable_function_links() {
 }
 
 #[test]
+fn exporting_graph_links_preserves_local_dependencies_of_the_linked_package() {
+    use materialcraft_engine::formats::sbs::library;
+
+    let directory = TempDir::new("library-graph-export");
+    let source = library::root().join("bevel.sbs");
+    let mut session = sample_session();
+    run(&mut session, "file.open", json!({ "path": source }));
+    let saved = directory.file("caller.sbs");
+    run(&mut session, "file.saveAs", json!({ "path": saved }));
+
+    let mut reopened = sample_session();
+    run(&mut reopened, "file.open", json!({ "path": saved }));
+    let links: std::collections::BTreeSet<_> =
+        reopened.pkg.graphs.iter().flat_map(|graph| graph.instances()).map(|instance| instance.package.as_str()).collect();
+    assert!(links.contains("sbs://blend_switch.sbs"));
+    let dependent = library::root().join("non_uniform_blur.sbs").canonicalize().unwrap();
+    assert!(links.contains(dependent.to_str().unwrap()));
+}
+
+#[test]
 fn a_changed_or_detached_function_file_keeps_its_disk_identity() {
     use materialcraft_engine::formats::sbs::library;
     use std::path::Path;
