@@ -59,6 +59,20 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-23 root comparisons
 
+### Unused and unavailable relative functions
+
+Create eight original caller and function-package pairs with unique graph names, file UIDs and relative filenames. The caller samples red from the [original two rectangular float fields](#packed-products-in-the-second-endpoint-of-a-pixel-interpolation) at texel centers. Its output is (call result + .21875, sampled red, .53125, .75). The function takes one float argument and returns .34375. Use 64 × 32 F32 at seed 463071 and 32 × 64 U16 at seed 463094. Change only the dependency header between the two versions in each pair.
+
+| Caller and dependency | F32 exact / total · max | U16 exact / total · max | Reference red, F32 / U16 |
+|---|---:|---:|---:|
+| Called with sampled input, header 1.1.0.202401 | 2,048/2,048 · 0 | 2,048/2,048 · 0 | .5625 / 36,863 |
+| Called with sampled input, header 0.1.3 | 0/2,048 · .34375 | 0/2,048 · 22,527 | .21875 / 14,336 |
+| Called with disconnected input, header 1.1.0.202401 | 2,048/2,048 · 0 | 2,048/2,048 · 0 | .5625 / 36,863 |
+| Called with disconnected input, header 0.1.3 | 0/2,048 · .34375 | 0/2,048 · 22,527 | .21875 / 14,336 |
+| Unused call, .75 in its place, both headers | 4,096/4,096 · 0 | 4,096/4,096 · 0 | .96875 / 63,487 |
+
+A missing function name produced .21875 red with either header in the reference. MaterialCraft reported the missing graph on both calls. Each reference image retained the input-dependent green channel and the constant blue and alpha channels. This isolates the older relative file discrepancy to the called value. The [waveform measurements](#version-of-a-detached-function-package-and-waveform-reopening) retain their original counts.
+
 ### Single connected operands in vector constructors
 
 In an original Value Processor, construct float and integer vectors of widths two, three and four. For each width try every smaller operand width in the first port alone, the second port alone and both ports. Use (.375, −.6875, .25) or (17, −23, 5), taking the leading values for the first connected operand and the reversed list for the second operand in the two-wire controls. Repeat the 36 graphs at 16² and 32², seeds 79 and 197. With a single connection its components occupy the leading lanes and the remaining lanes are zero. For example, connecting (17, −23) only to the second port of an integer vector of width three returns (17, −23, 0).
