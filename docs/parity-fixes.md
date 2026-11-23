@@ -80,6 +80,23 @@ For the pixel controls use the [signed procedural F32 fields](#packed-products-i
 
 The range covers physically disconnected ports. A separate pair with two wires still differs when its leading wire reads an undeclared variable and the other carries a nonzero value. Scanning the reachable expressions in all 546 root graph bodies found zero one-wire vector constructors with the leading port disconnected. Called function bodies were outside that scan. The root count stays at 479. The regression failed on the preceding compiler. All 401 node release tests, formatting, strict workspace Clippy, dependency layers and WebAssembly passed.
 
+### Bounded work for terminal Quadrant siblings
+
+The shared FX-Map evaluator now charges a group of at most four terminal Quadrant siblings for its first discarded stamp. Each child evaluates its own properties, applies its variable writes and reaches its own sample-grid test before it can share that charge. Each visible stamp still costs a visit. An iteration or a branch with descendants cannot obtain extra visits by repeating a single discarded stamp. Terminal nodes also skip the unused child-center and child-seed calculations.
+
+The ordinary limit covers 1,048,576 visits plus the same number of individual discards. Every group with an extra discard needs a distinct parent and first discarded child among those ordinary visits. At most three further discards can share their charge, bounding evaluated visits at 5,242,880. Stored stamps, stack occupancy, raster copies and pixel work retain their own bounds. A regression with a 64-visit allowance checks a visible marker and 48 four-child groups that miss all 4×4 samples. Changing those children to visible squares reaches the limit. Repeating a branch with a single missed child 80 times also reaches it. The previous cook failed on the marker case.
+
+Repeat the [four whole BNW Spots 3 v2 readouts](#four-cloud-noise-generators-and-repeated-saved-file-comparisons) with the normal release cook and compare the final F32 buffers with the desktop. The default 16×32 at seed zero gives 478/512 exact. At scale 1, the 32×16 seed 162065 and 64×32 seed 162283 give 449/512 and 1,860/2,048. Maximum channel errors are 1.1920929e−7, 1.1920929e−7 and 1.49011612e−7 respectively. The 32² scale-two seed 162174 previously exhausted the visit allowance.
+
+| Scale-two F32 comparison, 4,025,030 visits | Original, exact / total · maximum | MaterialCraft save reopened, exact / total · maximum |
+|---|---:|---:|
+| Explicit one-worker reference, both repeat runs | 1,024/1,024 · 0 | 1,024/1,024 · 0 |
+| Desktop | 894/1,024 · 1.1920929e−7 | 894/1,024 · 1.1920929e−7 |
+| Explicit eight-worker reference, first run | 878/1,024 · 1.78813934e−7 | 878/1,024 · 1.78813934e−7 |
+| Explicit eight-worker reference, second run | 874/1,024 · 1.1920929e−7 | 874/1,024 · 1.1920929e−7 |
+
+Use the [same graph settings, reference captures and worker repeats](#dense-quadrant-traversal-and-reference-worker-counts). In the 32 original four-format Quadrant controls, 28 renders complete with 7,159/7,168 desktop pixels exact. Six of eight reopens complete with 766/768 exact. Maximum error in either set is 5.96046448e−8. The regular depth-eleven tree still reaches the limit at all four tested formats and both saved formats. The whole spot root remains in progress. All 402 node release tests, formatting, strict workspace Clippy, dependency layers and WebAssembly passed.
+
 ### Dense Quadrant traversal and reference worker counts
 
 Construct a grayscale FX-Map with a .0625 background, zero roughness, overall opacity 1, both regions (0,1,0,1), center culling enabled and wrapping disabled. Start at (.5,.5). At each subdivision link all four children to the next empty Quadrant. At the last level draw additive squares of size (1.75,2.25), rotation zero and luminosity `rand(.0625) + .0625 * $pos.x`. In the returning-offset version move the root branch by (1.25,0) and the final stamp by (−1.25,0). In the narrow version change only the size to (.375,1.25). Use seeds 441151 + 31j, with j from zero to three in the column order below.
@@ -105,7 +122,7 @@ For the whole BNW Spots 3 v2 graph use 32² F32, seed 162174, scale 2, disorder 
 | Returning offset, 10 | 128/128 · 0 | 126/128 · 5.96046448e-08 | 105/128 · 5.96046448e-08 | 113/128 · 5.96046448e-08 | 102/128 · 5.96046448e-08 |
 | Whole Spots 3 v2 | 1,024/1,024 · 0 | 894/1,024 · 1.1920929e-07 | 878/1,024 · 1.78813934e-07 | 874/1,024 · 1.1920929e-07 | 887/1,024 · 2.38418579e-07 |
 
-The dense spot traversal takes 4,025,030 visits. At depth eight in its final generator, testing a square with radius four times the current subdivision width around the incoming center plus the inherited frame offset would reject 6,442 of 753,536 subtrees that contained a retained stamp. The returning-offset controls also draw after their ancestors leave the image. The production visit limit and the multi-worker differences remain open. [Original spot traversal and whole-root measurements](#whole-root-precision-and-saved-comparisons-for-the-three-neighboring-spot-graphs)
+The dense spot traversal takes 4,025,030 visits. At depth eight in its final generator, testing a square with radius four times the current subdivision width around the incoming center plus the inherited frame offset would reject 6,442 of 753,536 subtrees that contained a retained stamp. The returning-offset controls also draw after their ancestors leave the image. The [bounded terminal-sibling cook](#bounded-work-for-terminal-quadrant-siblings) subsequently completed this spot setting in production. The depth-eleven limit and the multi-worker differences remain open. [Original spot traversal and whole-root measurements](#whole-root-precision-and-saved-comparisons-for-the-three-neighboring-spot-graphs)
 
 ### Whole and reopened first-renderer irradiance pass
 

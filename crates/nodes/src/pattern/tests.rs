@@ -1757,6 +1757,61 @@ fn center_at_roughness(graph: PatternGraph, roughness: f32) -> f32 {
 }
 
 #[test]
+fn terminal_quadrants_charge_the_first_discard_of_each_sibling_group() {
+    let mut graph = PatternGraph::with_root(PatternNodeKind::Iterate);
+    let marker = graph.add(PatternNodeKind::Quadrant).unwrap();
+    let branch = graph.add(PatternNodeKind::Quadrant).unwrap();
+    let leaf = graph.add(PatternNodeKind::Quadrant).unwrap();
+    graph.nodes[0].children = vec![Some(marker), Some(branch)];
+    graph.nodes[0].parameters.insert("numberadded".into(), Value::Int(48));
+    square(&mut graph, 1);
+    graph.nodes[1].parameters.insert("opacity".into(), Value::Float(0.375));
+    graph.nodes[2].children.fill(Some(leaf));
+    square(&mut graph, 3);
+    graph.nodes[3].parameters.insert("patternsize".into(), Value::Float2([1.0 / 64.0; 2]));
+
+    let render = |graph: &PatternGraph| {
+        let params = resolve_params(
+            find("fx_map").unwrap(),
+            &BTreeMap::from([
+                ("pattern".into(), Value::PatternGraph(Box::new(graph.clone()))),
+                ("roughness".into(), Value::Float(0.0)),
+                ("color_mode".into(), Value::Bool(false)),
+            ]),
+        );
+        let context = CookContext {
+            w: 4,
+            h: 4,
+            seed: 19,
+            tile: false,
+            inputs: &[],
+            input_formats: &[],
+            format: materialcraft_core::OutputFormat::F32,
+            params: &params,
+            resource: &|_| None,
+            vars: &BTreeMap::new(),
+        };
+        super::evaluation::cook_with_visit_limit(&context, &[], 64)
+    };
+    let image = render(&graph).unwrap().remove(0);
+    for y in 0..4 {
+        for x in 0..4 {
+            assert_eq!(image.get_gray(x, y, false), 0.375);
+        }
+    }
+
+    // Visible siblings each consume a visit, even if their pixels coincide.
+    let mut visible = graph.clone();
+    visible.nodes[3].parameters.insert("patternsize".into(), Value::Float2([2.0; 2]));
+    assert!(render(&visible).unwrap_err().contains("execution budget"));
+
+    // With only one child per branch, extending the iteration still exhausts the ordinary allowances.
+    graph.nodes[2].children[1..].fill(None);
+    graph.nodes[0].parameters.insert("numberadded".into(), Value::Int(80));
+    assert!(render(&graph).unwrap_err().contains("execution budget"));
+}
+
+#[test]
 fn empty_switches_at_later_depths_still_affect_roughness() {
     let mut graph = PatternGraph::with_root(PatternNodeKind::Quadrant);
     let empty = graph.add(PatternNodeKind::Switch).unwrap();

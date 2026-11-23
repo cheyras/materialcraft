@@ -7,12 +7,21 @@ use crate::function::{EvaluationContext, EvaluationState, compile_with_literal_i
 use crate::random::FunctionRandom;
 use crate::{CookContext, CookResult};
 
-// A 512-by-512 quadtree takes 349,525 visits. Each discarded stamp can fund one extra visit,
-// up to this same limit again. Retained stamps, raster copies and pixel work stay bounded.
+// A 512-by-512 quadtree takes 349,525 visits. This limit bounds retained stamps and
+// provides a second allowance for discarded draws. A terminal sibling group has at most
+// three additional discards, and needs two ordinary visits (its parent and first discard).
+// Thus at most five times this limit can execute, including the discarded stamps.
 const MAX_VISITS: usize = 1_048_576;
 
 // Overlapping squares establish the order of the sixteen grandchildren in a regular seven-level tree.
 const SEVEN_LEVEL_RUN_ORDER: [usize; 16] = [12, 13, 8, 9, 14, 0, 1, 15, 2, 11, 6, 7, 10, 3, 4, 5];
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum QuadrantChildren {
+    None,
+    AllTerminal,
+    Other,
+}
 
 #[derive(Default)]
 struct SevenLevelRuns {
@@ -83,11 +92,17 @@ pub(crate) fn cook(context: &CookContext) -> CookResult {
 
 /// Cook a pattern with the supplied base-level-only flags in image port order.
 pub fn cook_with_base_level_inputs(context: &CookContext, base_level_only: &[bool]) -> CookResult {
+    cook_with_visit_limit(context, base_level_only, MAX_VISITS)
+}
+
+pub(super) fn cook_with_visit_limit(context: &CookContext, base_level_only: &[bool], visit_limit: usize) -> CookResult {
     let Some(Value::PatternGraph(graph)) = context.params.get("pattern") else {
         return Err("missing pattern graph".into());
     };
 
     let opacity_depth = graph.validated_depth()?;
+    let terminal_nodes: BTreeSet<_> =
+        graph.nodes.iter().filter(|node| node.kind == PatternNodeKind::Quadrant && node.children.iter().all(Option::is_none)).map(|node| node.id).collect();
     let mut nodes = BTreeMap::new();
     let mut functions = BTreeMap::new();
     let mut fixed_switches = BTreeSet::new();
@@ -109,7 +124,14 @@ pub fn cook_with_base_level_inputs(context: &CookContext, base_level_only: &[boo
         if fixed {
             fixed_switches.insert(node.id);
         }
-        nodes.insert(node.id, (node, literal_geometry));
+        let quadrant_children = if terminal_nodes.contains(&node.id) {
+            QuadrantChildren::None
+        } else if node.kind == PatternNodeKind::Quadrant && node.children.iter().flatten().all(|id| terminal_nodes.contains(id)) {
+            QuadrantChildren::AllTerminal
+        } else {
+            QuadrantChildren::Other
+        };
+        nodes.insert(node.id, (node, literal_geometry, quadrant_children));
     }
 
     let image_slots: Vec<_> =
@@ -128,8 +150,9 @@ pub fn cook_with_base_level_inputs(context: &CookContext, base_level_only: &[boo
     let mut variables = PatternVariables::new(context.vars.graph_values());
     let mut max_depth = 0;
     let mut state = EvaluationState::default();
-    let mut remaining = MAX_VISITS;
-    let mut discard_allowance = MAX_VISITS;
+    let mut terminal_siblings: Option<(usize, bool)> = None;
+    let mut remaining = visit_limit;
+    let mut discard_allowance = visit_limit;
     let grayscale = !context.b("color_mode");
     let mut repeated_roots = None;
     let mut repeated_six_level: Option<super::repeated_six_level::RepeatedSixLevelRuns> = None;
@@ -153,6 +176,9 @@ pub fn cook_with_base_level_inputs(context: &CookContext, base_level_only: &[boo
                 *slot = Some(stamps.len());
             }
         }
+        if terminal_siblings.is_some_and(|(start, _)| pending.len() < start) {
+            terminal_siblings = None;
+        }
         variables.resume(pending.len());
         max_depth = max_depth.max(visit.depth);
         if empty_switches.contains(&visit.node) {
@@ -165,7 +191,7 @@ pub fn cook_with_base_level_inputs(context: &CookContext, base_level_only: &[boo
             let next = PatternVisit { number: visit.number + 1, seed: crate::random::iteration_child(visit.seed), ..visit.clone() };
             pending.push((next, repeats_left - 1));
         }
-        let &(node, literal_geometry) = nodes.get(&visit.node).ok_or("missing pattern node")?;
+        let &(node, literal_geometry, quadrant_children) = nodes.get(&visit.node).ok_or("missing pattern node")?;
         if seven_level_runs.as_mut().is_some_and(|runs| !runs.visit(node, visit.depth, stamps.len())) {
             seven_level_runs = None;
         }
@@ -335,7 +361,12 @@ pub fn cook_with_base_level_inputs(context: &CookContext, base_level_only: &[boo
                         terminal_quadrants = None;
                     }
                     if missed {
-                        if discard_allowance > 0 {
+                        // These siblings have no children. Each has already evaluated its own
+                        // properties and failed the sample-grid test in the original draw order.
+                        let later_discard = terminal_siblings.as_mut().is_some_and(|(_, seen)| std::mem::replace(seen, true));
+                        if later_discard {
+                            remaining += 1;
+                        } else if discard_allowance > 0 {
                             discard_allowance -= 1;
                             remaining += 1;
                         }
@@ -344,17 +375,22 @@ pub fn cook_with_base_level_inputs(context: &CookContext, base_level_only: &[boo
                     }
                 }
 
-                let mut child_random = visit.seed;
-                for (child, center) in node.children.iter().zip(visit.quadrant_centers()) {
-                    let child_seed = crate::random::quadrant_child(&mut child_random, visit.depth.saturating_add(1));
-                    if let Some(child) = child {
-                        let mut child_visit = visit.clone();
-                        child_visit.node = *child;
-                        child_visit.depth = visit.depth.saturating_add(1);
-                        child_visit.extent *= 0.5;
-                        child_visit.seed = child_seed;
-                        child_visit.center = center;
-                        children.push(child_visit);
+                if quadrant_children == QuadrantChildren::AllTerminal {
+                    terminal_siblings = Some((pending.len(), false));
+                }
+                if quadrant_children != QuadrantChildren::None {
+                    let mut child_random = visit.seed;
+                    for (child, center) in node.children.iter().zip(visit.quadrant_centers()) {
+                        let child_seed = crate::random::quadrant_child(&mut child_random, visit.depth.saturating_add(1));
+                        if let Some(child) = child {
+                            let mut child_visit = visit.clone();
+                            child_visit.node = *child;
+                            child_visit.depth = visit.depth.saturating_add(1);
+                            child_visit.extent *= 0.5;
+                            child_visit.seed = child_seed;
+                            child_visit.center = center;
+                            children.push(child_visit);
+                        }
                     }
                 }
             }
