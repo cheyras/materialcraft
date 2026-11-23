@@ -59,6 +59,20 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-23 root comparisons
 
+### Tile luminance variation in Bricks 01
+
+Cook the base-color output of the Bricks 01 PBR material at 64², default inputs and seed 0, with one reference worker. Read the raw ports of its 144 top-level nodes. The base-color branch has 123 nodes. The first differing outputs have matching upstream images, including the 16² U8 Source image connected to both tile instances (256/256, maximum error 0).
+
+| First differing output | Exact pixels | Maximum U16 error |
+|---|---:|---:|
+| Vertical Noise at 64 × 32 | 2,044/2,048 | 2 |
+| Tile Generator using the Source image, scale 1.12 | 873/4,096 | 31,370 |
+| Tile Generator using the square pattern | 0/4,096 | 62,555 |
+
+To isolate the square-pattern case, instance the grayscale Tile Generator from `tile_generator.sbs` in an original graph. Leave its image pins empty, request U16, set a 4 × 14 grid and set the luminance variation and contrast pair to (1,0). Leave the remaining inputs at their defaults. The grid alone matches 4,096/4,096 at seeds 0 and 17. The luminance pair changes that to 0/4,096 at each seed, maximum errors 62,555 and 58,225 respectively. Individually setting the row offset to .25, the pattern-specific pair to (0,0), or the blending mode to 2 on the control grid still matches 4,096/4,096 per seed.
+
+Next combine those settings with the luminance pair. Try both literal grid counts and graph inputs for the column count, a row count calculated as 4 + 10, and zero row jitter. The reference square-pattern output at seed 0 matches its corresponding Bricks 01 stage in all 4,096 pixels, maximum error 0. The same 0/4,096 cross-app counts and maximum errors recur on the original and an ordinary MaterialCraft save at both seeds. The reopened reference output matches its original in all 8,192/8,192 pixels for each wiring. This reopens the grayscale tile root's earlier 55-setting result. The Source-image branch needs a connected texture for a meaningful comparison.
+
 ### Computed caller sizes on BNW Spots 1 and Clouds 1 and 2
 
 Instance each catalog root through a child whose parent-relative graph size reads an exposed integer pair. Bind it to a parent pair. At 16² and outer seed 0 use (−1,+1), an absolute child seed expression returning 5 and the root's default parameters. At 64 × 32 and outer seed 372177 use (+1,−1), parent-relative child seed −3, and Disorder 0.96875. The caller adds seed offset 3. The two resulting images are 8 × 32 and 128 × 16. Measure one desktop worker and reopen each ordinary MaterialCraft save.
