@@ -59,6 +59,24 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-23 root comparisons
 
+### Stored and wired values at graph instance inputs
+
+Connect a typed graph input directly to an output. In the caller place an instance with an open input, an explicit argument, a wire from a Value Processor, or both an argument and a wire. The reference uses the declared default when the port is open. A wire supplies the value when the argument is absent. An explicit constant or parameter function supplies the value even with a wire present. MaterialCraft now resolves the argument using the bridge's declared type. The same-package and linked-package paths use the same port information.
+
+For an integer bridge with default 5, try an open port, stored 0, stored −3, wired 9, wired 9 with stored −3, and wired 9 with stored 9. The results in that order are 5, 0, −3, 9, −3 and 9. Run all six for same-file and linked instances, then save and reopen each caller in both applications. Agreement improved from 12/24 to **24/24 integer values**, maximum error 0. Repeat the linked cases with integer, Boolean and float2 types, testing both a constant argument and a parameter function on an open or wired port. For Boolean use default and wire true and argument false. For float2 use default (.125,.875), wire (2.5,−4.25) and argument (−.75,.375). These 18 original and 18 reopened outputs improved from 12/36 to **36/36 typed values**, maximum component error 0.
+
+In Points Preview, keep the same generated two-row ellipse strip, 32² canvas, point size .0625 and labels off. Connect point counts 1, 4 or 8. For each count test an open offset, constants 0 and 1, wires 0, 1 and 2, and a wire of 1 with constant 2. All **21,504/21,504** grayscale pixels match, maximum error 0. Repeat the [28 earlier root settings](#package-font-outlines-and-point-preview), including counts 4, 8 and 12 at offset 0, 1 and 2. All **25,088/25,088** pixels match the desktop captures in their stored formats.
+
+For a second whole-root comparison, use counts 4, 8 and 12 with the same offsets. Hide the first point for count 8 and the last for count 12. Use point sizes .03125, .0625 and .09375 and label sizes .0625, .09375 and .125 respectively. Test points only, labels only and both. Also test count zero with both enabled. For each view use 16² seed 0, 32² seed 42 and 32 × 16 seed 507031. Compare the one-worker F32 readback of the original instance and the instance referring to the complete saved spline package with its licensed fallback font. Errors below are normalized grayscale differences.
+
+| Visible elements | Original exact / total · max | Full save exact / total · max | Reference original versus full save · max |
+|---|---:|---:|---:|
+| Points | 5,376/5,376 · 0 | 5,376/5,376 · 0 | 5,376/5,376 · 0 |
+| Labels | 5,088/5,376 · 0.513725515 | 5,087/5,376 · 0.494117673 | 5,105/5,376 · 0.380392157 |
+| Both, including the empty input | 7,063/7,168 · 0.411764707 | 7,063/7,168 · 0.419607846 | 7,067/7,168 · 0.356862746 |
+
+The complete saved library reopens in the reference renderer. The reference catalog and the full save select different font files. Point-only output agrees across both paths. Visible labels also differ when both applications open the same saved font, leaving the root in progress.
+
 ### Package font outlines and point preview
 
 The Text primitive reads the selected package font. Shaping and outline drawing use the shared font catalog and the CPU rasterizer. Editing the font bytes invalidates both the Text node and its parent graph instance. The release regression constructs a two-glyph TrueType face in memory, halves the cap height and checks the complete 64 × 32 raster on both cooks.

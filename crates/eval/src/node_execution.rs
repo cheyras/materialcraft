@@ -71,15 +71,7 @@ pub(crate) fn cook_node(
         input_keys.push(source.as_ref().map_or(0, |source| source.1));
         let output = source.map(|source| source.0);
 
-        let expected = node.input_values.get(&port.id).copied().or_else(|| {
-            node.instance
-                .as_ref()?
-                .inputs
-                .iter()
-                .find(|input| input.identifier == port.id)
-                .and_then(|input| materialcraft_core::ValueType::from_code(input.type_code))
-        });
-        if let Some(expected) = expected {
+        if let Some(expected) = port.value_type {
             let value = match output.as_ref() {
                 Some(NodeOutput::Value(value)) if materialcraft_core::ValueType::of(value) == Some(expected) => value.clone(),
                 Some(_) => {

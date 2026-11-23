@@ -236,6 +236,45 @@ fn preview_cap_and_unknown_nodes() {
 }
 
 #[test]
+fn typed_instance_ports_preserve_explicit_arguments_and_wire_fallbacks() {
+    use materialcraft_core::{FunctionGraph, ValueType};
+
+    let (mut parent, instance) = instancing("Caller", "Echo");
+    let wire = parent.add_node("input_value", [0.0; 2]);
+    parent.node_mut(wire).unwrap().params.insert("default".into(), Value::Int(9));
+    let mut child = Graph::new("Echo");
+    let bridge = child.add_node("input_value", [0.0; 2]);
+    child.node_mut(bridge).unwrap().params.extend([("identifier".into(), Value::Text("count".into())), ("default".into(), Value::Int(5))]);
+    let output = child.add_node("output", [0.0; 2]);
+    child.connect(bridge, "output", output, "input").unwrap();
+
+    let mut package = Package::new("Typed arguments");
+    package.graphs.extend([parent, child]);
+    let cache = Mutex::new(Cache::default());
+    let mut options = Options::new(&no_res);
+    options.overrides.insert("control".into(), Value::Int(-12));
+    for wired in [false, true] {
+        if wired {
+            package.graphs[0].connect(wire, "output", instance, "count").unwrap();
+        }
+        for (literal, function, expected) in [(None, false, if wired { 9 } else { 5 }), (Some(0), false, 0), (Some(-3), false, -3), (None, true, -12)] {
+            let node = package.graphs[0].node_mut(instance).unwrap();
+            node.params.remove("count");
+            node.functions.remove("count");
+            if let Some(value) = literal {
+                node.params.insert("count".into(), Value::Int(value));
+            }
+            if function {
+                node.functions.insert("count".into(), FunctionGraph::input("control", ValueType::Integer));
+            }
+            let cooked = cook(&package, 0, &options, &cache);
+            assert_eq!(cooked.nodes[&instance].error, None);
+            assert_eq!(cooked.nodes[&instance].outputs[0].as_value(), Some(&Value::Int(expected)), "wire {wired}, stored {literal:?}, function {function}");
+        }
+    }
+}
+
+#[test]
 fn cached_instances_distinguish_fixed_and_bound_integer_arguments() {
     use materialcraft_core::{ExposedParameter, FunctionGraph, ValueType};
     let (parent, instance) = instancing("Parent", "Selector");

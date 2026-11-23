@@ -93,6 +93,18 @@ pub(crate) fn cook_instance(
         }
     }
     for (port, input) in input_ports.iter().zip(inputs) {
+        // A stored argument drives its bridge even when the same port has a wire.
+        if let Some(expected) = port.value_type
+            && (node.params.contains_key(&port.id) || node.bindings.contains_key(&port.id) || node.functions.contains_key(&port.id))
+            && let Some(value) = params.get(&port.id)
+        {
+            if materialcraft_core::ValueType::of(value) != Some(expected) {
+                return Err(format!("input `{}` requires {}", port.id, expected.label()));
+            }
+            source_options.overrides.insert(port.id.clone(), value.clone());
+            source_options.literal_inputs.retain(|name| name != &port.id);
+            continue;
+        }
         let Some((output, format)) = input else { continue };
         if let Some((image, texture_format)) = output.texture(*format) {
             source_options.inputs.insert(port.id.clone(), image.clone());
