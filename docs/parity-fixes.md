@@ -59,6 +59,20 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-23 root comparisons
 
+### Computed caller sizes on BNW Spots 1 and Clouds 1 and 2
+
+Instance each catalog root through a child whose parent-relative graph size reads an exposed integer pair. Bind it to a parent pair. At 16² and outer seed 0 use (−1,+1), an absolute child seed expression returning 5 and the root's default parameters. At 64 × 32 and outer seed 372177 use (+1,−1), parent-relative child seed −3, and Disorder 0.96875. The caller adds seed offset 3. The two resulting images are 8 × 32 and 128 × 16. Measure one desktop worker and reopen each ordinary MaterialCraft save.
+
+First set the instance's requested format to U8, U16, F16 and F32. The terminal catalog output is U16 in all eight settings per root. Then insert a neutral grayscale Levels after the root, inherit its input dimensions, and select each of the four storage formats on that final operation. Read the actual pixel format from the desktop. The four output types now differ. Compare dimensions, stored pixel values and the original against the reopened desktop graph.
+
+| Root | Direct U16 original and save, each | U8 after Levels | U16 after Levels | F16 after Levels | F32 after Levels |
+|---|---:|---:|---:|---:|---:|
+| BNW Spots 1 | 9,216/9,216 | 2,304/2,304 | 2,304/2,304 | 2,304/2,304 | 2,304/2,304 |
+| Clouds 1 | 9,216/9,216 | 2,304/2,304 | 2,304/2,304 | 2,304/2,304 | 2,304/2,304 |
+| Clouds 2 | 9,216/9,216 | 2,304/2,304 | 2,304/2,304 | 2,304/2,304 | 2,304/2,304 |
+
+Every format column has the same exact count for MaterialCraft versus the original, MaterialCraft versus the save and the desktop original versus its reopen. Maximum error is zero throughout. The separate full-size 256² seed comparison differs at six, two and four pixels respectively against the one-worker reference. All three roots remain in progress. [Full-size seed and worker repeats](#computed-graph-seeds-on-load-evaluation-and-save)
+
 ### Graph output size functions and signed offsets
 
 MaterialCraft now reads, evaluates and saves a graph's output size expression and its absolute, parent-relative or input-relative mode. The evaluator resolves the caller's arguments and axes before cooking the child and evaluating its seed. This applies to instances and to the root graph. The graph inspector reports the effective size. An explicit export size applies once and leaves the authored graph settings intact.
