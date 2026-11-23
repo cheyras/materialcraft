@@ -11,6 +11,7 @@ pub mod fonts;
 pub mod function;
 pub mod graph;
 mod graph_drag_payload;
+mod graph_pixels;
 mod history;
 pub mod i18n;
 pub mod levels_editor;

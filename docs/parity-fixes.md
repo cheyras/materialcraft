@@ -59,6 +59,20 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-23 root comparisons
 
+### Stored graph color in the 2D view
+
+Display the Base Color output of Bricks 01 at 1:1 with the default sRGB interpretation. With seed 0 and a 64² parent, all 4,096 pixels captured from the reference viewport match its raw U8 RGB output, maximum error 0. The old MaterialCraft viewport applied a linear-light to sRGB conversion to those already encoded numbers. The same conversion brightened graph thumbnails and the color sampler.
+
+Use a uniform color with stored RGB (.2,.4,.8) and alpha 1. The reference viewport and node thumbnail show (51,102,204). The old MaterialCraft preview showed (124,170,231). The corrected MaterialCraft offscreen viewport shows (51,102,204). For the full byte scale, make 86 original opaque swatches whose three channels cover levels 0–255. Compare the rendered reference colors and the actual MaterialCraft display function. With the default encoded interpretation, 86/86 swatches and 258/258 channels match, maximum error 0. Reading the same numbers as linear light gives 14/86 exact swatches and 132/258 exact channels, maximum error 1. In seven further storage controls across U8, U16, F16 and F32, both interpretations stay within one displayed byte. The display choice leaves stored channel readouts and alpha intact.
+
+| Bricks 01 Base Color | Reference mean RGB | Old mean RGB | Corrected mean RGB | Old exact pixels / max error | Corrected exact pixels / max error |
+|---|---|---|---|---:|---:|
+| 64², seed 0, defaults | 152.2, 119.9, 97.6 | 203.6, 182.1, 165.3 | 154.8, 121.5, 98.4 | 0/4,096 · 154 | 628/4,096 · 119 |
+| 128², seed 0, defaults | 153.3, 117.0, 93.6 | 204.7, 180.3, 162.0 | 156.7, 119.0, 94.3 | 0/16,384 · 155 | 3,112/16,384 · 125 |
+| 64², seed 19, luminosity .65 | 218.8, 201.3, 190.8 | 237.7, 228.4, 222.7 | 217.8, 199.8, 189.2 | 97/4,096 · 121 | 900/4,096 · 118 |
+
+The comparison uses the same cooked MaterialCraft buffer for each old and corrected pair. A pixel counts when all three displayed bytes match. Maximum error is the largest absolute channel difference in byte levels. On the 64² default, the specular texture already matched at 4,096/4,096 raw pixels and now also matches at 4,096/4,096 displayed pixels, maximum error 0. The remaining base-color differences are present in the raw graph output. [First differing tile and noise stages](#tile-luminance-variation-in-bricks-01)
+
 ### Tile luminance variation in Bricks 01
 
 Cook the base-color output of the Bricks 01 PBR material at 64², default inputs and seed 0, with one reference worker. Read the raw ports of its 144 top-level nodes. The base-color branch has 123 nodes. The first differing outputs have matching upstream images, including the 16² U8 Source image connected to both tile instances (256/256, maximum error 0).
