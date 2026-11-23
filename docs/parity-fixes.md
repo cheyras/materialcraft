@@ -114,6 +114,23 @@ For the pixel controls use the [signed procedural F32 fields](#packed-products-i
 
 The range covers physically disconnected ports. A separate pair with two wires still differs when its leading wire reads an undeclared variable and the other carries a nonzero value. Scanning the reachable expressions in all 546 root graph bodies found zero one-wire vector constructors with the leading port disconnected. Called function bodies were outside that scan. The root count stays at 479. The regression failed on the preceding compiler. All 401 node release tests, formatting, strict workspace Clippy, dependency layers and WebAssembly passed.
 
+### Two dense spots packages across storage formats
+
+Use the whole original BNW Spots 3 and BNW Spots 3 v2 graphs. At 16² and seed zero use all defaults. At 64² and seed 42 use scale 2 and disorder .37. On v2 also use disorder speed .6, anisotropy .3, anisotropy angle .125 and tile offset (.17,.29). Cook both sizes at U8, U16, F16 and F32. Compare each raw raster with its desktop capture and both explicit worker counts. Each column covers 4,352 grayscale pixels.
+
+| Package and reference | U8 exact / total · max | U16 exact / total · max | F16 exact / total · max | F32 exact / total · max |
+|---|---:|---:|---:|---:|
+| BNW Spots 3 · Desktop | 4,352/4,352 · 0 | 4,351/4,352 · 1 | 4,352/4,352 · 0 | 4,349/4,352 · 1.06990337e-05 |
+| BNW Spots 3 · One worker | 4,352/4,352 · 0 | 4,352/4,352 · 0 | 2,726/4,352 · 0.00048828125 | 4,352/4,352 · 0 |
+| BNW Spots 3 · Eight workers | 4,352/4,352 · 0 | 4,351/4,352 · 1 | 2,726/4,352 · 0.00048828125 | 4,349/4,352 · 1.06692314e-05 |
+| BNW Spots 3 v2 · Desktop | 4,352/4,352 · 0 | 4,352/4,352 · 0 | 4,352/4,352 · 0 | 3,905/4,352 · 1.49011612e-07 |
+| BNW Spots 3 v2 · One worker | 4,352/4,352 · 0 | 4,352/4,352 · 0 | 4,352/4,352 · 0 | 4,352/4,352 · 0 |
+| BNW Spots 3 v2 · Eight workers | 4,352/4,352 · 0 | 4,351/4,352 · 1 | 4,352/4,352 · 0 | 3,803/4,352 · 1.78813934e-07 |
+
+The F32 readback of the explicit F16 renders contains exact half values at all 4,352 positions in each package. On BNW Spots 3, 1,626 of those stored half values differ from the desktop, including at one worker. The two v2 F16 references match the desktop throughout. The four F32 reopens reproduce the corresponding original counts and errors. Each reopened package matches the explicit one-worker reference at both sizes, 4,352/4,352 F32 pixels per package.
+
+At 64 × 16, seed 42, non-square expansion enabled, scale 2 and disorder .03125, both whole graphs still exceed the traversal budget. For v2 use disorder speed and anisotropy .03125, angle −.21875 and offset (−.3125,.37890625). Neither rectangular cook contributes to the exact totals. The [32² dense case and execution bound](#bounded-work-for-terminal-quadrant-siblings) remain separately measured.
+
 ### Bounded work for terminal Quadrant siblings
 
 The shared FX-Map evaluator now charges a group of at most four terminal Quadrant siblings for its first discarded stamp. Each child evaluates its own properties, applies its variable writes and reaches its own sample-grid test before it can share that charge. Each visible stamp still costs a visit. An iteration or a branch with descendants cannot obtain extra visits by repeating a single discarded stamp. Terminal nodes also skip the unused child-center and child-seed calculations.
