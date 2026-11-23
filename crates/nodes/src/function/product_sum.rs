@@ -11,6 +11,7 @@ enum Addend {
 enum Retained {
     Argument { source: Source, addend: Addend, subtract: bool },
     PassedArgument,
+    Assigned(super::assigned_product::Binding),
     Lanes(super::returned_product::Sum),
 }
 
@@ -39,6 +40,18 @@ impl ProductSum {
         }
     }
 
+    pub(super) fn assigned(inputs: &[usize], on_right: bool, source: super::assigned_product::Binding) -> Self {
+        Self {
+            inputs: inputs.to_vec(),
+            product_on_right: on_right,
+            negated: false,
+            operation: "mulscalar",
+            literal_divisor: false,
+            rounded_components: 0,
+            retained: Some(Box::new(Retained::Assigned(source))),
+        }
+    }
+
     pub(super) fn evaluate(&self, arguments: &[Value], subtract: bool, state: &EvaluationState) -> Result<Value, String> {
         if let Some(Retained::Lanes(terms)) = self.retained.as_deref() {
             return super::returned_product::evaluate_sum(terms, arguments, subtract, state);
@@ -51,6 +64,12 @@ impl ProductSum {
                 Addend::Literal(value) => value,
             };
             (&passed[0], &passed[1], c, None, *subtract)
+        } else if let Some(Retained::Assigned(source)) = self.retained.as_deref() {
+            let [left, right] = arguments else { return Err("missing product sum operands".into()) };
+            let (product, addend) = if self.product_on_right { (right, left) } else { (left, right) };
+            // An untaken assignment leaves the getter's ordinary value in effect.
+            passed = source.read(state).unwrap_or_else(|| [product.clone(), Value::Float(1.0)]);
+            (&passed[0], &passed[1], addend, None, subtract)
         } else if matches!(self.retained.as_deref(), Some(Retained::PassedArgument)) {
             let [left, right] = arguments else { return Err("missing scalar sum operands".into()) };
             passed = state.argument_factors.ok_or("missing scalar argument factors")?.map(Value::Float);

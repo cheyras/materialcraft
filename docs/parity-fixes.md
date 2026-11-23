@@ -59,6 +59,30 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-23 root comparisons
 
+### Assigned ray steps inside pixel function calls
+
+In the first eighth irradiance pass (root 395), the parent pixel function stores direction times step length. The shadow function reads this step and adds it to its current position. The shared evaluator can now retain both factors across calls, including steps passed through a connected argument. It rounds the product and the addition together when the callee reads the assigned step only for the sum.
+
+Repeat the [64² irradiance comparison and row-20 readouts](#stored-products-in-pixel-expressions-and-irradiance-ray-steps). On the third light, the position after 0, 1, 4, 8 and 15 shadow calls matched 320/320 F32 pixels. The final world hit, emissive coordinates, filtered sample, lighting factor and light contribution each matched 64/64. Maximum error was zero throughout. At (28,20) the hit Y was 0.6489657164 and emissive V was 0.09066748619 in both applications. The full first processor improved from 4,094/4,096 to 4,096/4,096 in F16 and from 3,023/4,096 to 4,096/4,096 in F32. The two output precisions use the same bound fields and settings.
+
+For the 16 one-addition graphs, use the [original assignment and called-function configurations](#stored-products-in-pixel-expressions-and-irradiance-ray-steps). Fourteen are now exact. In the two remaining cases the callee overwrites the step after the addition. For the extended controls use both sets of signed input fields from that comparison, across all 13 settings per graph. Put the assignment in a function with a connected field argument, then call a second function to advance the stored position. With a free step perform one and eight additions, or eight with the operands exchanged. With a connected step perform two and eight additions. Subtract the step from the position and the position from the step in two separate two-call graphs.
+
+| Comparison | Renders | U8 exact / total · max | U16 exact / total · max | F16 exact / total · max | F32 exact / total · max |
+|---|---:|---:|---:|---:|---:|
+| Sixteen one-addition graphs | 16 | — | — | — | 29,800/32,768 · 4.76837158e-07 |
+| Seven addition and subtraction graphs | 91 | 21,504/21,504 · 0 | 21,504/21,504 · 0 | 21,504/21,504 · 0 | 93,184/93,184 · 0 |
+| Literal true or false around the assignment, free and connected step | 4 | — | — | — | 5,224/8,192 · 4.76837158e-07 |
+| Two additions with the stored blue component in alpha | 13 | 3,072/3,072 · 0 | 3,072/3,072 · 0 | 3,069/3,072 · 1.90734863e-06 | 6,105/13,312 · 9.53674316e-07 |
+| Reassign the step to the original position before the second addition | 13 | 3,072/3,072 · 0 | 3,071/3,072 · 1 | 3,068/3,072 · 0.0009765625 | 7,291/13,312 · 9.53674316e-07 |
+| Eight additions after a condition on input alpha | 13 | 1,547/3,072 · 255 | 1,544/3,072 · 65535 | 1,505/3,072 · 31.9316406 | 1,243/13,312 · 31.9348962 |
+| Six exact SBS saves opened in both applications | 42 | 9,216/9,216 · 0 | 9,216/9,216 · 0 | 9,216/9,216 · 0 | 46,080/46,080 · 0 |
+| Reopened separately observed blue component | 13 | 3,072/3,072 · 0 | 3,072/3,072 · 0 | 3,069/3,072 · 1.90734863e-06 | 6,105/13,312 · 9.53674316e-07 |
+| Reopened condition on input alpha | 13 | 1,547/3,072 · 255 | 1,544/3,072 · 65535 | 1,505/3,072 · 31.9316406 | 1,243/13,312 · 31.9348962 |
+
+For the conditional graphs, assign direction times A to the step when A > 0 and return zero on the other branch. Discard the returned value and read the step inside eight calls. On the F32 fields the reference matches the unconditional assignment, including pixels with negative A. With a literal false guard, both applications return the original position. A literal true produced the fused result in the reference, with 564/2,048 matching pixels for each MaterialCraft graph. All eight saves reproduced the original reference pixels. The six exact saves span the outer and root assignment, the connected and free steps, eight additions and reverse subtraction.
+
+The new free- and connected-step regression failed before the correction and passed afterward. All 49 earlier product and quotient graphs retained 1,288,192/1,288,192 exact pixels in 307 renders. Verification ran 398 node release tests, formatting, strict workspace Clippy, dependency layers and WebAssembly checks. The complete root remains in progress.
+
 ### Signed zero when Switch Blend selects a floating-point color input
 
 In the [first eighth specular pass](#environment-and-intermediate-precision-in-the-eighth-specular-passes), render the black-specular-and-roughness control at 128² with F32 storage on the first pixel processor. Expose all three pixel processors and the two downstream Switch Blend results in a disposable MaterialCraft save. Read all five outputs from one cook in each application. The first processor and the final reference output each reproduced all 16,384 original pixels. Before the correction the three processors each matched 16,384/16,384 between applications. Their formats are F32, F16 and F16. The first Switch matched 16,345/16,384 and the second 16,353/16,384. Maximum numerical error was zero at all five stages. At (1,22) the first Switch returned `80000000` on green in MaterialCraft and `00000000` in the reference.

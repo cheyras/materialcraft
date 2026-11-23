@@ -10,6 +10,7 @@ pub(crate) struct FunctionCall {
     pub defaults: BTreeMap<String, Value>,
     /// Parent registers for an argument used only in scalar sums within the call.
     pub(super) argument_factors: Option<[super::reciprocal::Factor; 2]>,
+    pub(super) assigned_products: Vec<super::assigned_product::Binding>,
     pub(super) reciprocals: Option<Box<super::reciprocal::CallFactors>>,
     pub(super) pattern_arguments: Option<PatternArguments>,
     /// The called graph sets variables, directly or in a graph it calls; the caller reads them after the call

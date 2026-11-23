@@ -277,6 +277,12 @@ impl Program {
                             values.extend(plan.arguments.iter().map(|factor| factor.read(state)));
                             state.calls.entry(index).or_default().reciprocal_arguments = values;
                         }
+                        if !call.assigned_products.is_empty() && context.scope == super::FunctionScope::PixelProcessor {
+                            let mut values = state.calls.get_mut(&index).map(|child| std::mem::take(&mut child.assigned_arguments)).unwrap_or_default();
+                            values.clear();
+                            values.extend(call.assigned_products.iter().map(|binding| binding.read(state)));
+                            state.calls.entry(index).or_default().assigned_arguments = values;
+                        }
                         let storage = state.calls.entry(index).or_default();
                         storage.argument_factors = factors;
                         storage.variables.clone_from(&state.variables);

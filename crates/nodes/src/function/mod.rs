@@ -9,6 +9,7 @@ const MAX_CALL_DEPTH: usize = 16;
 const DEFAULT_LOOP_LIMIT: i32 = 32;
 
 mod arithmetic;
+mod assigned_product;
 mod binary_exponential;
 mod branch_assignments;
 mod branch_random;

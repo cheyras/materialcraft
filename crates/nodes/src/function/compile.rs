@@ -22,6 +22,7 @@ pub(super) fn compile_program(
     mark_literals(&mut program, literal_inputs.iter().map(|name| (name.as_str(), ())).collect());
     super::reciprocal::identify_products(&mut program, BTreeMap::new());
     plan_pixel_operations(&mut program, pixel, true);
+    super::assigned_product::identify(&mut program);
     Ok(program)
 }
 
@@ -174,7 +175,16 @@ fn compile_nested(graph: &FunctionGraph, seed: u32, depth: usize, remaining: &mu
             let exports =
                 program.instructions.iter().any(|instruction| instruction.definition.id == "set" || instruction.call.as_ref().is_some_and(|call| call.exports));
             let pattern_arguments = super::function_call::PatternArguments::identify(&program, &names, &defaults, &inputs);
-            Some(super::function_call::FunctionCall { program, inputs: names, defaults, argument_factors: None, reciprocals: None, pattern_arguments, exports })
+            Some(super::function_call::FunctionCall {
+                program,
+                inputs: names,
+                defaults,
+                argument_factors: None,
+                reciprocals: None,
+                assigned_products: Vec::new(),
+                pattern_arguments,
+                exports,
+            })
         } else {
             None
         };

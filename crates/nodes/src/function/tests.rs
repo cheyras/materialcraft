@@ -565,6 +565,65 @@ fn pixel_sums_retain_assigned_factors_until_a_component_is_observed() {
 }
 
 #[test]
+fn called_pixel_sums_use_the_factors_of_a_free_or_wired_step() {
+    let sample = [0x3ef4_615d, 0xbf0c_f4e5, 0x3f25_886e, 0xbfbe_1bf6].map(f32::from_bits);
+    let variables = BTreeMap::from([("field".into(), Value::Float4(sample))]);
+    let context = EvaluationContext {
+        scope: super::FunctionScope::PixelProcessor,
+        image_formats: &[],
+        position: [0.5; 2],
+        size: [1.0; 2],
+        images: &[],
+        tile: false,
+        variables: &variables,
+    };
+    for (wired, run_assignment) in [(false, true), (true, true), (false, false), (true, false)] {
+        let mut graph = FunctionGraph::default();
+        let field = graph.add("get_float4", &[], Some(Value::Text("field".into())));
+        let dir = graph.add("swizzle4", &[field], Some(Value::Int4([2, 0, 1, 3])));
+        let gain = graph.add("swizzle1", &[field], Some(Value::Int(3)));
+        let pos = graph.add("swizzle4", &[field], Some(Value::Int4([1, 2, 3, 0])));
+        let product = graph.add("mulscalar", &[dir, gain], None);
+        let set = graph.add("set", &[product], Some(Value::Text("stride".into())));
+        let setup = if run_assignment {
+            set
+        } else {
+            let skip = graph.add_constant(Value::Bool(false));
+            let zero = graph.add_constant(Value::Float4([0.0; 4]));
+            graph.add("ifelse", &[skip, set, zero], None)
+        };
+        let mut args = vec![("origin", pos)];
+        if wired {
+            args.push(("step", graph.add("get_float4", &[], Some(Value::Text("stride".into())))));
+        }
+        let mut body = FunctionGraph::default();
+        let origin = body.add("get_float4", &[], Some(Value::Text("origin".into())));
+        let step = body.add("get_float4", &[], Some(Value::Text(if wired { "step" } else { "stride" }.into())));
+        body.output = Some(body.add("add", &[origin, step], None));
+        let call = graph.add("instance", &[], None);
+        let node = graph.nodes.last_mut().unwrap();
+        node.instance = Some(materialcraft_core::GraphInstance {
+            label: String::new(),
+            package: String::new(),
+            graph: "advance".into(),
+            inputs: args.iter().map(|(name, _)| materialcraft_core::GraphPort { identifier: (*name).into(), type_code: 2048 }).collect(),
+            outputs: vec![materialcraft_core::GraphPort { identifier: "output".into(), type_code: 2048 }],
+            defaults: args.iter().map(|(name, _)| ((*name).into(), Value::Float4([0.0; 4]))).collect(),
+        });
+        node.inputs = args.iter().map(|(_, id)| Some(*id)).collect();
+        node.source = Some(Ok(std::sync::Arc::new(body)));
+        graph.output = Some(graph.add("sequence", &[setup, call], None));
+        let actual = compile(&graph, 0).unwrap().evaluate_pixel(&context, &mut EvaluationState::default()).unwrap();
+        let expected = if run_assignment {
+            [0xbfc1_67c9, 0xbd7f_2862, 0xbf2a_dd9e, 0x402b_b9b0].map(f32::from_bits)
+        } else {
+            [sample[1], sample[2], sample[3], sample[0]]
+        };
+        assert_eq!(actual, Value::Float4(expected), "wired {wired}, assignment executed {run_assignment}");
+    }
+}
+
+#[test]
 fn pixel_product_sums_round_once_unless_the_product_is_also_read() {
     let values = [0x3fe34b19, 0x400d3c6f, 0xc0732711, 0x3f9665e4].map(|bits| Value::Float(f32::from_bits(bits)));
     let variables: BTreeMap<_, _> = ["a", "b", "c", "d"].into_iter().map(str::to_owned).zip(values).collect();
