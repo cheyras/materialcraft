@@ -25,6 +25,15 @@ pub(super) fn sampled_input(context: &CookContext, port: usize) -> (Image, Outpu
     resized_texture(context, port, InputResize::Sampled).unwrap_or_else(|| (Image::filled(context.w, context.h, Kind::Gray, [0.0; 4]), context.format))
 }
 
+fn clear_zero_signs(pixel: [f32; 4]) -> [f32; 4] {
+    pixel.map(|v| if v == 0.0 { 0.0 } else { v })
+}
+
+/// Color conversion preserves negative zero in every channel when all three RGB signs are negative.
+pub(super) fn converted_color(pixel: [f32; 4]) -> [f32; 4] {
+    if pixel[..3].iter().any(|v| v.is_sign_positive()) { clear_zero_signs(pixel) } else { pixel }
+}
+
 fn prepare_pattern_background(image: Image, mode: InputResize, source: OutputFormat, enlarged: bool) -> Image {
     if mode != InputResize::PatternBackground {
         return image;
@@ -41,9 +50,13 @@ fn prepare_pattern_background(image: Image, mode: InputResize, source: OutputFor
     }
     image.map(image.kind(), |pixel| {
         let pixel = if flush { pixel.map(crate::function::flush_subnormal) } else { pixel };
-        // In an enlarged color background a negative zero survives only when all three RGB signs are negative.
-        let clear_zero_sign = gray || (enlarged_color && pixel[..3].iter().any(|v| v.is_sign_positive()));
-        if clear_zero_sign { pixel.map(|v| if v == 0.0 { 0.0 } else { v }) } else { pixel }
+        if gray {
+            clear_zero_signs(pixel)
+        } else if enlarged_color {
+            converted_color(pixel)
+        } else {
+            pixel
+        }
     })
 }
 

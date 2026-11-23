@@ -366,7 +366,16 @@ pub fn blend_channel(mode: i32, b: f32, f: f32) -> f32 {
 pub fn blend_px(mode: i32, bg: [f32; 4], fg: [f32; 4], opacity: f32, color_blending: i32, blend_alpha: bool, clamp: bool) -> [f32; 4] {
     if mode == 7 {
         // Switch interpolates each channel directly, including alpha.
-        let mut out = std::array::from_fn(|k| bg[k].mul_add(1.0 - opacity, fg[k] * opacity));
+        let mut out = if opacity > 0.0 && opacity < 1.0 {
+            // Fractional weights flush subnormals before multiplication, after the first product and after the final add.
+            use crate::function::flush_subnormal;
+            std::array::from_fn(|k| {
+                let foreground = flush_subnormal(flush_subnormal(fg[k]) * opacity);
+                flush_subnormal(flush_subnormal(bg[k]).mul_add(1.0 - opacity, foreground))
+            })
+        } else {
+            std::array::from_fn(|k| bg[k].mul_add(1.0 - opacity, fg[k] * opacity))
+        };
         if clamp {
             for c in &mut out[..3] {
                 *c = c.clamp(0.0, 1.0);

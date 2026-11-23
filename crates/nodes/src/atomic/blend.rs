@@ -1,9 +1,10 @@
 use super::ATOMIC;
-use super::input_resize::{InputResize, resized_input};
+use super::input_resize::{InputResize, converted_color, resized_input};
 use crate::ops;
 use crate::ops::BLEND_MODES;
 use crate::{CookContext, CookResult, NodeDefinition, node};
 use craft_texture::{Image, Kind};
+use materialcraft_core::OutputFormat;
 
 pub(super) fn definition() -> NodeDefinition {
     node("blend", "Blend", ATOMIC)
@@ -37,11 +38,31 @@ pub fn blend_selected_input(context: &CookContext) -> Option<usize> {
     }
 }
 
+fn selected_float_color(context: &CookContext, port: usize) -> Option<Image> {
+    let image = context.input(port)?;
+    let source = context.input_formats.get(port).copied().unwrap_or(if image.integer_sampling() { OutputFormat::U16 } else { OutputFormat::F32 });
+    if image.is_gray()
+        || (image.width(), image.height()) != (context.w, context.h)
+        || !matches!(source, OutputFormat::F16 | OutputFormat::F32)
+        || !matches!(context.format, OutputFormat::F16 | OutputFormat::F32)
+    {
+        return None;
+    }
+    // An unmasked endpoint copies the selected texels. A precision change converts their zero signs before rounding to storage.
+    Some(if source == context.format { image.clone() } else { image.map(Kind::Color, |pixel| converted_color(pixel.map(crate::function::flush_subnormal))) })
+}
+
 fn blend(context: &CookContext) -> CookResult {
     let (mode, opacity) = (context.i("mode"), context.f("opacity"));
     // Stored graphs can compute an opacity outside the slider range. Bound it before applying the mask.
     let opacity = if (0..=8).contains(&mode) { opacity.clamp(0.0, 1.0) } else { opacity };
-    let copies_foreground = blend_selected_input(context) == Some(0);
+    let selected = blend_selected_input(context);
+    if mode == 7
+        && let Some(image) = selected.and_then(|port| selected_float_color(context, port))
+    {
+        return Ok(vec![image]);
+    }
+    let copies_foreground = selected == Some(0);
     let foreground = resized_input(context, 0, if copies_foreground { InputResize::Copy } else { InputResize::Filter });
     let background = resized_input(context, 1, if opacity == 0.0 { InputResize::Copy } else { InputResize::Filter });
     let kind = if [&foreground, &background].iter().any(|i| i.as_ref().is_some_and(|i| !i.is_gray())) { Kind::Color } else { Kind::Gray };
@@ -71,6 +92,80 @@ mod tests {
     use crate::resolve_params;
     use materialcraft_core::{OutputFormat, Value};
     use std::collections::BTreeMap;
+
+    #[test]
+    fn switch_endpoints_copy_signed_zero_at_the_selected_color_precision() {
+        use OutputFormat::{F16, F32};
+        let small = -2.0_f32.powi(-27);
+        let pixels = [[0.5, -0.0, -0.25, -0.0], [-0.0, -0.5, -0.25, 0.5], [small, 0.5, 0.25, -0.0]];
+        let field = Image::generate(3, 1, Kind::Color, |x, _| pixels[x as usize]);
+        let other = Image::filled(3, 1, Kind::Color, [-0.5, -1.0, 1.0, 0.5]);
+        for (source, target) in [(F32, F32), (F16, F32), (F32, F16), (F16, F16)] {
+            let selected = crate::output_precision::apply(field.clone(), source);
+            for (slot, opacity) in [(0, 1.0), (1, 0.0)] {
+                let mut inputs = [Some(other.clone()), Some(other.clone()), None];
+                inputs[slot] = Some(selected.clone());
+                let mut formats = [F32; 3];
+                formats[slot] = source;
+                let params = resolve_params(&definition(), &BTreeMap::from([("mode".into(), Value::Enum(7)), ("opacity".into(), Value::Float(opacity))]));
+                let vars = BTreeMap::new();
+                let context = CookContext {
+                    w: 3,
+                    h: 1,
+                    seed: 0,
+                    tile: true,
+                    input_formats: &formats,
+                    format: target,
+                    inputs: &inputs,
+                    params: &params,
+                    resource: &|_| None,
+                    vars: &vars,
+                };
+                let result = crate::output_precision::apply(blend(&context).unwrap().remove(0), target);
+                let same = source == target;
+                let zero = if same { -0.0_f32 } else { 0.0 };
+                let tiny = match (source, target) {
+                    (F32, F32) => small,
+                    (F16, F32) => 0.0,
+                    _ => -0.0,
+                };
+                for (i, expected) in [[0.5, zero, -0.25, zero], pixels[1], [tiny, 0.5, 0.25, zero]].into_iter().enumerate() {
+                    assert_eq!(
+                        result.get(i as i64, 0, false).map(f32::to_bits),
+                        expected.map(f32::to_bits),
+                        "{source:?} to {target:?}, input {slot}, pixel {i}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn switch_converts_subnormal_inputs_at_the_color_operation() {
+        let background = [0x0000_0000, 0xbfd3_82af, 0xbf69_87c4, 0x3f80_0000].map(f32::from_bits);
+        for (opacity, target, bits, expected) in [
+            (1.0, OutputFormat::F16, [0xb180_0000, 0x3f80_0000, 0x8000_0001, 0x3b03_86a1], [0x8000_0000, 0x3f80_0000, 0, 0x3b03_8000]),
+            (0.6137, OutputFormat::F32, [0x8000_0001, 0x3b03_86a1, 0xbf69_87c4, 0x8000_0000], [0, 0xbf23_1903, 0xbf69_87c4, 0x3ec5_c91e]),
+        ] {
+            let inputs = [Some(Image::filled(1, 1, Kind::Color, bits.map(f32::from_bits))), Some(Image::filled(1, 1, Kind::Color, background)), None];
+            let params = resolve_params(&definition(), &BTreeMap::from([("mode".into(), Value::Enum(7)), ("opacity".into(), Value::Float(opacity))]));
+            let vars = BTreeMap::new();
+            let context = CookContext {
+                w: 1,
+                h: 1,
+                seed: 0,
+                tile: true,
+                input_formats: &[OutputFormat::F32; 3],
+                format: target,
+                inputs: &inputs,
+                params: &params,
+                resource: &|_| None,
+                vars: &vars,
+            };
+            let result = crate::output_precision::apply(blend(&context).unwrap().remove(0), target);
+            assert_eq!(result.get(0, 0, false).map(f32::to_bits), expected, "opacity {opacity}, {target:?}");
+        }
+    }
 
     #[test]
     fn add_sub_limits_global_opacity_before_blending() {

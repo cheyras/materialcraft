@@ -59,6 +59,32 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-23 root comparisons
 
+### Signed zero when Switch Blend selects a floating-point color input
+
+In the [first eighth specular pass](#environment-and-intermediate-precision-in-the-eighth-specular-passes), render the black-specular-and-roughness control at 128² with F32 storage on the first pixel processor. Expose all three pixel processors and the two downstream Switch Blend results in a disposable MaterialCraft save. Read all five outputs from one cook in each application. The first processor and the final reference output each reproduced all 16,384 original pixels. Before the correction the three processors each matched 16,384/16,384 between applications. Their formats are F32, F16 and F16. The first Switch matched 16,345/16,384 and the second 16,353/16,384. Maximum numerical error was zero at all five stages. At (1,22) the first Switch returned `80000000` on green in MaterialCraft and `00000000` in the reference.
+
+An unmasked Switch at opacity zero or one copies the selected input. A same-size floating-point RGBA copy at the same precision preserves every channel bit. When converting F16 to F32 or F32 to F16, an existing zero retains its sign only when all three source RGB signs are negative. This also governs an existing zero in alpha. Converting before rounding to F16 preserves the sign of a negative nonzero component that rounds to zero. Subnormal F32 channels become signed zero before this precision conversion. At fractional weights the foreground and background channels, the rounded foreground product and the resulting multiply-add each flush subnormals to signed zero.
+
+Feed two nearest-sampling pixel processors into an unmasked Switch. For component c of each F32 RGBA field select words from `00000000 80000000 b1800000 31800000 bf800000 3f800000 3e8b217c bfd382af 80000001 00000001 c0000000 3b0386a1 b8899021 38f061d5 bf6987c4 405ccaac`. Index foreground by (x + 3c + 5j) modulo 16 and background by (y + 7c + 3j) modulo 16. Use 32 × 16, 16 × 32 and 32² for j = 0, 1 and 2 and seed 397091 + 47j. Use F32 for both processors at opacities 0, 1, .25 and .6137. Repeat with an F16 foreground at 0, 1, .5 and .6137. Store the Switch in all four formats at the first size and in F32 at the other two.
+
+For independent sign tests, use 16², 32 × 16 and 16 × 32. For source s = 0 for foreground or 1 for background, take bit c of (x + 5y + 7j + 3s) modulo 16 as the sign. Select a magnitude from (0,.5,2⁻²⁷,0,2⁻²⁴,.375,2⁻²⁵,1.125) by (y + 3c + s + 5j) modulo 8. Select each source in turn at F16 and F32 storage, leaving the other input at F32. Use seed 399023 + 47j. Store all four formats at the first size and F16 and F32 at the others. The sixteen sign masks distinguish the three RGB signs from all four channel signs, the first two signs and unconditional zero clearing.
+
+For a separate field around the smallest normal F32 value, use 16 × 32, 32 × 16 and 32² at seeds 404127 + 19j. Use the same eight graphs as the first comparison. Select channel words from `00000000 80000000 00000001 80000001 0071f5ab 80493874 007fffff 807fffff 00800000 80800000 00800001 80800001 00bce209 81d50c43 3f8c3793 c0666bbb`. Use index (7x + y + 5c + 7j) modulo 16 for foreground or (3x + 5y + 3c + 7j + 1) modulo 16 for background. Store all four formats at the first size and both floating formats at the others. With equal F32 inputs, all three flush stages are needed to reproduce every floating-output pixel at .25 and .6137.
+
+| Comparison | Renders | U8 exact / total · max | U16 exact / total · max | F16 exact / total · max | F32 exact / total · max |
+|---|---:|---:|---:|---:|---:|
+| Eight endpoint graphs, before correction | 56 | 3,072/3,072 · 0 | 3,072/3,072 · 0 | 4,726/7,168 · 0 | 10,234/13,312 · 0 |
+| Eight endpoint graphs, corrected | 56 | 3,072/3,072 · 0 | 3,072/3,072 · 0 | 7,168/7,168 · 0 | 13,312/13,312 · 0 |
+| Four endpoint SBS saves, opened in both applications | 28 | 1,536/1,536 · 0 | 1,536/1,536 · 0 | 3,584/3,584 · 0 | 6,656/6,656 · 0 |
+| Four partial-opacity controls, before correction | 24 | 2,048/2,048 · 0 | 2,048/2,048 · 0 | 1,960/2,048 · 0 | 7,456/8,192 · 1.40129846e-45 |
+| Four partial-opacity controls, corrected | 24 | 2,048/2,048 · 0 | 2,048/2,048 · 0 | 2,048/2,048 · 0 | 8,192/8,192 · 0 |
+| Independent small magnitudes, four endpoint graphs | 32 | 2,048/2,048 · 0 | 2,048/2,048 · 0 | 8,192/8,192 · 0 | 8,192/8,192 · 0 |
+| Independent small magnitudes, four partial-opacity graphs | 32 | 2,048/2,048 · 0 | 2,048/2,048 · 0 | 8,192/8,192 · 0 | 8,192/8,192 · 0 |
+| Two small-magnitude SBS saves reopened in both applications | 16 | 1,024/1,024 · 0 | 1,024/1,024 · 0 | 4,096/4,096 · 0 | 4,096/4,096 · 0 |
+| Reopened .6137 same-precision control | 6 | 512/512 · 0 | 512/512 · 0 | 512/512 · 0 | 2,048/2,048 · 0 |
+
+The endpoint saves cover F32 background selection, F16 foreground selection, a foreground stored in F32 and a background stored in F16. Each saved reference buffer matched its original. Both input processors matched at every setting. The two additional saves cover foreground selection and weighting at .6137. On the original three F32 output sizes at each of the four partial opacities, the three-stage flush rule reproduces 8,192/8,192 pixels. Both the selected-input and subnormal regressions failed before their respective corrections and passed afterward. All 398 node release tests, formatting, strict workspace Clippy, dependency layers and WebAssembly checks passed.
+
 ### Stored products in pixel expressions and irradiance ray steps
 
 A straight-line pixel expression can assign a vector product to a variable and add it to several positions. For each component consumed only by additions, the evaluator now rounds the multiply and add together. Returning the stored blue component alongside the sum preserves the rounded blue product in both places. A subsequent assignment takes effect at the next read. The change applies to the shared expression evaluator.
@@ -4062,11 +4088,11 @@ Each root matches 5,487,872/5,487,872 original pixels. At the disputed root outp
 
 ### Environment and intermediate precision in the eighth specular passes
 
-Repeat the two [128² F16 settings](#rectangular-inputs-and-remaining-half-float-pixels-in-the-eighth-specular-passes) at seed zero, using the changed shape for root 396 and defaults for root 408. Keep the same eight bound inputs and final output format. Set only the first connected pixel processor to F32 and compare its raw RGBA with its F16 output at the root. All eight intermediate input images on this path matched in the preceding capture.
+Repeat the two [128² F16 settings](#rectangular-inputs-and-remaining-half-float-pixels-in-the-eighth-specular-passes) at seed zero, using the changed shape for root 396 and defaults for root 408. Keep the same eight bound inputs and final output format. Set only the first connected pixel processor to F32 and compare its raw RGBA with the graph output. Pass 396 returns F32, with every stored value exactly representable in F16 across these five controls. Pass 408 returns F16. All eight intermediate input images on this path matched in the preceding capture.
 
 For three controls replace one input with a generated opaque black 128² F32 texture. For the fourth replace the environment with an F32 texture containing red (x+.5)/128, green (y+.5)/128, blue ((17x+37y+5xy) mod 257)/256 and alpha one. All other inputs and parameters keep their values from the same original setting. Each count below requires all four channel bit patterns of a pixel to match.
 
-| Root | Input change | First processor F32 exact / 16,384 | Maximum F32 error | Final F16 exact / 16,384 | Maximum F16 error |
+| Root | Input change | First processor F32 exact / 16,384 | Maximum F32 error | Final pixels exact / 16,384 | Maximum output error |
 |---|---|---:|---:|---:|---:|
 | 396 | Original inputs | 14,265 | 2.384185791015625e-07 | 16,383 | 0.0001220703125 |
 | 396 | Black environment | 16,384 | 0 | 16,384 | 0 |
