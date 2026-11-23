@@ -41,7 +41,12 @@ pub(super) fn evaluate(
             None if context.scope == super::FunctionScope::FxMap && name == "$randomseed" && op == "get_integer1" => Value::Int(0),
             // Unbound integer names in node properties read as zero, including reserved spellings.
             // Known system variables still enforce their own scope and type.
-            None if context.scope == super::FunctionScope::Node && op == "get_integer1" && super::SystemVariable::named(name).is_none() => Value::Int(0),
+            None if matches!(context.scope, super::FunctionScope::Node | super::FunctionScope::RandomSeed)
+                && op == "get_integer1"
+                && super::SystemVariable::named(name).is_none() =>
+            {
+                Value::Int(0)
+            }
             // Unset numeric variables start at typed zero in a value processor.
             None if !name.starts_with('$') || context.scope == super::FunctionScope::ValueProcessor => {
                 materialcraft_core::ValueType::from_code(instruction.type_code)
@@ -67,6 +72,19 @@ pub(super) fn evaluate(
         }
 
         return value_type::canonical(value);
+    }
+
+    if context.scope == super::FunctionScope::RandomSeed && !instruction.literal {
+        // Runtime scalar seed sums add the storage words. A float-to-integer cast retains the floored float's bits.
+        match (op, arguments) {
+            ("add", [Value::Int(left), Value::Int(right)]) => return Ok(Value::Int(left.wrapping_add(*right))),
+            ("add", [Value::Float(left), Value::Float(right)]) => {
+                let sum = f32::from_bits(left.to_bits().wrapping_add(right.to_bits()));
+                return Ok(Value::Float(super::arithmetic::flush_subnormal(sum)));
+            }
+            ("toint1", [Value::Float(value)]) if value.is_finite() => return Ok(Value::Int(value.floor().to_bits() as i32)),
+            _ => {}
+        }
     }
 
     // A folded scalar cast interprets the 32-bit word as unsigned. Vector casts use signed lanes.
@@ -143,7 +161,7 @@ pub(super) fn evaluate(
             let setting = instruction.value.as_ref().map(integers).transpose()?.unwrap_or([0, 0, 0, 0]);
             let index = usize::try_from(setting[0]).map_err(|_| "negative image index")?;
             let (bilinear, repeat) = match (context.scope, setting[1]) {
-                (super::FunctionScope::Node, mode) => (mode != 0, context.tile),
+                (super::FunctionScope::Node | super::FunctionScope::RandomSeed, mode) => (mode != 0, context.tile),
                 (_, 2) => (false, false),
                 (_, 3) => (true, false),
                 (_, mode) => (mode != 0, true),

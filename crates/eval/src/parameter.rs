@@ -1,4 +1,4 @@
-use crate::{ResolvedBaseParameters, parameter_function::ChannelMode};
+use crate::{ResolvedBaseParameters, parameter_function::ParameterMode};
 use materialcraft_core::{Node, OutputFormat, Package, Value, ValueType};
 use materialcraft_nodes::function::compile_with_literal_inputs;
 use materialcraft_nodes::{NodeDefinition, ParameterDescriptor, accepts_scalar_function, clamp_params, resolve_params};
@@ -72,28 +72,28 @@ pub(crate) fn resolve_parameters(
     for (parameter, function) in &node.functions {
         let current = parameters.get(parameter).ok_or_else(|| format!("unknown function parameter `{parameter}`"))?;
         let expected = ValueType::of(current).ok_or_else(|| format!("parameter `{parameter}` cannot have a function"))?;
-        let channels = match (node.def.as_str(), parameter.as_str(), base.format) {
-            ("uniform", "color", _) => ChannelMode::UniformColor,
+        let mode = match (node.def.as_str(), parameter.as_str(), base.format) {
+            ("uniform", "color", _) => ParameterMode::UniformColor,
             ("levels", name, format) if accepts_scalar_function("levels", name) => {
-                ChannelMode::Levels { normalized: name != "in_mid" && matches!(format, OutputFormat::U8 | OutputFormat::U16 | OutputFormat::Inherit) }
+                ParameterMode::Levels { normalized: name != "in_mid" && matches!(format, OutputFormat::U8 | OutputFormat::U16 | OutputFormat::Inherit) }
             }
-            ("fx_map", "background", _) if matches!(current, Value::Float4(_)) => ChannelMode::Broadcast,
-            ("fx_map", "opacity", _) if parameters.get("color_mode") == Some(&Value::Bool(false)) => ChannelMode::GrayPatternOpacity,
-            _ => ChannelMode::Opaque,
+            ("fx_map", "background", _) if matches!(current, Value::Float4(_)) => ParameterMode::Broadcast,
+            ("fx_map", "opacity", _) if parameters.get("color_mode") == Some(&Value::Bool(false)) => ParameterMode::GrayPatternOpacity,
+            _ => ParameterMode::Opaque,
         };
         let (value, literal) = compile_with_literal_inputs(function, base.seed, literal_inputs)
             .and_then(|program| {
                 if node.def == "blend" && parameter == "opacity" {
                     dynamic_blend_opacity = program.reads_graph_parameter(variables);
                 }
-                crate::parameter_function::evaluate(&program, expected, variables.to_mut(), base.size, channels, Some(current))
+                crate::parameter_function::evaluate(&program, expected, variables.to_mut(), base.size, mode, Some(current))
             })
             .map_err(|error| format!("function of `{parameter}`: {error}"))?;
-        if matches!(channels, ChannelMode::UniformColor) {
+        if matches!(mode, ParameterMode::UniformColor) {
             uniform_color = uniform_color_operand(&value, literal);
             continue;
         }
-        if matches!(channels, ChannelMode::GrayPatternOpacity) {
+        if matches!(mode, ParameterMode::GrayPatternOpacity) {
             // Keep the result in floating point until blending. JSON and slider limits lose signed infinities.
             gray_pattern_opacity = Some(value);
             continue;
@@ -105,7 +105,7 @@ pub(crate) fn resolve_parameters(
                 dynamic.insert(parameter);
             }
         }
-        let value = if matches!((&channels, &value), (ChannelMode::Levels { .. }, Value::Float(_))) {
+        let value = if matches!((&mode, &value), (ParameterMode::Levels { .. }, Value::Float(_))) {
             value
         } else {
             current.coerce_json(&serde_json::to_value(value).unwrap_or_default()).ok_or_else(|| format!("invalid function value for `{parameter}`"))?

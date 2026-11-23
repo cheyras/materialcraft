@@ -39,7 +39,9 @@ pub(super) fn component(angle: f32, cosine: bool, scope: super::FunctionScope, l
     }
     match scope {
         super::FunctionScope::PixelProcessor => pixel_component(angle, cosine),
-        super::FunctionScope::Node | super::FunctionScope::ValueProcessor | super::FunctionScope::FxMap => uniform_component(angle, cosine),
+        super::FunctionScope::Node | super::FunctionScope::RandomSeed | super::FunctionScope::ValueProcessor | super::FunctionScope::FxMap => {
+            uniform_component(angle, cosine)
+        }
     }
 }
 

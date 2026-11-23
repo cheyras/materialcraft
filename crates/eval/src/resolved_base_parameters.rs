@@ -61,7 +61,7 @@ impl ResolvedBaseParameters {
                     parameter.value_type(),
                     &mut variables,
                     self.size,
-                    crate::parameter_function::ChannelMode::Opaque,
+                    crate::parameter_function::ParameterMode::for_base(parameter),
                     None,
                 )?;
                 Ok((value, dynamic))
@@ -192,7 +192,7 @@ pub(crate) fn evaluate(
                         parameter.value_type(),
                         variables.to_mut(),
                         size,
-                        crate::parameter_function::ChannelMode::Opaque,
+                        crate::parameter_function::ParameterMode::for_base(parameter),
                         None,
                     )
                 })

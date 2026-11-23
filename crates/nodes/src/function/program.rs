@@ -160,7 +160,7 @@ impl Program {
             super::FunctionScope::PixelProcessor => FunctionRandom::pixel(seed, context.position),
             super::FunctionScope::ValueProcessor => FunctionRandom::pixel(seed, [0.0; 2]),
             super::FunctionScope::FxMap => FunctionRandom::image(seed),
-            super::FunctionScope::Node => FunctionRandom::uniform(seed),
+            super::FunctionScope::Node | super::FunctionScope::RandomSeed => FunctionRandom::uniform(seed),
         }
     }
 
