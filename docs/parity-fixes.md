@@ -59,6 +59,33 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-23 root comparisons
 
+### Dense Quadrant traversal and reference worker counts
+
+Construct a grayscale FX-Map with a .0625 background, zero roughness, overall opacity 1, both regions (0,1,0,1), center culling enabled and wrapping disabled. Start at (.5,.5). At each subdivision link all four children to the next empty Quadrant. At the last level draw additive squares of size (1.75,2.25), rotation zero and luminosity `rand(.0625) + .0625 * $pos.x`. In the returning-offset version move the root branch by (1.25,0) and the final stamp by (−1.25,0). In the narrow version change only the size to (.375,1.25). Use seeds 441151 + 31j, with j from zero to three in the column order below.
+
+| Graph and final depth | F32 16×8 | F16 16² | U16 8×16 | U8 32×16 |
+|---|---:|---:|---:|---:|
+| Regular, 6 | 128/128 · 0 | 256/256 · 0 | 128/128 · 0 | 512/512 · 0 |
+| Regular, 8 | 128/128 · 0 | 256/256 · 0 | 128/128 · 0 | 512/512 · 0 |
+| Regular, 10 | 121/128 · 2.98023224e-08 | 256/256 · 0 | 128/128 · 0 | 512/512 · 0 |
+| Regular, 11 | Visit limit | Visit limit | Visit limit | Visit limit |
+| Returning offset, 8 | 128/128 · 0 | 256/256 · 0 | 128/128 · 0 | 512/512 · 0 |
+| Returning offset, 10 | 126/128 · 5.96046448e-08 | 256/256 · 0 | 128/128 · 0 | 512/512 · 0 |
+| Narrow, 8 | 128/128 · 0 | 256/256 · 0 | 128/128 · 0 | 512/512 · 0 |
+| Narrow, 10 | 128/128 · 0 | 256/256 · 0 | 128/128 · 0 | 512/512 · 0 |
+
+The production cook matched 7,159/7,168 desktop pixels in 28 completed settings. The reference produced a buffer for all 32. Save and reopen the depth-eight regular, depth-eleven regular, depth-ten returning and depth-ten narrow graphs. Repeat the F32 and U16 rectangles. The two applications matched 766/768 pixels in six completed reopens, maximum 5.96046448e−8. Across all eight, the reference reproduced 1,008/1,024 original pixels. Its 16 changed pixels were in the depth-eleven F32 image, maximum 2.98023224e−8.
+
+For the whole BNW Spots 3 v2 graph use 32² F32, seed 162174, scale 2, disorder .78125, speed 1.015625, anisotropy .390625, angle .40625 and tile offset (.1708984375,−.29296875). Complete this traversal and the two F32 square controls below in an instrumented cook with a higher visit allowance. On each saved graph select one or eight reference workers explicitly and render twice without changing the seed. The table gives exact pixels / total and maximum channel error.
+
+| Graph | Completed traversal vs one worker, both runs | vs desktop | vs eight workers, first run | vs eight workers, second run | Eight-worker repeat |
+|---|---:|---:|---:|---:|---:|
+| Regular, 11 | 128/128 · 0 | 109/128 · 2.98023224e-08 | 113/128 · 2.98023224e-08 | 107/128 · 2.98023224e-08 | 96/128 · 2.98023224e-08 |
+| Returning offset, 10 | 128/128 · 0 | 126/128 · 5.96046448e-08 | 105/128 · 5.96046448e-08 | 113/128 · 5.96046448e-08 | 102/128 · 5.96046448e-08 |
+| Whole Spots 3 v2 | 1,024/1,024 · 0 | 894/1,024 · 1.1920929e-07 | 878/1,024 · 1.78813934e-07 | 874/1,024 · 1.1920929e-07 | 887/1,024 · 2.38418579e-07 |
+
+The dense spot traversal takes 4,025,030 visits. At depth eight in its final generator, testing a square with radius four times the current subdivision width around the incoming center plus the inherited frame offset would reject 6,442 of 753,536 subtrees that contained a retained stamp. The returning-offset controls also draw after their ancestors leave the image. The production visit limit and the multi-worker differences remain open. [Original spot traversal and whole-root measurements](#whole-root-precision-and-saved-comparisons-for-the-three-neighboring-spot-graphs)
+
 ### Whole and reopened first-renderer irradiance pass
 
 Repeat the [17 default-index settings](#first-renderer-eighth-irradiance-pass) and the [nine connected-index settings](#irradiance-with-a-connected-pass-index) after the [instance input and rotation correction](#scalar-float-precision-in-nested-graph-instances). The original seven procedural inputs, graph expressions and output connections are retained. Each of the 26 image outputs and 26 next-index float values matches, including the default at 256² and seed 42 at 128².
