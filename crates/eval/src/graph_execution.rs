@@ -11,8 +11,6 @@ pub fn cook(package: &Package, graph_index: usize, options: &Options, cache: &Mu
     let mut cooked = Cooked::default();
     let Some(graph) = package.graphs.get(graph_index) else { return cooked };
 
-    let prepared = PreparedGraph::new(package, graph, options);
-
     // Exposed parameter values: the graph's own, then the caller's overrides
     let mut variables: BTreeMap<String, Value> =
         graph.exposed.iter().filter_map(|exposed| graph.input_value(&exposed.id).map(|value| (exposed.id.clone(), value.clone()))).collect();
@@ -24,6 +22,7 @@ pub fn cook(package: &Package, graph_index: usize, options: &Options, cache: &Mu
     variables.insert("$normalformat".into(), Value::Int(options.environment.normal_format));
     variables.insert("$physicalsize".into(), Value::Float3(graph.physical_size));
 
+    let prepared = PreparedGraph::new(package, graph, options, &variables);
     for &id in &prepared.order {
         if options.cancel.is_some_and(|cancel| cancel.load(Ordering::Relaxed)) {
             cooked.cancelled = true;

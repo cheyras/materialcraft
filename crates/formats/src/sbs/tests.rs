@@ -598,3 +598,22 @@ fn graph_seed_inheritance_survives_sbs_saving() {
         }
     }
 }
+
+#[test]
+fn graph_seed_functions_round_trip_with_their_inheritance() {
+    use materialcraft_core::BaseParameter;
+    let xml = r#"<package><content><graph><identifier v="Field"/><baseParameters>
+      <parameter><name v="randomseed"/><relativeTo v="1"/><paramValue><dynamicValue>
+        <rootnode v="21"/><paramNodes><paramNode><uid v="21"/><function v="const_int1"/><type v="16"/>
+        <funcDatas><funcData><name v="const_int1"/><constantValue><constantValueInt1 v="5"/></constantValue></funcData></funcDatas>
+        </paramNode></paramNodes></dynamicValue></paramValue></parameter></baseParameters></graph></content></package>"#;
+    let package = read_sbs(xml.as_bytes(), "seed.sbs", &no_linked_files).unwrap().pkg;
+    let saved = write_sbs(&package).unwrap();
+    let document = roxmltree::Document::parse(std::str::from_utf8(&saved).unwrap()).unwrap();
+    let element = document.descendants().find(|n| n.has_tag_name("baseParameters")).unwrap();
+    let base = super::base_parameters::read_base_params(Some(element), &mut Default::default());
+    assert_eq!(base.seed_mode, materialcraft_core::ParameterInheritance::RelativeToParent);
+    let function = base.functions.get(&BaseParameter::RandomSeed).expect("the saved seed has its authored function");
+    assert_eq!(function.node(function.output.unwrap()).unwrap().value, Some(materialcraft_core::Value::Int(5)));
+    assert_eq!(read_sbs(&saved, "copy.sbs", &no_linked_files).unwrap().pkg.graphs[0].functions().count(), 1);
+}

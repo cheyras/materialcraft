@@ -41,6 +41,8 @@ Nested Curvature, Curvature Smooth and Normal Sobel each match 2,304/2,304 origi
 
 Ordinary SBS saves preserve graph seed inheritance across 22 nested graphs. The original and reopened random fields each match 22,528/22,528 pixels. BNW Spots 1 and Clouds 1 and 2 each match 9,216/9,216 pixels across four output formats in the two nested settings. [Seed settings, whole graphs and renderer repeats](parity-fixes.md#graph-random-seed-inheritance-on-save-and-in-nested-graphs)
 
+Computed integer seeds now match 18,432/18,432 original and 18,432/18,432 reopened pixels. With these seeds, BNW Spots 1, Clouds 1 and Clouds 2 each match 9,216/9,216 in eight nested settings and 2,304/2,304 on the two desktop reopens. All maximum errors are zero. The 256² worker comparisons still differ, so all three roots remain in progress. The same investigation found a relative graph size offset lost on save and a separate discrepancy converting a driven float to a seed. [Reproduction, exact counts and remaining differences](parity-fixes.md#computed-graph-seeds-on-load-evaluation-and-save)
+
 A vector with one connected operand now matches 72/72 original typed values, 10/10 reopened values and 17,024/17,024 Pixel Processor and FX-Map pixels. The scan of root graph bodies found no reachable one-wire vector with its first port disconnected. [Vector construction and saved-file measurements](parity-fixes.md#single-connected-operands-in-vector-constructors)
 
 Panorama Plane Light matches 212,736/212,736 pixels across 32 original settings and 41,472/41,472 after reopening. [Interpolation probes and whole-root counts](parity-fixes.md#packed-products-in-the-second-endpoint-of-a-pixel-interpolation)

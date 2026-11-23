@@ -90,6 +90,7 @@ fn seed(session: &mut Session, parameters: &J) -> Result<J> {
         let graph = package.graph_mut(target.graph)?;
         if let Some(seed) = seed {
             graph.seed = seed;
+            graph.seed_function = None;
         }
         if let Some(mode) = mode {
             graph.seed_mode = mode;

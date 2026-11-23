@@ -151,6 +151,7 @@ impl SbsWriter {
             size: graph.absolute_output_size.unwrap_or_default(),
             seed: graph.seed,
             seed_mode: graph.seed_mode,
+            functions: graph.seed_function.clone().map(|function| (materialcraft_core::BaseParameter::RandomSeed, function)).into_iter().collect(),
             format: graph.format,
             format_mode: materialcraft_core::ParameterInheritance::Absolute,
             pixel_ratio: graph.pixel_ratio,

@@ -58,3 +58,22 @@ fn grouping_noise_preserves_pixels_seed_and_undo() {
         }
     }
 }
+
+#[test]
+fn editing_a_computed_graph_seed_preserves_the_expression_until_a_literal_is_set() {
+    use materialcraft_engine::core::{FunctionGraph, ParameterInheritance};
+    let mut session = new_session();
+    let mut function = FunctionGraph::default();
+    function.output = Some(function.add_constant(materialcraft_engine::core::Value::Int(5)));
+    session.pkg.graphs[0].seed_function = Some(function.clone());
+    run(&mut session, "graph.seed", json!({"inheritance": "relativeToParent"}));
+    assert_eq!(session.pkg.graphs[0].seed_mode, ParameterInheritance::RelativeToParent);
+    assert_eq!(session.pkg.graphs[0].seed_function.as_ref(), Some(&function));
+    let inspected = run(&mut session, "session.inspect", json!({}));
+    assert_eq!(inspected["graph"]["seedFunction"], serde_json::to_value(&function).unwrap());
+    run(&mut session, "graph.seed", json!({"seed": 17}));
+    assert_eq!(session.pkg.graphs[0].seed_function, None);
+    assert_eq!(session.pkg.graphs[0].seed, 17);
+    run(&mut session, "edit.undo", json!({}));
+    assert_eq!(session.pkg.graphs[0].seed_function, Some(function));
+}

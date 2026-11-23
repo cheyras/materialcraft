@@ -187,13 +187,14 @@ impl<'text> SbsReader<'text, '_> {
 
     pub(super) fn read_graph(&mut self, element: XmlNode<'_, 'text>, name: String) -> Graph {
         let mut graph = Graph::new(&name);
-        let base = read_base_params(child_element(element, "baseParameters"), self.warnings);
+        let mut base = read_base_params(child_element(element, "baseParameters"), self.warnings);
         if BaseParameter::OutputSize.inheritance(&base) == ParameterInheritance::Absolute && !base.functions.contains_key(&BaseParameter::OutputSize) {
             graph.absolute_output_size = Some(base.size);
         }
         graph.format = if BaseParameter::Format.inheritance(&base) == ParameterInheritance::Absolute { base.format } else { OutputFormat::Inherit };
         graph.seed = base.seed;
         graph.seed_mode = base.seed_mode;
+        graph.seed_function = base.functions.remove(&BaseParameter::RandomSeed);
         graph.pixel_ratio = base.pixel_ratio;
         graph.pixel_ratio_mode = base.pixel_ratio_mode;
         graph.tiling = base.tiling;

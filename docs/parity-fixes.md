@@ -59,6 +59,42 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-23 root comparisons
 
+### Computed graph seeds on load, evaluation and save
+
+The SBS reader used to drop a graph's seed expression. The evaluator consequently used the stored integer offset, and an ordinary save lost the expression. MaterialCraft now preserves the function, evaluates it against the child's arguments and resolved dimensions, then applies the authored seed inheritance. Editing inheritance retains the function. Entering a literal seed replaces the function, and undo restores it.
+
+Create a child with a grayscale F32 Pixel Processor returning Random(1). Connect its output through an instance with a parent-relative seed offset of 3. Give the child an absolute, parent-relative or input-relative seed. In each mode supply 5, −3, −6 + 11, an exposed integer defaulting to 5, that input overridden to −3, and that input bound to a parent integer of −3. Include separate children with literal 5 and −3. Render at 16² with seeds 0 and 19 and at 32 × 16 with seed 42. Compare the F32 bits, then repeat with ordinary SBS saves.
+
+| One-worker D3D11 comparison | Exact pixels / total | Maximum absolute error |
+|---|---:|---:|
+| Previous evaluator, 54 renders with seed expressions | 0/18,432 | 0.992987871 |
+| Corrected evaluator, original and reopened expressions, each | 18,432/18,432 | 0 |
+| Reference expressions vs. their equivalent literal seeds | 18,432/18,432 | 0 |
+| Literal controls, original and reopened, each | 6,144/6,144 | 0 |
+| Desktop, five expression graphs at all three settings, original and reopened, each | 5,120/5,120 | 0 |
+
+Replace the child field with an instance of the complete BNW Spots 1, Clouds 1 or Clouds 2 graph. Keep the catalog graph intact. At 16² use defaults, outer seed 0 and an absolute child expression returning 5. At 64 × 32 use outer seed 372177, Disorder .96875 where exposed, and a parent-relative seed function reading the instance's −3 override. Request U8, U16, F16 and F32 on the enclosing instance. These requests retain the child output's own storage. Compare F32 readbacks and repeat with a literal child seed and an ordinary save. Independently open the U8 default and changed F32 settings in the desktop using distinct embedded graph identifiers for each fixture.
+
+| Computed-seed root | Previous evaluator · exact / total · max | Corrected vs. one-worker original and ordinary reopen, each | Corrected vs. desktop original and ordinary reopen, each |
+|---|---:|---:|---:|
+| BNW Spots 1 | 4/9,216 · 0.571389347 | 9,216/9,216 · 0 | 2,304/2,304 · 0 |
+| Clouds 1 | 0/9,216 · 0.556694895 | 9,216/9,216 · 0 | 2,304/2,304 · 0 |
+| Clouds 2 | 0/9,216 · 0.567727149 | 9,216/9,216 · 0 | 2,304/2,304 · 0 |
+
+At 256² and seed 372421, repeat the changed F32 setting on the original and the saved wrapper with one and eight workers. All three one-worker reference originals and saves reproduce their own 65,536 pixels. The table reports comparisons against the original wrappers. Numeric errors are absolute differences in the normalized F32 readback.
+
+| Root | Corrected vs. one worker · exact / 65,536 · max | Corrected vs. eight workers, two runs · exact · max | Eight-worker reference repeat · exact · max |
+|---|---:|---:|---:|
+| BNW Spots 1 | 65,530 · 0.000030517578125 | 65,536 · 0 on both | 65,536 · 0 |
+| Clouds 1 | 65,534 · 0.00006103515625 | 65,534 and 65,535 · 0.00006103515625 | 65,533 · 0.00006103515625 |
+| Clouds 2 | 65,532 · 0.000030517578125 | 65,533 · 0.000030517578125 on both | 65,532 · 0.000030517578125 |
+
+To isolate the evaluation dimensions, return seed 5 when one lane of `$size` or `$sizelog2` exceeds an exposed float threshold, otherwise return 0. Test both axes at 16², 32 × 16 and 16 × 32 with outer seeds 0, 42 and 19. Use thresholds 0, .5, 1, 7.5, 8, 15.5, 16, 31.5 and 32 for size and −1, 0, 1, 2.5, 3, 3.5, 4, 4.5 and 5 for log size. The desktop comparisons match 46,080/46,080 pixels when the child inherits its extent and 13,824/13,824 with a fixed 8 × 16 child. Both totals repeat on ordinary saves with zero error. The desktop reads the resolved dimensions. The standalone renderer reads (1,1) and log dimensions (0,0) in the isolated graph-seed controls.
+
+A child with a relative size offset of (−1,+1) exposes a separate file-format gap. All 108 original output extents disagree with MaterialCraft, and reopening the saved file in the desktop changes all 108 extents. No pixel score is assigned to these pairs. Converting a runtime float to the integer seed is also open. On the two size lanes and one log-size lane, MaterialCraft matches 0/3,072 desktop pixels, maximum 0.998188853, both before and after saving. For an exposed parent float of 5, the desktop's graph and atomic seed fields both match a literal seed of 1084227584. An ordinary Value Processor returns the typed integer 5 for the same expression. A structural scan found no graph or top-level atomic seed expressions authored in these 546 root bodies. The wrappers exercise the shared behavior when a caller sets one. [Earlier literal seed and storage-format measurements](#graph-random-seed-inheritance-on-save-and-in-nested-graphs)
+
+The format and evaluator regressions failed on the previous code. The dimension regression also failed with a one-texel function context. The edit and undo test passes. Across the four touched crates, 499 release tests passed and 8 were ignored. The engine command panic regression, formatting, strict workspace Clippy, dependency layers and WebAssembly checks passed.
+
 ### Float vector arguments in nested functions
 
 Fixed two-, three- and four-component float arguments now retain literal precision when an instance supplies the child graph's default, a stored vector, or a constant expression. A vector read from an exposed parent parameter retains runtime precision. This uses the graph evaluator's existing distinction between fixed and driven arguments. [Scalar argument measurements](#scalar-float-precision-in-nested-graph-instances)

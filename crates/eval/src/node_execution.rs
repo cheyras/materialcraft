@@ -135,8 +135,8 @@ pub(crate) fn cook_node(
         cached: false,
     };
 
-    if let Some(error) = base_error {
-        return fail(error, 0);
+    if let Some(error) = prepared.base_error.as_ref().or(base_error.as_ref()) {
+        return fail(error.clone(), 0);
     }
 
     if let Some(error) = input_error {

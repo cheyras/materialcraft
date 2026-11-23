@@ -60,6 +60,9 @@ pub fn session(session: &Session, requested_graph: Option<usize>) -> J {
             "pins": graph.pins,
         });
         result["physicalSize"] = json!(graph.physical_size);
+        if let Some(function) = &graph.seed_function {
+            result["seedFunction"] = json!(function);
+        }
         result["pixelRatio"] = json!(graph.pixel_ratio);
         result["pixelRatioMode"] = json!(graph.pixel_ratio_mode);
         result["tiling"] = json!(graph.tiling);

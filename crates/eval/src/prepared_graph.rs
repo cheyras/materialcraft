@@ -7,11 +7,12 @@ pub(crate) struct PreparedGraph<'a> {
     pub index: GraphIndex<'a>,
     pub order: Vec<NodeId>,
     pub parent_base: crate::resolved_base_parameters::ResolvedBaseParameters,
+    pub base_error: Option<String>,
     ports: BTreeMap<NodeId, (Vec<Port>, Vec<Port>)>,
 }
 
 impl<'a> PreparedGraph<'a> {
-    pub fn new(package: &Package, graph: &'a Graph, options: &crate::Options<'_>) -> Self {
+    pub fn new(package: &Package, graph: &'a Graph, options: &crate::Options<'_>, variables: &BTreeMap<String, materialcraft_core::Value>) -> Self {
         let index = GraphIndex::new(graph);
         let needed = options.only.as_deref().map(|roots| index.required_nodes(roots));
         let order: Vec<_> = index.topo_order().into_iter().filter(|id| needed.as_ref().is_none_or(|needed| needed.contains(id))).collect();
@@ -23,8 +24,9 @@ impl<'a> PreparedGraph<'a> {
             })
             .collect();
 
-        let parent_base = crate::resolved_base_parameters::ResolvedBaseParameters::graph(graph, options);
-        Self { index, order, ports, parent_base }
+        let mut parent_base = crate::resolved_base_parameters::ResolvedBaseParameters::graph(graph, options);
+        let base_error = parent_base.evaluate_graph_seed(graph, options, variables).err();
+        Self { index, order, ports, parent_base, base_error }
     }
 
     pub fn input_base(&self, id: NodeId, cooked: &crate::Cooked) -> Option<crate::ResolvedBaseParameters> {

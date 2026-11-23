@@ -1853,9 +1853,7 @@ fn levels_widens_scalar_endpoints_to_opaque_gray_and_normalizes_integer_controls
     }
 }
 
-#[test]
-fn an_instanced_graph_resolves_its_own_seed_after_the_instance() {
-    use materialcraft_core::ParameterInheritance::{Absolute, RelativeToInput, RelativeToParent};
+fn instanced_seed_field() -> (Package, NodeId, NodeId) {
     let (mut parent, instance) = instancing("Parent", "Field");
     parent.seed = 19;
     parent.node_mut(instance).unwrap().base.seed = 3;
@@ -1870,6 +1868,13 @@ fn an_instanced_graph_resolves_its_own_seed_after_the_instance() {
     child.connect(noise, "output", output, "input").unwrap();
     let mut pkg = Package::new("Seed controls");
     pkg.graphs.extend([parent, child]);
+    (pkg, instance, output)
+}
+
+#[test]
+fn an_instanced_graph_resolves_its_own_seed_after_the_instance() {
+    use materialcraft_core::ParameterInheritance::{Absolute, RelativeToInput, RelativeToParent};
+    let (mut pkg, instance, output) = instanced_seed_field();
     let cache = Mutex::new(Cache::default());
     for (mode, offset, expected) in [(Absolute, 0, 0), (Absolute, 5, 5), (RelativeToParent, 5, 27), (RelativeToInput, -3, 19)] {
         pkg.graphs[1].seed = expected;
@@ -1880,6 +1885,91 @@ fn an_instanced_graph_resolves_its_own_seed_after_the_instance() {
         assert_eq!(nested.nodes[&instance].error, None);
         assert_eq!(nested.image(instance, 0).unwrap().data(), direct.image(output, 0).unwrap().data(), "{mode:?} {offset}");
     }
+}
+
+#[test]
+fn graph_seed_functions_read_the_resolved_dimensions_of_the_child() {
+    use materialcraft_core::{FunctionGraph, ParameterInheritance, ValueType};
+    let (mut package, instance, output) = instanced_seed_field();
+    package.graphs[1].seed_mode = ParameterInheritance::Absolute;
+    let mut literal = package.clone();
+    let options = Options::new(&no_res);
+    let cache = Mutex::new(Cache::default());
+    for (name, axis, threshold, parent, absolute, expected_seed) in [
+        ("$size", 0, 20.0, [5, 4], None, 5),
+        ("$size", 1, 20.0, [5, 4], None, 0),
+        ("$sizelog2", 1, 4.5, [4, 5], None, 5),
+        ("$size", 0, 12.0, [5, 4], Some([3, 4]), 0),
+        ("$sizelog2", 1, 3.5, [4, 5], Some([3, 4]), 5),
+    ] {
+        let mut function = FunctionGraph::input(name, ValueType::Float2);
+        let selected = function.add("swizzle1", &[function.output.unwrap()], Some(Value::Int(axis)));
+        let limit = function.add_constant(Value::Float(threshold));
+        let predicate = function.add("gt", &[selected, limit], None);
+        let yes = function.add_constant(Value::Int(5));
+        let no = function.add_constant(Value::Int(0));
+        function.output = Some(function.add("ifelse", &[predicate, yes, no], None));
+        package.graphs[0].size = parent;
+        package.graphs[1].absolute_output_size = absolute;
+        package.graphs[1].seed_function = Some(function);
+        literal.graphs[1].size = parent;
+        literal.graphs[1].absolute_output_size = absolute;
+        literal.graphs[1].seed = expected_seed;
+        let actual = cook(&package, 0, &options, &cache);
+        assert_eq!(actual.nodes[&instance].error, None);
+        let reference = cook(&literal, 1, &options, &cache);
+        assert_eq!(actual.image(instance, 0).unwrap().data(), reference.image(output, 0).unwrap().data(), "{name} {axis} {parent:?} {absolute:?}");
+    }
+}
+
+#[test]
+fn graph_seed_functions_use_the_child_argument_before_cooking_its_nodes() {
+    use materialcraft_core::{ExposedParameter, FunctionGraph, ParameterInheritance, ValueType};
+    let (mut package, instance, output) = instanced_seed_field();
+    let input = ExposedParameter {
+        id: "offset".into(),
+        label: "Offset".into(),
+        default: Value::Int(5),
+        connectable: false,
+        min: -20.0,
+        max: 20.0,
+        clamp: false,
+        step: None,
+        editor: None,
+        description: String::new(),
+        group: String::new(),
+        options: Vec::new(),
+    };
+    package.graphs[1].exposed.push(input);
+    let mut reference = package.clone();
+    let cache = Mutex::new(Cache::default());
+    let options = Options::new(&no_res);
+    let function = FunctionGraph::input("offset", ValueType::Integer);
+    let mut graph = serde_json::to_value(&package.graphs[1]).unwrap();
+    graph["seedFunction"] = serde_json::to_value(&function).unwrap();
+    package.graphs[1] = serde_json::from_value(graph).unwrap();
+    for (mode, input, expected) in [
+        (ParameterInheritance::Absolute, None, 5),
+        (ParameterInheritance::RelativeToParent, None, 27),
+        (ParameterInheritance::RelativeToInput, Some(-3), 19),
+        (ParameterInheritance::Absolute, Some(-3), -3),
+    ] {
+        package.graphs[1].seed_mode = mode;
+        if let Some(value) = input {
+            package.graphs[0].node_mut(instance).unwrap().params.insert("offset".into(), Value::Int(value));
+        }
+        reference.graphs[1].seed = expected;
+        let direct = cook(&reference, 1, &options, &cache);
+        let nested = cook(&package, 0, &options, &cache);
+        assert_eq!(nested.nodes[&instance].error, None);
+        assert_eq!(nested.image(instance, 0).unwrap().data(), direct.image(output, 0).unwrap().data(), "{mode:?} {input:?}");
+    }
+
+    let mut wrong_type = FunctionGraph::default();
+    wrong_type.output = Some(wrong_type.add_constant(Value::Text("invalid".into())));
+    package.graphs[1].seed_function = Some(wrong_type);
+    let invalid = cook(&package, 0, &options, &cache);
+    assert!(invalid.nodes[&instance].error.as_deref().unwrap().contains("graph random seed"));
 }
 
 #[test]

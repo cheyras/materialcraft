@@ -43,6 +43,29 @@ impl ResolvedBaseParameters {
         }
     }
 
+    pub(crate) fn evaluate_graph_seed(&mut self, graph: &Graph, options: &crate::Options<'_>, variables: &BTreeMap<String, Value>) -> Result<(), String> {
+        let Some(function) = &graph.seed_function else { return Ok(()) };
+        let parent_seed = options.parent_base.map_or(0, |base| base.seed);
+        let starting_seed = resolve_seed(graph.seed_mode, 0, parent_seed);
+        let mut variables = variables.clone();
+        self.variables(&mut variables);
+        let (value, _) = compile_with_literal_inputs(function, starting_seed, &options.literal_inputs)
+            .and_then(|program| {
+                crate::parameter_function::evaluate(
+                    &program,
+                    materialcraft_core::ValueType::Integer,
+                    &mut variables,
+                    self.size,
+                    crate::parameter_function::ChannelMode::Opaque,
+                    None,
+                )
+            })
+            .map_err(|error| format!("graph random seed: {error}"))?;
+        let Value::Int(offset) = value else { return Err("graph random seed requires an integer".into()) };
+        self.seed = resolve_seed(graph.seed_mode, offset, parent_seed);
+        Ok(())
+    }
+
     pub(crate) fn resolve(base: &BaseParameters, input: Option<Self>, parent: Self) -> Self {
         let dimensions = |base: Self| (base.size, base.size_underflow);
         let size_mode = BaseParameter::OutputSize.inheritance(base);
