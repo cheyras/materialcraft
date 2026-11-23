@@ -200,7 +200,7 @@ pub(crate) fn cook_node(
         Some((image, None, bitmap, false))
     });
     let wired = options.depth != 0 && input_image.as_ref().is_some_and(|(_, upstream, _, _)| upstream.is_some());
-    let resource_hash = match parameters.get("resource") {
+    let resource_hash = match parameters.get(crate::cache_key::resource_parameter(node)) {
         Some(Value::Text(name)) => package.resource(name).map_or(0, |r| r.bytes.content_hash()),
         _ => 0,
     };
@@ -326,6 +326,11 @@ pub(crate) fn cook_node(
         } else {
             let result = if node.def == "fx_map" {
                 materialcraft_nodes::pattern::cook_with_base_level_inputs(&context, &base_level_only)
+            } else if node.def == "text"
+                && !context.text("fontdata").is_empty()
+                && let Some(font) = package.resource(context.text("fontdata"))
+            {
+                materialcraft_nodes::atomic::text_with_font(&context, font.bytes.as_slice())
             } else if dynamic_blend_opacity {
                 materialcraft_nodes::atomic::blend_with_opacity(&context, true)
             } else {

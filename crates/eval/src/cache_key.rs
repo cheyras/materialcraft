@@ -50,6 +50,10 @@ pub(crate) fn graph_tree_hash(package: &Package, graph_index: usize) -> u64 {
     graph_tree_hash_with_registry(package, package, graph_index)
 }
 
+pub(crate) fn resource_parameter(node: &Node) -> &'static str {
+    if node.def == "text" { "fontdata" } else { "resource" }
+}
+
 pub(crate) fn graph_tree_hash_with_registry(registry: &Package, package: &Package, graph_index: usize) -> u64 {
     let mut hasher = DefaultHasher::new();
     let mut pending = vec![(package, graph_index)];
@@ -79,7 +83,14 @@ pub(crate) fn graph_tree_hash_with_registry(registry: &Package, package: &Packag
         }
 
         for node in &graph.nodes {
-            if let Some(Value::Text(name)) = node.params.get("resource") {
+            let parameter = resource_parameter(node);
+            if node.bindings.contains_key(parameter) || node.functions.contains_key(parameter) {
+                // The caller may select another package resource when this instance runs.
+                for resource in &package.resources {
+                    resource.name.hash(&mut hasher);
+                    resource.bytes.content_hash().hash(&mut hasher);
+                }
+            } else if let Some(Value::Text(name)) = node.params.get(parameter) {
                 package.resource(name).map(|resource| resource.bytes.content_hash()).hash(&mut hasher);
             }
             if node.def == "graph_instance"

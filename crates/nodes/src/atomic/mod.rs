@@ -9,6 +9,7 @@ mod directional_warp;
 mod distance;
 mod dot;
 mod emboss;
+mod font;
 mod gradient_dynamic;
 mod gradient_map;
 mod grayscale_conversion;
@@ -40,6 +41,7 @@ pub const ATOMIC: &str = "Atomic nodes";
 pub const GRAPH_ITEMS: &str = "Graph items";
 
 pub use blend::{blend_selected_input, blend_with_opacity};
+pub use font::text_with_font;
 pub use levels::levels_fn;
 pub use normal::height_to_normal;
 pub use output::output_kind;

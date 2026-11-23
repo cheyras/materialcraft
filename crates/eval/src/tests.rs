@@ -1,3 +1,5 @@
+mod font_resource;
+
 use crate::{cache_key::graph_tree_hash, graph_instance::instances_reach};
 use craft_texture::{Image, Kind, Limits};
 use materialcraft_core::{NodeId, Package, Value};

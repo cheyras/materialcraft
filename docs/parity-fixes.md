@@ -59,6 +59,22 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-23 root comparisons
 
+### Package font outlines and point preview
+
+The Text primitive reads the selected package font. Shaping and outline drawing use the shared font catalog and the CPU rasterizer. Editing the font bytes invalidates both the Text node and its parent graph instance. The release regression constructs a two-glyph TrueType face in memory, halves the cap height and checks the complete 64 × 32 raster on both cooks.
+
+For the independent reference comparison, generate two faces with 1,024 units per em, ascent 768, descent −256 and letter advance 640. Give A a 512 × 512 rectangle in one face and a triangle with vertices (0, 0), (256, 768), (512, 0) in the other. Give B a rectangle from (64, 64) to (256, 704) and space an advance of 256. Render white text on black at 64², 64 × 32 and 32 × 64. Start with size .5, centered alignment, zero offset and an identity transform. Vary text including empty strings, spaces and newlines, size, alignment, fractional translation, rotation, shear, reflection, singular matrices and tiling. Compare raw F32 readbacks from the one-worker reference renderer.
+
+| Comparison | Renders | Exact pixels / total | Maximum absolute error |
+|---|---:|---:|---:|
+| All original Text graphs | 96 | 261,686/262,144 | .584313781 |
+| Six ordinary SBS saves reopened in both applications | 18 | 48,980/49,152 | .584313781 |
+| Reference output before and after those saves | 18 | 49,152/49,152 | 0 |
+
+All three resolutions match for 28 of 32 settings. The sheared triangle differs by at most 5.97e−8. The triangle's diagonal coverage accounts for the other three differing settings. For the six reopens, use centered A in both fonts, AB, AB followed by a newline and A, shear, and tiling. A separate 64² triangle crosses U8, U16, F16 and F32 with grayscale or color output. With an opaque black background each matches 4,034/4,096 pixels, maximum normalized error .337281. With a constant background of (.1875, .4375, .625, .375), grayscale matches 154/4,096 per format and color matches 4,034/4,096 per format. The largest respective errors are .323980 and .458824.
+
+Points Preview now cooks with its linked font present. Use a generated F32 point strip with two rows of offset ellipses. With the point-count bridge open, ten settings at 16², 32² and four rectangular sizes up to 64 × 32 and 32 × 64 give 10,496/10,496 exact pixels. With labels off, connect integers 4, 8 and 12, set the respective offsets to 0, 1 and 2 and point sizes to .03125, .0625 and .09375. Test 16² F32, 32² in four parent formats and 32 × 16 F32. The stored U8 results are 4,864/4,864, 4,760/4,864 and 4,631/4,864. The last two reach 255 codes of error. The root stays open for the differing nonempty cases and visible labels.
+
 ### Spline preprocessing with empty inputs and complete library saves
 
 Use the [original circle, tangent and striped mask fields](#spline-preprocessing-with-wired-counts). Instantiate the unmodified preprocessing graph and expose either its RGBA image or its integer count. Compare the disconnected default, connected counts (0,1), (1,1) and (2,1), and a spacing-driven (2,1) case. For the first three connected cases choose side 3, amount mode 0 and one spline per spline. For the last choose side 1, amount mode 1 and spacing .09375. The counts were 0, 0, 1, 2 and 21. The images were 2048 × 16 except for the spacing-driven output at 2048 × 32.
