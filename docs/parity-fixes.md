@@ -99,6 +99,46 @@ Each rectangular capture matches 8,192/8,192 pixels, maximum 0. The seed-0 defau
 
 At seed 372421, some BNW Spots 1 captures match the entire MaterialCraft buffer at each affinity. Clouds 1 has one stable differing pixel among the six eight-processor captures. Clouds 2 has one at each affinity. The six samples at each affinity establish repeatability only for those captures. All three remain in progress. [Single-processor desktop and standalone results](#live-desktop-and-standalone-rendering-of-three-noise-roots)
 
+### Archived noise settings and repeated intermediate reads
+
+Match earlier whole-root renders to the one-processor comparison by width, height, seed, exposed input values, wired images and actual output format. Compare MaterialCraft revision `1cc2da0` with those same one-processor frames. For each root, take the eight settings whose earlier and one-processor captures disagreed. Render those eight settings four more times in the desktop with eight eligible processors. Reverse or rotate their order between runs. Use the same raw output and restore the processor mask after each capture.
+
+| Root | Matched settings | Exact vs. one processor · max | Exact vs. earlier captures | Fully exact eight-processor frames among 32 repeats | Disputed settings with at least one exact repeat |
+|---|---:|---:|---:|---:|---:|
+| BNW Spots 1 | 125 | 3,177,984/3,177,984 · 0 | 3,177,932/3,177,984 | 11/32 | 6/8 |
+| Clouds 1 | 48 | 787,712/787,712 · 0 | 787,692/787,712 | 4/32 | 3/8 |
+| Clouds 2 | 47 | 771,328/771,328 · 0 | 771,310/771,328 | 5/32 | 2/8 |
+
+| Root | Fresh U16 exact / total · max codes | Fresh F16 exact / total · max | Fresh F32 exact / total · max |
+|---|---:|---:|---:|
+| BNW Spots 1 | 458,686/458,752 · 2 | 262,144/262,144 · 0 | 556,966/557,056 · 0.0000216364861 |
+| Clouds 1 | 720,834/720,896 · 7 | — | 540,637/540,672 · 0.000110566616 |
+| Clouds 2 | 786,389/786,432 · 2 | — | 655,325/655,360 · 0.0000229179859 |
+
+All U8 comparisons matched in the earlier captures. No U8 setting qualified for the repeat series. Earlier maximum errors in U8, U16, F16 and F32 were 0, 2, .000244140625 and .0000216364861 for BNW Spots 1, 0, 4, 0 and .000110566616 for Clouds 1, and 0, 2, 0 and .0000229179859 for Clouds 2. The cloud rows cover the overlapping archive settings. [Full single-processor measurements](#compositing-complete-seven-level-additive-quadrant-trees)
+
+Read each generator, its downstream filters and the root output through the desktop on one processor and in four additional eight-processor captures. These reads can trigger separate evaluations. The following are values from the first eight-processor inspection and its single-processor counterpart. Coordinates start at the top left. All other generator outputs matched in these three inspections.
+
+| Root and U16 setting | First differing FX-Map, exact / total · max | Example texel (x,y), one → eight | Whole output, exact / total · max |
+|---|---:|---|---:|
+| BNW Spots 1, 128 × 256, seed 372360, Disorder .203125 | 8,191/8,192 · 1 | (52,66), 11975 → 11974 | 32,761/32,768 · 1 |
+| Clouds 1, 128², seed 42, defaults | 16,383/16,384 · 1 | (112,7), 2245 → 2244 | 16,381/16,384 · 3 |
+| Clouds 2, 128 × 256, seed 382397, defaults | 32,765/32,768 · 1 | (20,58), 1248 → 1249 | 32,765/32,768 · 2 |
+
+In BNW Spots 1 the differing field feeds Transformation 2D and Blend, then Levels. The inspected transformation matches 32,764/32,768, maximum 1. A later eight-processor inspection of the same setting matches the entire single-processor output. The three roots retain their in-progress status. [Earlier repeated desktop captures](#repeated-desktop-renders-of-the-three-early-noise-roots)
+
+### Filtering root outputs through two graph instances
+
+Wrap each of BNW Spots 1, Clouds 1 and Clouds 2 in an original child and parent. Wire the parent instance output into Blur and keep the catalog graph intact. Set tiling on the nested source to none for U8, horizontal for U16 and vertical for F16. Use Blur intensity 12. For F32 set the nested source pixel ratio to stretch (0) and drive Blur intensity with 12 times the inherited pixel ratio. Use the default caller for U8 and F16, and the changed caller from the seed comparison for U16 and F32. Render 64² with seed zero, 128 × 64 with seed 372177 and 64 × 128 with seed 372421. Reopen a normal MaterialCraft save in the desktop and repeat. [Seed caller construction](#computed-graph-seeds-on-load-evaluation-and-save)
+
+| Root | Previous F32 exact / total · max | Corrected F32 exact / total · max | All four formats, original exact / total · max | All four formats, reopened exact / total · max |
+|---|---:|---:|---:|---:|
+| BNW Spots 1 | 0/20,480 · 0.354674250 | 20,480/20,480 · 0 | 81,920/81,920 · 0 | 81,920/81,920 · 0 |
+| Clouds 1 | 0/20,480 · 0.425102033 | 20,480/20,480 · 0 | 81,920/81,920 · 0 | 81,920/81,920 · 0 |
+| Clouds 2 | 0/20,480 · 0.212616652 | 20,480/20,480 · 0 | 81,920/81,920 · 0 | 81,920/81,920 · 0 |
+
+U8, U16 and F16 each match 20,480/20,480 per root before and after the sampling-property correction. Every original and reopened desktop output also agrees exactly. [Sampling-property fix and flat controls](#sampling-properties-on-graph-inputs-and-outputs)
+
 ### Conditional inputs shared across function branches
 
 Build fourteen original functions that select between two arms. Share a Random(1) between an arm and the result, or between both arms. Place a separate draw before the shared draw in each arm. For an assignment, initialize a float to .125, assign .625 in one arm and read it from the other. Add a quarter of the assigned result after the conditional. Swap the arms and include both possible conditions. Additional controls use a stored range, a graph input as the range and an assignment read by the condition. Run each at 16² for graph seeds 0 and 17 and both signs of the control. Repeat on ordinary saves reopened in the reference desktop.
