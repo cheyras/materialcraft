@@ -1869,3 +1869,72 @@ fn an_instanced_graph_resolves_its_own_seed_after_the_instance() {
         assert_eq!(nested.image(instance, 0).unwrap().data(), direct.image(output, 0).unwrap().data(), "{mode:?} {offset}");
     }
 }
+
+#[test]
+fn nested_generators_keep_the_child_graph_output_format() {
+    use materialcraft_core::OutputFormat;
+    let (mut parent, instance) = instancing("Parent", "Field");
+    let mut child = Graph::new("Field");
+    child.size = parent.size;
+    let processor = child.add_node("pixel_processor", [0.0; 2]);
+    let mut function = materialcraft_core::FunctionGraph::default();
+    let value = function.add_constant(Value::Float(0.347821));
+    function.output = Some(value);
+    child.node_mut(processor).unwrap().params.insert("function".into(), Value::Function(Box::new(function)));
+    let output = child.add_node("output", [100.0, 0.0]);
+    child.connect(processor, "output", output, "input").unwrap();
+    parent.format = OutputFormat::F32;
+    let mut package = Package::new("Output precision");
+    package.graphs.extend([parent, child]);
+    let cache = Mutex::new(Cache::default());
+    for caller in [OutputFormat::U8, OutputFormat::F32] {
+        package.graphs[0].node_mut(instance).unwrap().base.format = caller;
+        for child in OutputFormat::ALL {
+            let expected = if child == OutputFormat::Inherit { caller } else { child };
+            package.graphs[1].format = expected;
+            let direct = cook(&package, 1, &Options::new(&no_res), &cache);
+            package.graphs[1].format = child;
+            let nested = cook(&package, 0, &Options::new(&no_res), &cache);
+            assert_eq!(nested.nodes[&instance].error, None);
+            assert_eq!(nested.nodes[&instance].output_base(0).unwrap().format, expected);
+            assert_eq!(nested.image(instance, 0).unwrap().data(), direct.image(output, 0).unwrap().data(), "child {child:?} inside {caller:?}");
+        }
+    }
+}
+
+#[test]
+fn nested_blurs_filter_the_original_caller_texture() {
+    use materialcraft_core::OutputFormat;
+    for filter in ["directional_blur", "blur"] {
+        let (mut parent, instance) = instancing("Parent", "Filtered");
+        let source = parent.add_node("input_grayscale", [0.0; 2]);
+        parent.node_mut(source).unwrap().base.format = OutputFormat::F32;
+        parent.connect(source, "output", instance, "input").unwrap();
+
+        let mut child = Graph::new("Filtered");
+        child.size = parent.size;
+        let bridge = child.add_node("input_grayscale", [0.0; 2]);
+        child.node_mut(bridge).unwrap().base.format = OutputFormat::U16;
+        let add_filter = |graph: &mut Graph, input| {
+            let id = graph.add_node(filter, [0.0; 2]);
+            let node = graph.node_mut(id).unwrap();
+            node.base.format = OutputFormat::U16;
+            node.params.insert("intensity".into(), Value::Float(16.0));
+            graph.connect(input, "output", id, "input").unwrap();
+            id
+        };
+        let direct = add_filter(&mut parent, source);
+        let nested = add_filter(&mut child, bridge);
+        let output = child.add_node("output", [0.0; 2]);
+        child.connect(nested, "output", output, "input").unwrap();
+        let mut package = Package::new("Caller precision");
+        package.graphs.extend([parent, child]);
+        let mut options = Options::new(&no_res);
+        options.inputs.insert("input".into(), Image::gray(16, 16, |x, y| ((97 * x + 31 * y + 13 * x * y) % 251) as f32 / 251.0));
+        let cooked = cook(&package, 0, &options, &Mutex::new(Cache::default()));
+        assert_eq!(cooked.nodes[&instance].error, None);
+        let result = cooked.image(instance, 0).unwrap();
+        let expected = cooked.image(direct, 0).unwrap();
+        assert!(result.data().iter().zip(expected.data()).all(|(a, b)| a.to_bits() == b.to_bits()), "{filter}");
+    }
+}

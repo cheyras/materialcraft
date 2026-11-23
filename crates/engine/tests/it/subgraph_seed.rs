@@ -11,6 +11,7 @@ fn grouping_noise_preserves_pixels_seed_and_undo() {
         let mut s = new_session();
         s.preview_size = None;
         run(&mut s, "graph.size", json!({"width": 64, "height": 32}));
+        run(&mut s, "graph.format", json!({"format": "f32"}));
         run(&mut s, "graph.seed", json!({"seed": seed}));
         let noise = run(&mut s, "graph.node.add", json!({"def": "pixel_processor"}))["id"].as_u64().unwrap();
         let mut function = materialcraft_engine::core::FunctionGraph::default();

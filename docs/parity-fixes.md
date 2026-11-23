@@ -59,6 +59,42 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-23 root comparisons
 
+### Output precision in nested generators and blurs
+
+A child graph with an absolute working format now cooks its generators in that format. A child with inherited precision takes the resolved instance format. Newly grouped nodes keep following the parent format at their new instance. Blur and Directional Blur connected directly to a nested image input now sample the original caller texture, including its storage precision and dimensions. Reading out the bridge itself still exposes the bridge's own stored result.
+
+For the format probe, connect a grayscale Pixel Processor returning Random(1) to the output of a child graph. In a parent, connect an instance of the child directly to the output. Set the instance to each of U8, U16, F16 and F32. On the child, use an omitted format, each of the four absolute formats, parent-relative U8 or F16, and input-relative U16 or F32. Add four F32-instance cases with a parent-relative format on the processor and each absolute child format. Render all 40 graphs at 16² with seeds 0 and 19 and at 32 × 16 with seed 42. Compare every component as F32 using the one-worker Direct3D 11 reference. A separate caller with the expected working format gives the same reference field.
+
+| Nested generator | Exact pixels / total · maximum absolute error |
+|---|---:|
+| Previous evaluator vs. reference | 25,609/40,960 · 0.00217908621 |
+| Corrected evaluator vs. reference | 40,960/40,960 · 0 |
+| Corrected evaluator vs. reference after an ordinary SBS save | 40,960/40,960 · 0 |
+| Original reference vs. expected format, and original vs. saved reference, each | 40,960/40,960 · 0 |
+
+For the blur probe, feed a seeded grayscale Random(1) field into a child containing one blur filter. Use a matching flat filter as a control, then repeat the flat case with its source stored at the bridge precision. At 16² and 32 × 16 use seeds 0 and 585193. Exercise F32 → U16 at intensities 4 and 16, F32 → U8 at 24, and F16 → U16, U16 → F32 and F32 → F16 at 16. For Directional Blur include directions 0 and .25 turns for F32 → U16 at 16. The nested and flat reference agree on 9,984/9,984 pixels. Explicitly storing the source at the bridge precision gives 5,793/9,984 · 0.0039215982. The previous nested evaluator gives 8,614/9,984 · 0.0039215982. The corrected evaluator matches 28,416/28,416 pixels over the unique nested, flat and stored-source controls, maximum zero.
+
+Independently vary the generator and bridge sizes for each blur at intensity 16. Use parent-relative generator exponents (0,0), (−1,−1), (1,0) and (−1,0). Set the bridge respectively to parent-relative (−1,−1), parent-relative (0,0), absolute exponents (2,2), and input-relative (1,−1). Keep the filter parent-sized. All 6,144/6,144 reference pixels match the flat filters. The previous nested evaluator matched 1,276/6,144 · 0.469520092. The corrected flat and nested results match 12,288/12,288 · 0.
+
+For eight complete roots, use U8 and F32 instance settings at the root defaults and F16 with the change in the table. Run each square at 16², seed 0, and rectangular at 32 × 16, seed 585193. Connect the first exposed image input to an original F32 processor returning Random(1) for grayscale or (u,v,Random(1),1) for color. Two independent source readouts match 1,536/1,536 · 0. Curvature, Curvature Smooth, Normal Sobel and Panorama 3D Position declare U16 internally. The four other graphs declare F32. Read the actual output as F32. Each numeric cell gives exact whole pixels / total and the largest absolute component error.
+
+| Root | Changed parameter | Previous evaluator vs. reference | Corrected evaluator vs. reference | Corrected evaluator vs. reference on ordinary SBS reopen |
+|---|---|---:|---:|---:|
+| curvature | intensity .375 | 1,412/2,304 · 0.00585949421 | 2,304/2,304 · 0 | 2,304/2,304 · 0 |
+| curvature_smooth | normal_format 1 | 20/2,304 · 0.736054242 | 2,304/2,304 · 0 | 2,304/2,304 · 0 |
+| normal_sobel | intensity .375 | 0/2,304 · 0.00218203664 | 2,304/2,304 · 0 | 2,304/2,304 · 0 |
+| panorama_3d_position | up_vector 1 | 2,304/2,304 · 0 | 2,304/2,304 · 0 | Compiler rejected dependency before rendering |
+| panorama_shape | shape_intensity .375 | 2,268/2,304 · 2.86102295e-06 | 2,268/2,304 · 2.86102295e-06 | 2,268/2,304 · 2.86102295e-06 |
+| panorama_shape_2 | shape 1 | 2,286/2,304 · 5.03659248e-06 | 2,286/2,304 · 5.03659248e-06 | 2,286/2,304 · 5.03659248e-06 |
+| panorama_sphere_light | up_vector 1 | 2,304/2,304 · 0 | 2,304/2,304 · 0 | 2,304/2,304 · 0 |
+| panorama_spot | scale .375 | 2,302/2,304 · 0.0012512207 | 2,302/2,304 · 0.0012512207 | 2,302/2,304 · 0.0012512207 |
+
+In Normal Sobel, correcting child precision alone gave 2,283/2,304 · 1.52885914e-05. Reading the input bridge, horizontal blur, vertical blur and final normal separately gave 768/768, 648/768, 734/768 and 759/768 respectively. The corrected blur input matches all four readouts, 3,072/3,072 · 0. For each of the seven roots that reopened, the reference original and saved images agree on 2,304/2,304 pixels.
+
+Panorama 3D Position's ordinary loose-file save pointed to a second library package on disk with a three-part format version. The standalone compiler stopped before producing any of the six images. Substituting the verified library alias alone produced 2,304/2,304 · 0. Saving an ordinary SBS from a reopened portable copy also gave 2,304/2,304 · 0. In both controls the reference reopened output matched the original on all 2,304 pixels. [Detached package version controls](#reopening-a-portable-copy-with-detached-function-packages)
+
+Panorama Shape, Shape 2 and Spot have repeatable differences in these smaller settings. For each, repeat the F32 default or the changed Spot case with the first input disconnected, transparent, black, white, constant (.1875,.4375,.625,.375), a coordinate ramp, and the original source stored in U8 and F16. Each Shape run matched 756/768 · 2.86102295e-06, each Shape 2 run matched 761/768 · 5.03659248e-06, and each Spot run matched 766/768 · 0.0012512207. Both one-worker D3D11 renders of the original field were bit-identical for each of these three roots.
+
 ### Graph random seed inheritance on save and in nested graphs
 
 Saving a graph that omitted its random seed used to write an absolute zero. When another graph called that file, the reference renderer restarted its random stream at zero. MaterialCraft also ignored a child's authored seed mode when cooking an instance. The SBS reader, writer and evaluator now preserve how the child obtains its seed. An absolute seed starts a new stream. Either relative mode adds the child's signed offset to the resolved instance seed, wrapping at 32 bits. The graph properties panel and the `graph.seed` command expose inheritance. Grouping nodes keeps the original standalone seed and offsets it at the new instance so later parent seed edits still reach the grouped nodes.

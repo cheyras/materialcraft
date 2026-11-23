@@ -33,7 +33,10 @@ impl ResolvedBaseParameters {
             dynamic_size: graph.absolute_output_size.is_none() && parent.is_some_and(|base| base.dynamic_size),
             size_underflow: parent.filter(|_| graph.absolute_output_size.is_none()).map_or([0; 2], |base| base.size_underflow),
             seed: resolve_seed(graph.seed_mode, graph.seed, parent.map_or(0, |base| base.seed)),
-            format: parent.map_or(graph.format, |base| base.format),
+            format: match graph.format {
+                OutputFormat::Inherit => parent.map_or(OutputFormat::Inherit, |base| base.format),
+                explicit => explicit,
+            },
             tiling: graph.tiling_mode.resolve(graph.tiling, options.parent_tiling, options.parent_tiling.unwrap_or(graph.tiling)),
             pixel_ratio: graph.pixel_ratio_mode.resolve(graph.pixel_ratio, parent_ratio, parent_ratio.unwrap_or(1)),
             pixel_size: parent.map_or([1.0; 2], |base| base.pixel_size),

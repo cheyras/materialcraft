@@ -90,7 +90,7 @@ pub(crate) fn cook_node(
                 input_error = Some(format!("input `{}` requires an image", port.id));
             }
 
-            let wired = if options.depth != 0 && matches!(node.def.as_str(), "pixel_processor" | "value_processor" | "fx_map") {
+            let wired = if options.depth != 0 && matches!(node.def.as_str(), "pixel_processor" | "value_processor" | "fx_map" | "blur" | "directional_blur") {
                 connection.and_then(|edge| prepared.index.node(edge.from)).and_then(|bridge| wired_texture(options, bridge))
             } else {
                 None
