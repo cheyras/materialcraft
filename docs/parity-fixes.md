@@ -73,6 +73,27 @@ For a separate check at 256² and seed 372421, compile the same original wrapper
 
 Maximum U16 error is zero throughout the three-setting desktop column. The desktop original and reopen also agree in 139,264/139,264 pixels per root. At the previously disputed 256² seed, MaterialCraft and the live desktop agree in 65,536/65,536 pixels per root. The same six, two and four discrepancies recur between the two reference rendering paths on all four one-worker runs per root. The eight-worker runs give more than one output for the same settings. The inventory retains the existing cross-worker differences. [Earlier seed and worker measurements](#computed-graph-seeds-on-load-evaluation-and-save)
 
+### Pixel size on graph instance outputs
+
+At 128² and seed 0, the Gaussian source in Bricks 01 returns a 64² U16 field with pixel size (2,2). The input to Blur matches the reference in all 4,096 pixels. The filter intensity is 1.61. The instance previously returned the caller's unit pixel size to downstream filters. Blur then copied the field and matched just 53/4,096, maximum U16 error 21,379.
+
+Create an original grayscale Pixel Processor returning Random(1), stored in U16 at half the caller width and height. Connect it to Blur. In the nested version, place only the source in a child and keep Blur outside. Set pixel size on the source. Use 64² and 128² with seed 0, 128 × 64 with seed 17 and 64 × 128 with seed 12071. Reopen ordinary saves in the reference desktop. Each row compares the filtered pixels at all four dimensions. Maximum error is in the actual output storage units.
+
+| Source pixel size | Intensity | Blur output | Earlier nested exact · max | Corrected nested exact · max |
+|---|---:|---|---:|---:|
+| (1,1) | 1.61 | U16 | 9,216/9,216 · 0 | 9,216/9,216 · 0 |
+| (2,2) | 1.61 | U16 | 5,120/9,216 · 29445 | 9,216/9,216 · 0 |
+| (2,.5) | 4 | U8 | 89/9,216 · 123 | 9,216/9,216 · 0 |
+| (.5,2) | 4 | F16 | 13/9,216 · 0.473327637 | 9,216/9,216 · 0 |
+| (3,1) | 5.125 | F32 | 0/9,216 · 0.365611508 | 9,216/9,216 · 0 |
+| (2,2), Blur set to (1,1) | 1.61 | U16 | 9,216/9,216 · 0 | 9,216/9,216 · 0 |
+
+All six flat and nested reference pairs agree in 55,296/55,296 pixels. MaterialCraft now passes the internal output's resolved pixel size through each instance port. All 48 flat and nested settings match 110,592/110,592 pixels on originals and again on saves, maximum error 0. Every desktop reopen also matches its original. The regression checks two separate output ports with perpendicular pixel sizes on a cold cook and a cache hit.
+
+Bricks 01 default Base Color at 128² improves from 13,283/16,384 (maximum U8 error 43) to 16,379/16,384 (maximum 1). Height and Roughness each match 16,384/16,384. Normal matches 16,365/16,384 (maximum U16 error 1) and Ambient Occlusion matches 16,367/16,384 (maximum U16 error 4). Default 64² Base Color still matches 4,096/4,096 and the 64² seed 19, luminosity .65 case matches 4,094/4,096 (maximum 1). The U8 color gradient has differences of one byte with matching inputs.
+
+At 256² and defaults, raw Base Color matches 65,508/65,536, maximum U8 error 1. The earlier reference 1:1 screen crop matches 65,536/65,536 of this desktop raw capture, maximum error 0. Comparing the current cooked RGB bytes directly with that reference crop gives 65,508/65,536, maximum 1.
+
 ### Intermediate noise outputs and the order of overlapping pattern draws
 
 Capture all node outputs of BNW Spots 1 and Clouds 1 and 2 directly in the live desktop. Use 256² and seed 372421, then 128 × 64 and seed 372177, with Disorder .96875 wherever exposed. Also capture the 128² defaults with seed 0. Every captured port stores U16. Compare the stored components at each port against the release evaluator. The terminal images at the first two settings also match the corresponding nested caller in the desktop.

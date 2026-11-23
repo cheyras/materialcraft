@@ -142,6 +142,7 @@ pub(crate) fn cook_instance(
                 size_underflow: source_base.size_underflow,
                 dynamic_size: source_base.dynamic_size,
                 format: source_base.format,
+                pixel_size: source_base.pixel_size,
                 ..base
             };
             Ok((output.clone(), port_base))
