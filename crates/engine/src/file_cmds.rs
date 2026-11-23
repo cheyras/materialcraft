@@ -218,7 +218,7 @@ fn package_for_save(session: &Session, path: Option<&str>) -> Package {
         for instance in package.graphs.iter_mut().flat_map(|graph| graph.instances_mut()) {
             if !instance.package.is_empty() {
                 let source = std::mem::take(&mut instance.package);
-                let reference = packages.entry(source).or_insert_with_key(|source| package_reference(&session.pkg, path, source));
+                let reference = packages.entry(source).or_insert_with_key(|source| package_reference(session, path, source));
                 instance.package.clone_from(reference);
             }
         }
@@ -226,26 +226,73 @@ fn package_for_save(session: &Session, path: Option<&str>) -> Package {
     package
 }
 
-fn package_reference(_package: &Package, destination: &str, source: &str) -> String {
+fn package_reference(_session: &Session, destination: &str, source: &str) -> String {
     #[cfg(not(target_arch = "wasm32"))]
     {
         use materialcraft_formats::sbs::library;
         use std::path::Path;
 
-        // A package with external graph or function links or resources can rely on other local edits.
         if Path::new(source).is_absolute()
-            && let Some(dependency) = _package.dependencies.get(source)
-            && dependency.resources.is_empty()
-            && !dependency.graphs.is_empty()
-            && dependency.graphs.iter().all(|graph| graph.instances().all(|instance| instance.package.is_empty()))
             && !library::contains_file(Path::new(destination))
             && let Ok(root) = library::root().canonicalize()
-            && let Some(uri) = library::bundled_package_uri(&root, Path::new(source))
+            && let Some(uri) = verified_library_reference(_session, &root, source)
         {
             return uri;
         }
     }
     crate::document_path::relative(destination, source)
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn verified_library_reference(session: &Session, root: &std::path::Path, source: &str) -> Option<String> {
+    use materialcraft_formats::sbs::library;
+    use std::{collections::BTreeMap, path::Path};
+
+    let uri = library::bundled_package_uri(root, Path::new(source))?;
+    let mut names = BTreeMap::from([(source.to_string(), uri.clone())]);
+    let mut pending = vec![source.to_string()];
+    while let Some(key) = pending.pop() {
+        let package = session.pkg.dependencies.get(&key)?;
+        if package.graphs.is_empty() || !package.resources.is_empty() {
+            return None;
+        }
+        let package_uri = names.get(&key)?;
+        let mut reference = match session.library.packages.get(package_uri) {
+            Some(known) => (**known).clone(),
+            None => {
+                let bytes = library::read(package_uri).ok()?;
+                let mut read = materialcraft_formats::sbs::read_sbs(&bytes, package_uri, &linked_files(package_uri)).ok()?;
+                crate::linked_files::normalize_references(&mut read.pkg, package_uri);
+                read.pkg
+            }
+        };
+
+        let mut normalized = (**package).clone();
+        for instance in normalized.graphs.iter_mut().flat_map(|graph| graph.instances_mut()).filter(|instance| !instance.package.is_empty()) {
+            if let Some(uri) = names.get(&instance.package) {
+                instance.package.clone_from(uri);
+                continue;
+            }
+            let path = if instance.package.starts_with("sbs://") {
+                root.join(library::relative_path(&instance.package).ok()?)
+            } else {
+                Path::new(&instance.package).to_path_buf()
+            };
+            let child = library::bundled_package_uri(root, &path)?;
+            let key = std::mem::replace(&mut instance.package, child.clone());
+            names.insert(key.clone(), child);
+            pending.push(key);
+        }
+
+        // Loaded calls carry resolved argument types and bodies. Compare both copies
+        // against the same interfaces so that authored edits remain distinguishable.
+        crate::linked_packages::interfaces(&mut reference, &session.library.packages);
+        crate::linked_packages::interfaces(&mut normalized, &session.library.packages);
+        if normalized.graphs != reference.graphs {
+            return None;
+        }
+    }
+    Some(uri)
 }
 
 pub fn save_files_at(session: &Session, path: &str) -> Result<materialcraft_formats::project::ProjectFiles> {

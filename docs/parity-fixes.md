@@ -59,6 +59,30 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-23 root comparisons
 
+### Ordinary SBS saves with verified library dependencies
+
+Opening a library file by its disk path and saving an ordinary SBS outside the library now preserves portable links through nested packages. Before emitting a library alias, the save verifies each reachable package against the bundled bytes and compares its loaded graphs using the same resolved call interfaces. A dependency with a changed file, edited graph, or local resources keeps its disk link.
+
+Open `panorama_position.sbs` from its library folder and use `file.saveCopyAs` into an empty folder. The saved package now refers to `sbs://panorama_shape.sbs`. Previously the saved file pointed to the disk copy of that dependency and the reference compiler rejected its format version before producing an image. Repeat with private copies of the position, shape and functions packages and append a newline to the functions file. The saved position graph keeps the path to that copy of the shape package. File hashes before and after each save confirm that all three source files retain their contents. The engine regression also edits a loaded grandchild graph in memory and verifies its parent keeps the disk link on reopen.
+
+Instance the saved Panorama 3D Position graph in a new caller. At the default up vector, select U8 and F32 instance formats. Also use F16 with `up_vector` set to 1. Render each at 16 × 16 with seed 0 and 32 × 16 with seed 585193. The child declares U16. Compare all four channels of each output. Each comparison below covers six renders.
+
+| Compared outputs | Exact whole pixels / total | Maximum absolute component error |
+|---|---:|---:|
+| MaterialCraft and the reference desktop opening the ordinary save | 2,304/2,304 | 0 |
+| MaterialCraft and the one-worker D3D11 renderer opening the ordinary save | 2,304/2,304 | 0 |
+| Reference renderer opening the library original and the ordinary save | 2,304/2,304 | 0 |
+| Reference desktop and standalone renderer opening the ordinary save | 2,304/2,304 | 0 |
+
+Independently repeat the earlier nested-filter measurements in the reference desktop. Use the F32 instance default for the two shapes, F16 with `scale` .375 for Spot, and the sizes, seeds and original procedural inputs from the [nested-filter comparison](#output-precision-in-nested-generators-and-blurs). The desktop and one-worker standalone reference agree on all 3,072/3,072 pixels with zero error. The complete MaterialCraft comparisons are below.
+
+| Graph | Desktop pixel format | Exact whole pixels / total | Maximum absolute component error |
+|---|---|---:|---:|
+| Normal Sobel | RGBA16 | 768/768 | 0 |
+| Panorama Shape | RGBA32F | 756/768 | 2.86102295e-06 |
+| Panorama Shape 2 | RGBA32F | 761/768 | 5.03659248e-06 |
+| Panorama Spot | RGBA32F | 766/768 | 0.0012512207 |
+
 ### Output precision in nested generators and blurs
 
 A child graph with an absolute working format now cooks its generators in that format. A child with inherited precision takes the resolved instance format. Newly grouped nodes keep following the parent format at their new instance. Blur and Directional Blur connected directly to a nested image input now sample the original caller texture, including its storage precision and dimensions. Reading out the bridge itself still exposes the bridge's own stored result.

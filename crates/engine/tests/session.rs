@@ -191,7 +191,7 @@ fn saving_a_library_graph_opened_from_disk_keeps_its_portable_function_links() {
 }
 
 #[test]
-fn exporting_graph_links_preserves_local_dependencies_of_the_linked_package() {
+fn saving_a_library_graph_preserves_verified_dependency_trees() {
     use materialcraft_engine::formats::sbs::library;
 
     let directory = TempDir::new("library-graph-export");
@@ -207,7 +207,20 @@ fn exporting_graph_links_preserves_local_dependencies_of_the_linked_package() {
         reopened.pkg.graphs.iter().flat_map(|graph| graph.instances()).map(|instance| instance.package.as_str()).collect();
     assert!(links.contains("sbs://blend_switch.sbs"));
     let dependent = library::root().join("non_uniform_blur.sbs").canonicalize().unwrap();
-    assert!(links.contains(dependent.to_str().unwrap()));
+    assert!(links.contains("sbs://non_uniform_blur.sbs"));
+
+    // A local edit in a shared grandchild keeps the whole branch linked to its source.
+    let functions = library::root().join("functions.sbs").canonicalize().unwrap();
+    let source = library::root().join("bevel.sbs");
+    let mut edited = sample_session();
+    run(&mut edited, "file.open", json!({"path": source}));
+    let dependency = edited.pkg.dependencies.get_mut(functions.to_str().unwrap()).unwrap();
+    std::sync::Arc::make_mut(dependency).graphs[0].name.push_str("_edited");
+    let saved = directory.file("with_edits.sbs");
+    run(&mut edited, "file.saveCopyAs", json!({"path": saved}));
+    let mut reopened = sample_session();
+    run(&mut reopened, "file.open", json!({"path": saved}));
+    assert!(reopened.pkg.graphs.iter().flat_map(|graph| graph.instances()).any(|instance| instance.package == dependent.to_str().unwrap()));
 }
 
 #[test]
