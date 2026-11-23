@@ -59,6 +59,20 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-23 root comparisons
 
+### Live desktop and standalone rendering of three noise roots
+
+Create an original parent and child wrapper around each catalog root. Sum the parent seed, instance offset +3 and parent-relative child offset −3. Drive the child offset with an integer input. Set Disorder to .96875 on BNW Spots 1 and Clouds 1. Clouds 2 has no exposed Disorder input. Request F32 at the caller and read the terminal storage type from the live desktop. It returns U16. Compare raw U16 pixels at 256² with seeds 372421 and 0, then at 128 × 64 with seed 372177. Use the same settings after an ordinary MaterialCraft save and desktop reopen. Restrict the desktop process to one logical processor during each capture and restore its affinity afterward.
+
+For a separate check at 256² and seed 372421, compile the same original wrapper with default optimizations and with optimizations disabled. In each case render twice with one explicit worker and twice with eight using the D3D11 standalone renderer. Export F32 TIFF and compare to the normalized live U16 field. The last column gives the range of exact counts and largest absolute error across its four captures.
+
+| Root | MaterialCraft vs. desktop U16, original and saved, each | Standalone vs. desktop, one worker · max | Standalone vs. desktop, eight workers · max |
+|---|---:|---:|---:|
+| BNW Spots 1 | 139,264/139,264 | 65,530/65,536 · 3.0517578125e-05 | 65,530–65,536/65,536 · 3.0517578125e-05 |
+| Clouds 1 | 139,264/139,264 | 65,534/65,536 · 6.103515625e-05 | 65,532–65,536/65,536 · 0.000106811523438 |
+| Clouds 2 | 139,264/139,264 | 65,532/65,536 · 3.0517578125e-05 | 65,533–65,535/65,536 · 3.0517578125e-05 |
+
+Maximum U16 error is zero throughout the three-setting desktop column. The desktop original and reopen also agree in 139,264/139,264 pixels per root. At the previously disputed 256² seed, MaterialCraft and the live desktop agree in 65,536/65,536 pixels per root. The same six, two and four discrepancies recur between the two reference rendering paths on all four one-worker runs per root. The eight-worker runs give more than one output for the same settings. The inventory retains the existing cross-worker differences. [Earlier seed and worker measurements](#computed-graph-seeds-on-load-evaluation-and-save)
+
 ### Stored graph color in the 2D view
 
 Display the Base Color output of Bricks 01 at 1:1 with the default sRGB interpretation. With seed 0 and a 64² parent, all 4,096 pixels captured from the reference viewport match its raw U8 RGB output, maximum error 0. The old MaterialCraft viewport applied a linear-light to sRGB conversion to those already encoded numbers. The same conversion brightened graph thumbnails and the color sampler.
