@@ -570,6 +570,8 @@ enum StepRead {
     Blue,
     BeforeWrite,
     AfterWrite,
+    Copy,
+    CopyBlue,
 }
 
 fn called_pixel_step(sample: [f32; 4], wired: bool, guard: Option<bool>, read: StepRead) -> Value {
@@ -607,6 +609,14 @@ fn called_pixel_step(sample: [f32; 4], wired: bool, guard: Option<bool>, read: S
     let sum = body.add("add", &[origin, step], None);
     body.output = Some(match read {
         StepRead::Sum | StepRead::Blue => sum,
+        StepRead::Copy | StepRead::CopyBlue => {
+            let copy = body.add("set", &[step], Some(Value::Text("saved_step".into())));
+            let replace = body.add("set", &[origin], Some(Value::Text("stride".into())));
+            let effects = body.add("sequence", &[copy, replace], None);
+            let saved = body.add("get_float4", &[], Some(Value::Text("saved_step".into())));
+            let advance = body.add("add", &[origin, saved], None);
+            body.add("sequence", &[effects, advance], None)
+        }
         StepRead::BeforeWrite => {
             let answer = body.add("set", &[sum], Some(Value::Text("answer".into())));
             let write = body.add("set", &[origin], Some(Value::Text("stride".into())));
@@ -631,9 +641,10 @@ fn called_pixel_step(sample: [f32; 4], wired: bool, guard: Option<bool>, read: S
     });
     node.inputs = args.iter().map(|(_, id)| Some(*id)).collect();
     node.source = Some(Ok(std::sync::Arc::new(body)));
-    let result = if matches!(read, StepRead::Blue) {
+    let result = if matches!(read, StepRead::Blue | StepRead::CopyBlue) {
         let color = graph.add("swizzle3", &[call], Some(Value::Int3([0, 1, 2])));
-        let stored = graph.add("get_float4", &[], Some(Value::Text("stride".into())));
+        let name = if matches!(read, StepRead::CopyBlue) { "saved_step" } else { "stride" };
+        let stored = graph.add("get_float4", &[], Some(Value::Text(name.into())));
         let blue = graph.add("swizzle1", &[stored], Some(Value::Int(2)));
         graph.add("vector4", &[color, blue], None)
     } else {
@@ -674,6 +685,16 @@ fn called_pixel_sums_follow_assignments_in_execution_order() {
     }
     let origin = [sample[1], sample[2], sample[3], sample[0]];
     assert_eq!(called_pixel_step(sample, false, None, StepRead::AfterWrite), Value::Float4(origin.map(|v| v + v)));
+}
+
+#[test]
+fn called_pixel_sums_keep_factors_through_a_copied_step() {
+    let sample = [0xbed0_b7e6, 0x3ee9_4b78, 0xbf01_df0b, 0xbf9a_729d].map(f32::from_bits);
+    for (read, expected) in
+        [(StepRead::Copy, [0x3f88_ad30, 0xbc7c_be30, 0xbfe0_d289, 0x3f86_2e37]), (StepRead::CopyBlue, [0x3f88_ad30, 0xbc7c_be30, 0xbfe0_d28a, 0xbf0c_bfd9])]
+    {
+        assert_eq!(called_pixel_step(sample, false, None, read), Value::Float4(expected.map(f32::from_bits)));
+    }
 }
 
 #[test]

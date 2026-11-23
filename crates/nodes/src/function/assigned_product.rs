@@ -42,6 +42,10 @@ fn variable(op: &Instruction) -> Option<&str> {
     }
 }
 
+fn float_getter(op: &Instruction) -> bool {
+    matches!(op.definition.id, "get_float1" | "get_float2" | "get_float3" | "get_float4")
+}
+
 fn product(op: &Instruction) -> Option<(usize, usize)> {
     let &[a, b] = op.inputs.as_slice() else { return None };
     (!op.literal && float_width(op.type_code) > 0 && matches!(op.definition.id, "mul" | "mulscalar")).then_some((a, b))
@@ -67,7 +71,7 @@ struct Uses {
 }
 
 impl Uses {
-    fn analyze(program: &Program) -> Self {
+    fn analyze(program: &Program, caller_reads: &dyn Fn(&str) -> u8) -> Self {
         let len = program.instructions.len();
         let mut uses = Self { rounded: vec![0; len], live: vec![false; len], ordered: true, ..Self::default() };
         if let (Some(mask), Some(live)) = (uses.rounded.get_mut(program.output), uses.live.get_mut(program.output)) {
@@ -86,7 +90,9 @@ impl Uses {
                 }
             };
             if let Some(call) = &op.call {
-                let child = Self::analyze(&call.program);
+                let child = Self::analyze(&call.program, &|name| {
+                    if call.defaults.contains_key(name) { 0 } else { caller_reads(name) | uses.reads.get(name).copied().unwrap_or(0) }
+                });
                 for (name, register) in call.inputs.iter().zip(&op.inputs) {
                     mark(*register, child.reads.get(name).copied().unwrap_or(0));
                 }
@@ -133,7 +139,18 @@ impl Uses {
                         }
                     }
                     ("set", &[input]) => {
-                        mark(input, if program.instructions.get(input).and_then(product).is_some() { observed } else { 15 });
+                        let source = program.instructions.get(input);
+                        // Assigning a getter copies its value. Its rounded lanes are the ones read from either name.
+                        let mask = if source.is_some_and(float_getter)
+                            && let Some(name) = variable(op)
+                        {
+                            observed | caller_reads(name) | uses.reads.get(name).copied().unwrap_or(0)
+                        } else if source.and_then(product).is_some() {
+                            observed
+                        } else {
+                            15
+                        };
+                        mark(input, mask);
                         if let Some(name) = variable(op) {
                             *uses.writes.entry(name.to_owned()).or_default() += 1;
                         }
@@ -168,12 +185,12 @@ fn has_assignment(program: &Program) -> bool {
 
 pub(super) fn identify(program: &mut Program) {
     if program.instructions.iter().any(|op| op.call.is_some()) && has_assignment(program) {
-        let uses = Uses::analyze(program);
+        let uses = Uses::analyze(program, &|_| 0);
         install(program, &uses, &uses.reads, BTreeMap::new());
     }
 }
 
-fn install(program: &mut Program, uses: &Uses, observed: &ReadMasks, mut names: BTreeMap<String, Binding>) {
+fn install(program: &mut Program, uses: &Uses, observed: &ReadMasks, mut names: BTreeMap<String, Binding>) -> BTreeMap<String, Binding> {
     let instructions = &program.instructions;
     // A dynamic branch can skip a write. Only a unique, executed assignment is eligible in that case.
     if !uses.ordered {
@@ -232,9 +249,21 @@ fn install(program: &mut Program, uses: &Uses, observed: &ReadMasks, mut names: 
                     imported.insert(name.clone(), binding.import(&mut call.assigned_products));
                 }
             }
-            install(&mut call.program, child, observed, imported);
+            let returned = install(&mut call.program, child, observed, imported);
             if uses.ordered {
                 names.retain(|name, _| !child.writes.contains_key(name) || call.defaults.contains_key(name));
+                // A free name assigned a caller's step can carry the same factors into a later call.
+                if child.ordered {
+                    for (name, binding) in returned {
+                        if child.writes.contains_key(&name)
+                            && !call.defaults.contains_key(&name)
+                            && let Registers::Argument(slot) = binding.registers
+                            && let Some(&argument) = call.assigned_products.get(slot)
+                        {
+                            names.insert(name, argument);
+                        }
+                    }
+                }
             }
             continue;
         }
@@ -242,7 +271,8 @@ fn install(program: &mut Program, uses: &Uses, observed: &ReadMasks, mut names: 
             && op.definition.id == "set"
             && let Some(name) = variable(op)
         {
-            if let Some(&binding) = setters.get(&index) {
+            let copied = op.inputs.first().and_then(|&i| previous.get(i).filter(|op| float_getter(op)).and_then(|_| source(i)));
+            if let Some(binding) = setters.get(&index).copied().or(copied) {
                 names.insert(name.to_owned(), binding);
             } else {
                 names.remove(name);
@@ -271,4 +301,5 @@ fn install(program: &mut Program, uses: &Uses, observed: &ReadMasks, mut names: 
             }
         }
     }
+    names
 }

@@ -59,6 +59,20 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-23 root comparisons
 
+### Copied steps in called pixel sums
+
+The shared pixel evaluator now follows a floating-point product copied to another variable. A later addition can use its original factors after the first variable is overwritten. Reading a component of the copy separately rounds that component. The same behavior applies when the next addition or the component read is in the caller or a subsequent function call.
+
+Use the four F32 settings from the [component and assignment-order comparison](#component-reads-and-writes-across-pixel-function-calls). From the original signed input field form a position from GBAR and a direction from BRGA. Store direction times A as the step. Inside the call, copy the step to another variable, overwrite the original with the position, and add the captured step to the position. Compare a single unused copy, a second unused copy, an explicit read of the copy, and a read in a later call. In three further graphs, append the saved B component after the first three sum components, reading B inside the call or in the caller. As a control, overwrite the copy with the position before reading it.
+
+| Comparison | Graphs | Settings | Exact F32 pixels / total | Maximum component error |
+|---|---:|---:|---:|---:|
+| Original graphs, before | 8 | 32 | 23,916/49,152 | 4.76837158e−7 |
+| Same graphs, corrected | 8 | 32 | 49,152/49,152 | 0 |
+| Copy, separate B read, caller B read and later call saved by MaterialCraft | 4 | 16 | 24,576/24,576 | 0 |
+
+All four saves reproduced the original reference pixels when reopened. The earlier unused-copy graph improved from 3,968/8,192 to 8,192/8,192 in F16 and F32 combined. Of the 42 earlier assignment graphs, 41 now match 342,016/342,016 pixels across 197 settings. The sampled-alpha branch still matches 11,173/22,528, including when reopened. Another 49 earlier arithmetic graphs retained 1,288,192/1,288,192 exact pixels across 307 settings. The 64² irradiance first processor retained 4,096/4,096 in both floating formats. The copied-step regression failed before the change. All 401 node release tests, formatting, strict workspace Clippy, dependency layers and WebAssembly checks passed.
+
 ### Switch Blend with parameter-driven endpoint opacity
 
 An unmasked Switch Blend with opacity 0 or 1 can forward the selected floating-point color texture when opacity is fixed and storage precision matches. When its opacity reads an exposed graph parameter, the color conversion runs even at matching precision. It flushes F32 subnormal components to signed zero, then clears zero signs unless all three RGB signs are negative. A change of floating-point storage precision also runs this conversion. The shared Blend cook now uses the evaluator's existing distinction between fixed and parameter-driven opacity.
