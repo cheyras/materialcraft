@@ -39,7 +39,7 @@ use direction::direction;
 pub const ATOMIC: &str = "Atomic nodes";
 pub const GRAPH_ITEMS: &str = "Graph items";
 
-pub use blend::blend_selected_input;
+pub use blend::{blend_selected_input, blend_with_opacity};
 pub use levels::levels_fn;
 pub use normal::height_to_normal;
 pub use output::output_kind;

@@ -38,7 +38,7 @@ pub fn blend_selected_input(context: &CookContext) -> Option<usize> {
     }
 }
 
-fn selected_float_color(context: &CookContext, port: usize) -> Option<Image> {
+fn selected_float_color(context: &CookContext, port: usize, dynamic_opacity: bool) -> Option<Image> {
     let image = context.input(port)?;
     let source = context.input_formats.get(port).copied().unwrap_or(if image.integer_sampling() { OutputFormat::U16 } else { OutputFormat::F32 });
     if image.is_gray()
@@ -48,17 +48,26 @@ fn selected_float_color(context: &CookContext, port: usize) -> Option<Image> {
     {
         return None;
     }
-    // An unmasked endpoint copies the selected texels. A precision change converts their zero signs before rounding to storage.
-    Some(if source == context.format { image.clone() } else { image.map(Kind::Color, |pixel| converted_color(pixel.map(crate::function::flush_subnormal))) })
+    // Fixed opacity can forward the selected texture. A bound opacity still runs the color conversion at either endpoint.
+    Some(if source == context.format && !dynamic_opacity {
+        image.clone()
+    } else {
+        image.map(Kind::Color, |pixel| converted_color(pixel.map(crate::function::flush_subnormal)))
+    })
 }
 
 fn blend(context: &CookContext) -> CookResult {
+    blend_with_opacity(context, false)
+}
+
+/// Cook with the resolved opacity and whether its expression reads an exposed graph parameter.
+pub fn blend_with_opacity(context: &CookContext, dynamic_opacity: bool) -> CookResult {
     let (mode, opacity) = (context.i("mode"), context.f("opacity"));
     // Stored graphs can compute an opacity outside the slider range. Bound it before applying the mask.
     let opacity = if (0..=8).contains(&mode) { opacity.clamp(0.0, 1.0) } else { opacity };
     let selected = blend_selected_input(context);
     if mode == 7
-        && let Some(image) = selected.and_then(|port| selected_float_color(context, port))
+        && let Some(image) = selected.and_then(|port| selected_float_color(context, port, dynamic_opacity))
     {
         return Ok(vec![image]);
     }

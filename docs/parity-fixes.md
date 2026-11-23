@@ -59,6 +59,37 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-23 root comparisons
 
+### Switch Blend with parameter-driven endpoint opacity
+
+An unmasked Switch Blend with opacity 0 or 1 can forward the selected floating-point color texture when opacity is fixed and storage precision matches. When its opacity reads an exposed graph parameter, the color conversion runs even at matching precision. It flushes F32 subnormal components to signed zero, then clears zero signs unless all three RGB signs are negative. A change of floating-point storage precision also runs this conversion. The shared Blend cook now uses the evaluator's existing distinction between fixed and parameter-driven opacity.
+
+Use the [independent sign fields](#signed-zero-when-switch-blend-selects-a-floating-point-color-input) with both nearest-sampling inputs stored in F16 or both in F32. Set opacity to literal zero, an exposed float at 0 and 1, or the result of testing that float against .5. Repeat with fixed parent-relative dimensions and with an output-size function that reads the parent size and returns the relative offset (0,0). Apply the size function to the background, both sources, the Switch, or both sources and the Switch. Compare the actual F16 and F32 outputs at 16², 32 × 16 and 16 × 32.
+
+For the smaller-magnitude field, store the F32 words `00000000 00000001 00400000 007fffff 00800000 31800000 33800000 38000000 3ee00000 00000000 3f600000 ba004000`. For channel c, source s (0 foreground, 1 background) and size index j, select word (y + 2c + s + 7j) modulo 12. OR its sign with bit c of (x + 3y + 5j + 3s) modulo 16. Use 16² and 32 × 16 with seeds 421019 and 421042. Repeat the three opacity controls with matching source precision and both floating-point output formats.
+
+| Comparison | Settings | F16 exact / total · max | F32 exact / total · max |
+|---|---:|---:|---:|
+| Eighteen opacity and size controls, before | 142 | 20,828/28,928 · 0 | 26,176/28,928 · 0 |
+| Same controls, corrected | 142 | 28,928/28,928 · 0 | 28,928/28,928 · 0 |
+| Six small-magnitude controls, before | 40 | 5,752/7,680 · 0 | 5,060/7,680 · 1.17549421e−38 |
+| Same controls, corrected | 40 | 7,680/7,680 · 0 | 7,680/7,680 · 0 |
+| Six MaterialCraft SBS saves opened in both applications | 44 | 8,704/8,704 · 0 | 8,704/8,704 · 0 |
+
+Each saved reference output reproduced its original. The [20 earlier Switch graphs](#signed-zero-when-switch-blend-selects-a-floating-point-color-input) retained 81,920/81,920 exact pixels across 144 settings. Their seven saves retained 27,136/27,136 across 50 settings. The graph regression changes the opacity source while reusing the cook cache, selects both inputs, and compares F16 and F32 channel bits. It failed before the change. All 67 evaluation and 400 node release tests passed, along with formatting, strict workspace Clippy, dependency layers and WebAssembly checks.
+
+For the [first eighth specular pass](#whole-specular-outputs-and-wired-irradiance-stages), guard the three processor bodies at their original coordinates and expose all three processor outputs and both Switch outputs. At 256², compare x = 0, 1 and 255 at y = 101, 102, 103, 179, 180 and 181, plus (134,88), (25,93) and (255,255). Both Switches improved from 18/21 to 21/21 pixels, including the three negative green zeros. All five outputs matched 21/21 there and 42/42 in the 128² black-specular control, maximum error zero. The reference also reproduced its unguarded pixels at every selected coordinate. The complete unguarded output is tracked separately.
+
+### Eighth irradiance pass with default and connected indices
+
+Repeat the [17 default-index and nine connected-index settings](#irradiance-with-a-connected-pass-index) after the called pixel-sum correction. All 17 default-index images now match, including the default at 128² and 256² and seed 42 at 128². The 26 next-index floats are exact.
+
+| Connections | Settings | U8 exact / total · max | U16 exact / total · max | F16 exact / total · max | F32 exact / total · max |
+|---|---:|---:|---:|---:|---:|
+| Default pass index | 17 | 4,352/4,352 · 0 | 4,352/4,352 · 0 | 102,656/102,656 · 0 | 8,960/8,960 · 0 |
+| Connected pass index | 9 | — | — | 4,537/4,608 · 0.001953125 | — |
+
+To isolate the first processor at 32², keep the seven original procedural fields and seed 43 from the start-index .5 case. Repeat with only the index changed to zero. Guard row 14, retain the first three light calls in order, and expose the third call's environment UV, sampled color, gain and weight as F32 in separate runs. All 64 UVs, gains and weights match. The sampled environment color matches 23/32 pixels at .5 and 27/32 at zero, with maximum error .000244140625 in both. Exposing the nested input bridge directly identifies an earlier difference. The 32² parent feeding the 16 × 8 F16 environment bridge matches 105/128 bridge pixels, maximum .00048828125. The corresponding U16 emissive bridge matches 1,024/1,024. The connected-index outputs remain in progress.
+
 ### Component reads and writes across pixel function calls
 
 In the shared Pixel Processor evaluator, a call can read individual components of a stored product. The observed components round at the multiplication. The other components retain their factors for an addition or subtraction. A getter evaluated before a later assignment keeps its earlier value. A getter evaluated after the assignment reads the replacement.

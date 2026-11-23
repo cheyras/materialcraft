@@ -325,6 +325,8 @@ pub(crate) fn cook_node(
         } else {
             let result = if node.def == "fx_map" {
                 materialcraft_nodes::pattern::cook_with_base_level_inputs(&context, &base_level_only)
+            } else if dynamic_blend_opacity {
+                materialcraft_nodes::atomic::blend_with_opacity(&context, true)
             } else {
                 (definition.cook)(&context)
             };

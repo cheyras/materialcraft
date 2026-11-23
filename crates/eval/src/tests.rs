@@ -696,6 +696,57 @@ fn pattern_mips_of_a_resized_bitmap_preserve_the_measured_impulse() {
 }
 
 #[test]
+fn switch_color_storage_depends_on_whether_opacity_reads_a_graph_parameter() {
+    use materialcraft_core::{FunctionGraph, OutputFormat, ValueType};
+
+    let mut graph = Graph::new("Endpoint opacity");
+    graph.size = [2; 2];
+    let blend = graph.add_node("blend", [0.0; 2]);
+    graph.node_mut(blend).unwrap().params.insert("mode".into(), Value::Enum(7));
+    let mut options = Options::new(&no_res);
+    for (port, level) in [("foreground", 0.5), ("background", 0.25)] {
+        let input = graph.add_node("input_color", [0.0; 2]);
+        graph.node_mut(input).unwrap().params.insert("identifier".into(), Value::Text(port.into()));
+        graph.connect(input, "output", blend, port).unwrap();
+        options.inputs.insert(
+            port.into(),
+            Image::generate(4, 4, Kind::Color, |x, _| match x {
+                0 => [level, -0.0, -0.25, -0.0],
+                1 => [-level, -0.0, -0.25, -0.0],
+                _ => [f32::from_bits(0x8000_0001), level, 0.125, -0.0],
+            }),
+        );
+    }
+    let mut package = Package::new("Switch selection");
+    package.graphs.push(graph);
+    let cache = Mutex::new(Cache::default());
+    for format in [OutputFormat::F16, OutputFormat::F32] {
+        package.graphs[0].format = format;
+        for (opacity, level) in [(0.0, 0.25), (1.0, 0.5)] {
+            options.overrides.insert("weight".into(), Value::Float(opacity));
+            for bound in [false, true, false] {
+                let node = package.graphs[0].node_mut(blend).unwrap();
+                node.params.insert("opacity".into(), Value::Float(opacity));
+                if bound {
+                    node.functions.insert("opacity".into(), FunctionGraph::input("weight", ValueType::Float));
+                } else {
+                    node.functions.remove("opacity");
+                }
+                let cooked = cook(&package, 0, &options, &cache);
+                assert_eq!(cooked.nodes[&blend].error, None);
+                assert_eq!(cooked.nodes[&blend].parameters["mode"], Value::Enum(7));
+                let image = cooked.image(blend, 0).unwrap();
+                let zero = if bound { 0.0_f32 } else { -0.0 };
+                assert_eq!(image.get(0, 0, false).map(f32::to_bits), [level, zero, -0.25, zero].map(f32::to_bits), "{format:?} {opacity} bound {bound}");
+                assert_eq!(image.get(1, 0, false).map(f32::to_bits), [-level, -0.0, -0.25, -0.0].map(f32::to_bits));
+                let tiny = if !bound && format == OutputFormat::F32 { f32::from_bits(0x8000_0001) } else { zero };
+                assert_eq!(image.get(2, 0, false).map(f32::to_bits), [tiny, level, 0.125, zero].map(f32::to_bits));
+            }
+        }
+    }
+}
+
+#[test]
 fn blend_preserves_the_selected_texture_levels_at_matching_precision() {
     use materialcraft_core::{FunctionGraph, OutputFormat, ParameterInheritance, ValueType};
 
@@ -717,7 +768,7 @@ fn blend_preserves_the_selected_texture_levels_at_matching_precision() {
         (7, OutputFormat::F32, false, [0, 1280, 5632, 1280, 0]),
     ] {
         let node = package.graphs[0].node_mut(blend).unwrap();
-        node.params.insert("mode".into(), Value::Int(mode));
+        node.params.insert("mode".into(), Value::Enum(mode));
         node.base.format_mode = ParameterInheritance::Absolute;
         node.base.format = format;
         if bound {
