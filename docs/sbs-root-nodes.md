@@ -41,7 +41,7 @@ Nested Curvature, Curvature Smooth and Normal Sobel each match 2,304/2,304 origi
 
 Ordinary SBS saves preserve graph seed inheritance across 22 nested graphs. The original and reopened random fields each match 22,528/22,528 pixels. BNW Spots 1 and Clouds 1 and 2 each match 9,216/9,216 pixels across four output formats in the two nested settings. [Seed settings, whole graphs and renderer repeats](parity-fixes.md#graph-random-seed-inheritance-on-save-and-in-nested-graphs)
 
-The Bricks 01 material provides a separate 2D display check. The corrected preview matches all 258 tested encoded RGB channels. At 64², its base-color mean is (155,122,98) against (152,120,98) in the reference. The cooked material still differs. [Color swatches and material measurements](parity-fixes.md#stored-graph-color-in-the-2d-view)
+The Bricks 01 material provides a separate 2D display check. The corrected preview matches all 258 tested encoded RGB channels. The headless 2D PNG also matches every pixel of a 16² uniform-color control in both display modes. At 64², its base-color mean is (155,122,98) against (152,120,98) in the reference. The cooked material still differs. [Color swatches and material measurements](parity-fixes.md#stored-graph-color-in-the-2d-view)
 
 Tile Generator has reopened. The 4 × 14 grayscale grid matches at seeds 0 and 17 until luminance variation is enabled. The isolated setting matches 0/4,096 at each seed. [Bricks 01 tile and noise stages](parity-fixes.md#tile-luminance-variation-in-bricks-01)
 

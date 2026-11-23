@@ -68,6 +68,7 @@ pub use history_prefs::HistoryPrefs;
 pub use library_cache_prefs::LibraryCachePrefs;
 pub mod graph_edit;
 pub mod graph_grid;
+pub mod graph_pixels;
 pub mod inspect;
 pub mod material_cmds;
 pub mod node_cmds;

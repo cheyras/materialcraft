@@ -1,16 +1,19 @@
 //! Display levels of cooked graph images and node thumbnails.
 
-use materialcraft_engine::image::{Image, linear_to_srgb};
+use crate::image::{Image, linear_to_srgb};
 
-pub(crate) fn stored_byte(value: f32) -> u8 {
+/// Quantize a stored channel, including alpha, to its displayed byte.
+pub fn stored_byte(value: f32) -> u8 {
     (value.clamp(0.0, 1.0) * 255.0 + 0.5) as u8
 }
 
-pub(crate) fn display_byte(value: f32, srgb: bool) -> u8 {
+/// Interpret a graph channel as sRGB or linear light before displaying it.
+pub fn display_byte(value: f32, srgb: bool) -> u8 {
     stored_byte(if srgb { value } else { linear_to_srgb(value) })
 }
 
-pub(crate) fn rgba8(image: &Image, srgb: bool) -> Vec<u8> {
+/// Expand the stored graph pixels into display RGBA, preserving alpha.
+pub fn rgba8(image: &Image, srgb: bool) -> Vec<u8> {
     let mut pixels = Vec::with_capacity(image.data().len() / image.channels() * 4);
     if let Some(gray) = image.gray_data() {
         for &value in gray {
