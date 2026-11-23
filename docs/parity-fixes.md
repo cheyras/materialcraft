@@ -59,6 +59,17 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-23 root comparisons
 
+### Rectangular Hemisphere and Shape Base output sizes
+
+Open Hemisphere and Shape Base from the catalog in the reference desktop. For each graph render the default 16² at seed 0 in F32. Set `non_square` to true for 32 × 16 at seed 42 in U8 and F32, then for 16 × 32 at seed 690727 in F16 and U16. Set it to false for 32 × 16 at seed 19 and 16 × 32 at seed 0 in F32. Read the dimensions and native output bits. Repeat by opening an ordinary MaterialCraft SBS save in the desktop.
+
+| Graph | MaterialCraft vs. catalog original | Desktop original vs. desktop reopen |
+|---|---|---|
+| Hemisphere | 1,280/1,280 pixels exact in three settings, max 0. Four enabled rectangular settings have different dimensions. | 1,280/1,280 exact in three settings, max 0. In all four enabled settings the original gives 16 × 16 and the save gives the requested rectangle. |
+| Shape Base | 3,328/3,328 pixels exact in seven settings, max 0 | 3,328/3,328 exact in seven settings, max 0 |
+
+MaterialCraft and the desktop agree on all 3,328 pixels of the saved Hemisphere, including the changed rectangles. Comparing each application's output from the same save therefore misses the loss of the catalog behavior. The SBS reader skips the authored graph output-size function and the writer omits it. Hemisphere is in progress. Its earlier 18 settings retain their exact counts. Shape Base retains its measured parity. [Earlier hemisphere results](#normal-maps-panoramas-and-primitive-shapes) [Earlier Shape Base results](#reopened-paper-fiber-gaussian-and-shape-generators)
+
 ### Computed graph seeds on load, evaluation and save
 
 The SBS reader used to drop a graph's seed expression. The evaluator consequently used the stored integer offset, and an ordinary save lost the expression. MaterialCraft now preserves the function, evaluates it against the child's arguments and resolved dimensions, then applies the authored seed inheritance. Editing inheritance retains the function. Entering a literal seed replaces the function, and undo restores it.
