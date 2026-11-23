@@ -1,5 +1,5 @@
 use crate::{Cache, MAX_DEPTH, NodeOutput, Options, Port, cook, identifier};
-use materialcraft_core::{Graph, Node, OutputFormat, Package, Value};
+use materialcraft_core::{Graph, Node, Package, Value};
 use std::{collections::BTreeMap, sync::Mutex};
 
 pub(crate) fn resolve<'a>(registry: &'a Package, current: &'a Package, node: &Node) -> Option<(&'a Package, usize, &'a Graph)> {
@@ -42,7 +42,7 @@ pub(crate) fn cook_instance(
     node: &Node,
     input_ports: &[Port],
     output_ports: &[Port],
-    inputs: &[Option<(&NodeOutput, OutputFormat)>],
+    inputs: &[Option<(&NodeOutput, crate::ResolvedBaseParameters)>],
     params: &BTreeMap<String, Value>,
     fixed: &[String],
     base: crate::resolved_base_parameters::ResolvedBaseParameters,
@@ -105,10 +105,11 @@ pub(crate) fn cook_instance(
             source_options.literal_inputs.retain(|name| name != &port.id);
             continue;
         }
-        let Some((output, format)) = input else { continue };
-        if let Some((image, texture_format)) = output.texture(*format) {
+        let Some((output, source_base)) = input else { continue };
+        if let Some((image, texture_format)) = output.texture(source_base.format) {
             source_options.inputs.insert(port.id.clone(), image.clone());
             source_options.input_formats.insert(port.id.clone(), texture_format);
+            source_options.input_bases.insert(port.id.clone(), *source_base);
             if matches!(output, NodeOutput::BaseLevel(_)) {
                 source_options.base_level_inputs.insert(port.id.clone());
             }
@@ -136,15 +137,8 @@ pub(crate) fn cook_instance(
                 .and_then(|node| cooked.nodes.get(&node.id))
                 .ok_or_else(|| format!("the source output `{}` is missing", port.id))?;
             let output = result.outputs.first().ok_or_else(|| format!("the source output `{}` is empty", port.id))?;
-            let source_base = result.base;
-            let port_base = crate::ResolvedBaseParameters {
-                size: source_base.size,
-                size_underflow: source_base.size_underflow,
-                dynamic_size: source_base.dynamic_size,
-                format: source_base.format,
-                pixel_size: source_base.pixel_size,
-                ..base
-            };
+            // Images carry their source properties across the boundary. The caller owns the random seed.
+            let port_base = crate::ResolvedBaseParameters { seed: base.seed, ..result.base };
             Ok((output.clone(), port_base))
         })
         .collect()

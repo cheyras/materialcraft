@@ -10,7 +10,7 @@ pub struct NodeResult {
     pub parameters: std::collections::BTreeMap<String, materialcraft_core::Value>,
     /// One image per output port (empty when the cook failed)
     pub outputs: Arc<Vec<NodeOutput>>,
-    /// Instance ports carry the dimensions, format and pixel size of their source.
+    /// Instance ports carry the dimensions, format and sampling properties of their source.
     pub output_bases: Option<Arc<[crate::ResolvedBaseParameters]>>,
     pub error: Option<String>,
     /// Cook time in milliseconds (0 when served from the cache)

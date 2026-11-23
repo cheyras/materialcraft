@@ -114,6 +114,24 @@ A discarded draw leaves the next random value available. A write, a draw used el
 
 Two further controls put a three-iteration loop on the discarded side of Sequence. Its body either discards Random(1) or assigns the draw. The reference returns the first draw after either loop. These cases still differ in MaterialCraft. Across both loops and four settings, FX-Map matches 0/2,048, maximum 0.386968136, Pixel Processor matches 0/2,048, maximum 0.961201191 and Value Processor matches 0/8, maximum 0.662862062. Seven further controls outside those two loops, including an empty loop, produce 7,168/7,168, maximum 0 in FX-Map, 7,168/7,168, maximum 0 in Pixel Processor and 24/28, maximum 0.45432511 in Value Processor. The four scalar differences occur when a false conditional arm shares a draw with another expression. Random expressions passed as graph arguments are also under separate investigation.
 
+### Sampling properties on graph inputs and outputs
+
+Connect an original half-size U16 Random(1) field to Blur. Compare a flat graph with the same connection across an instance output. Set tiling on the field to none, horizontal, vertical or both, then repeat with an absolute override on Blur. Use intensity 12. For the pixel-ratio cases, set the source ratio to stretch (0) or square (1) and drive Blur intensity with the float conversion of the inherited pixel ratio multiplied by 12.
+
+For an instance input, wire two original fields to separately named grayscale bridges. Give the fields pixel sizes (2,.5) and (.5,2) and use intensity 4 inside the child. In separate controls use unit pixel sizes and opposite one-axis tiling modes, or pixel ratios 0 and 1. Read each pin in turn. Test absolute settings on the input bridge. Render at parent sizes 64² and 128² with seed 0, 128 × 64 with seed 17 and 64 × 128 with seed 12071. Compare the stored output of the matching flat graph, the child inside an instance and an ordinary save reopened in the reference desktop.
+
+| Nested U16 control | Previous exact pixels · maximum error | Corrected original exact pixels · maximum error | Corrected reopen exact pixels · maximum error |
+|---|---:|---:|---:|
+| Output tiling 0, 1, 2, 3 and explicit override | 43,568/46,080 · 16278 | 46,080/46,080 · 0 | 46,080/46,080 · 0 |
+| Output pixel ratio 0, 1 and explicit override | 18,432/27,648 · 50328 | 27,648/27,648 · 0 | 27,648/27,648 · 0 |
+| Input pixel size, each of two pins | 9,216/18,432 · 34253 | 18,432/18,432 · 0 | 18,432/18,432 · 0 |
+| Input tiling, both pins and their absolute overrides | 35,632/36,864 · 16278 | 36,864/36,864 · 0 | 36,864/36,864 · 0 |
+| Input pixel ratio, both pins and their absolute overrides | 27,648/36,864 · 50328 | 36,864/36,864 · 0 | 36,864/36,864 · 0 |
+
+Across the 36 flat and nested graphs, the original and the ordinary save each match 331,776/331,776 U16 pixels. The desktop original and reopen agree at every pixel. Both input pins now retain their own sampling settings. A downstream filter reads the settings from the selected child output. The same previous pixel-size matrix still matches 110,592/110,592 on each pass.
+
+Repeat the no-tiling output, stretch-ratio output, first tiling input and second ratio input with Blur explicitly storing U8, F16 and F32. Each storage format matches 73,728/73,728 pixels on the original and 73,728/73,728 on the ordinary save, maximum error 0. The desktop flat and nested comparisons and all original-versus-reopen comparisons give the same exact counts. Bricks 01 Base Color repeats its 4,096/4,096 at 64², 16,379/16,384 at 128² and 4,094/4,096 with changed luminance and seed at 64². Its last two maximum byte errors are 1.
+
 ### Pixel size on graph instance outputs
 
 At 128² and seed 0, the Gaussian source in Bricks 01 returns a 64² U16 field with pixel size (2,2). The input to Blur matches the reference in all 4,096 pixels. The filter intensity is 1.61. The instance previously returned the caller's unit pixel size to downstream filters. Blur then copied the field and matched just 53/4,096, maximum U16 error 21,379.

@@ -66,7 +66,7 @@ pub(crate) fn cook_node(
         let source = connection.and_then(|connection| {
             let result = cooked.nodes.get(&connection.from)?;
             let index = prepared.ports(connection.from).1.iter().position(|output| output.id == connection.from_port)?;
-            Some((result.outputs.get(index)?, result.key ^ hash_of(&index), result.output_base(index)?.format))
+            Some((result.outputs.get(index)?, result.key ^ hash_of(&index), result.output_base(index)?))
         });
         input_keys.push(source.as_ref().map_or(0, |source| source.1));
         let output = source.map(|source| source.0);
@@ -100,16 +100,23 @@ pub(crate) fn cook_node(
             {
                 *level = wired.map_or(matches!(output, Some(NodeOutput::BaseLevel(_))), |(_, _, base_level)| base_level);
             }
-            let stored = source.and_then(|(output, _, format)| output.texture(format));
+            let stored = source.and_then(|(output, _, base)| output.texture(base.format));
             let image = wired.map(|(image, format, _)| (image, format)).or(stored);
             inputs.push(image.map(|(image, _)| image.clone()));
             input_formats.push(image.map_or(OutputFormat::F32, |(_, format)| format));
         }
 
-        incoming.push(source.map(|(output, _, format)| (output, format)));
+        incoming.push(source.map(|(output, _, base)| (output, base)));
     }
 
-    let input_base = prepared.input_base(node.id, cooked);
+    let input_base = prepared.input_base(node.id, cooked).or_else(|| {
+        if !matches!(node.def.as_str(), "input_color" | "input_grayscale") {
+            return None;
+        }
+        let source = options.input_bases.get(&identifier(node))?;
+        // A bridge has its own working dimensions and precision. Its sampling properties follow the wire.
+        Some(crate::ResolvedBaseParameters { pixel_size: source.pixel_size, pixel_ratio: source.pixel_ratio, tiling: source.tiling, ..prepared.parent_base })
+    });
     let (mut base, base_values, base_error) =
         match crate::resolved_base_parameters::evaluate(&node.base, input_base, prepared.parent_base, &mut variables, &fixed) {
             Ok((base, values)) => (base, values, None),
@@ -340,8 +347,8 @@ pub(crate) fn cook_node(
                         // Bridges retain their source pixels; filters store their declared precision
                         let image = if matches!(node.def.as_str(), "output" | "dot") { image } else { crate::output_precision::apply(image, base.format) };
                         // A Blend that selects a compatible texture retains its available sampling levels.
-                        if let Some((NodeOutput::BaseLevel(source), format)) = selected
-                            && format == base.format
+                        if let Some((NodeOutput::BaseLevel(source), source_base)) = selected
+                            && source_base.format == base.format
                             && source.kind() == image.kind()
                             && (source.width(), source.height()) == (w, h)
                         {

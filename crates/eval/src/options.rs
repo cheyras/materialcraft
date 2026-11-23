@@ -17,6 +17,8 @@ pub struct Options<'a> {
     pub inputs: BTreeMap<String, Image>,
     /// Upstream storage precision for caller-supplied images. Unspecified floating inputs use full precision.
     pub input_formats: BTreeMap<String, OutputFormat>,
+    /// Resolved source properties for each image wired to a graph instance.
+    pub input_bases: BTreeMap<String, crate::ResolvedBaseParameters>,
     /// Caller textures which have only their base level when passed through an instance.
     pub base_level_inputs: BTreeSet<String>,
     /// Original storage of decoded external files. Wired graph inputs use their upstream format.
@@ -48,6 +50,7 @@ impl<'a> Options<'a> {
             only: None,
             inputs: BTreeMap::new(),
             input_formats: BTreeMap::new(),
+            input_bases: BTreeMap::new(),
             base_level_inputs: BTreeSet::new(),
             bitmap_formats: BTreeMap::new(),
             overrides: BTreeMap::new(),
