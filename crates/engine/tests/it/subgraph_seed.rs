@@ -49,5 +49,11 @@ fn grouping_noise_preserves_pixels_seed_and_undo() {
         let reopened_output = reopened.graph().unwrap().nodes.iter().find(|node| node.def == "output").unwrap().id;
 
         assert_eq!(reopened.cook().image(reopened_output, 0).unwrap().data(), before.data());
+        run(&mut s, "edit.undo", json!({}));
+        for changed_seed in [5, 89] {
+            run(&mut s, "graph.seed", json!({"seed": changed_seed}));
+            run(&mut reopened, "graph.seed", json!({"seed": changed_seed}));
+            assert_eq!(reopened.cook().image(reopened_output, 0).unwrap().data(), s.cook().image(output, 0).unwrap().data());
+        }
     }
 }

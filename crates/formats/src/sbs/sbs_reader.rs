@@ -193,6 +193,7 @@ impl<'text> SbsReader<'text, '_> {
         }
         graph.format = if BaseParameter::Format.inheritance(&base) == ParameterInheritance::Absolute { base.format } else { OutputFormat::Inherit };
         graph.seed = base.seed;
+        graph.seed_mode = base.seed_mode;
         graph.pixel_ratio = base.pixel_ratio;
         graph.pixel_ratio_mode = base.pixel_ratio_mode;
         graph.tiling = base.tiling;

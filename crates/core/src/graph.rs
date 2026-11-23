@@ -35,6 +35,9 @@ pub struct Graph {
     pub format: OutputFormat,
     #[serde(default)]
     pub seed: i32,
+    /// Whether a nested graph starts from its own seed or adds to its instance seed.
+    #[serde(default)]
+    pub seed_mode: crate::ParameterInheritance,
     #[serde(default)]
     pub pixel_ratio: i32,
     #[serde(default)]
@@ -93,6 +96,7 @@ impl Graph {
             absolute_output_size: None,
             format: OutputFormat::U16,
             seed: 0,
+            seed_mode: crate::ParameterInheritance::default(),
             pixel_ratio: 0,
             pixel_ratio_mode: crate::ParameterInheritance::default(),
             tiling: [true, true],

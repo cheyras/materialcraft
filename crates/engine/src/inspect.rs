@@ -19,6 +19,7 @@ pub fn session(session: &Session, requested_graph: Option<usize>) -> J {
             "size": graph.size_px(),
             "format": graph.format,
             "seed": graph.seed,
+            "seedMode": graph.seed_mode,
             "attributes": graph.attributes,
             "exposed": graph.exposed,
             "presets": graph.presets,

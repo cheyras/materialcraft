@@ -185,3 +185,14 @@ fn a_function_label_updates_instances_without_renaming_references() {
     assert_eq!(materialcraft_engine::nodes::function::node_label(node), "Readable label");
     assert_eq!(node.instance.as_ref().unwrap().graph, "Stable_identifier");
 }
+
+#[test]
+fn graph_seed_inheritance_can_be_edited_without_changing_the_offset() {
+    let mut session = materialcraft_engine::new_session();
+    execute(&mut session, "graph.seed", &json!({"seed": 17, "inheritance": "absolute"})).unwrap();
+    execute(&mut session, "graph.seed", &json!({"inheritance": "relativeToParent"})).unwrap();
+    let graph = session.graph().unwrap();
+    assert_eq!((graph.seed, graph.seed_mode), (17, materialcraft_engine::core::ParameterInheritance::RelativeToParent));
+    assert!(execute(&mut session, "graph.seed", &json!({"seed": 3, "inheritance": "unknown"})).is_err());
+    assert_eq!(session.graph().unwrap().seed, 17);
+}

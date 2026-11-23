@@ -570,3 +570,31 @@ fn input_usage_defaults_and_unknown_metadata_stay_unclassified() {
         }
     }
 }
+
+#[test]
+fn graph_seed_inheritance_survives_sbs_saving() {
+    for mode in [None, Some(0), Some(1), Some(2)] {
+        for seed in [0, 5, -3] {
+            if mode.is_none() && seed != 0 {
+                continue;
+            }
+            let parameter = mode.map_or_else(String::new, |mode| {
+                format!(r#"<parameter><name v="randomseed"/><relativeTo v="{mode}"/><paramValue><constantValueInt32 v="{seed}"/></paramValue></parameter>"#)
+            });
+            let xml = format!(r#"<package><content><graph><identifier v="Field"/><baseParameters>{parameter}</baseParameters></graph></content></package>"#);
+            let package = read_sbs(xml.as_bytes(), "field.sbs", &no_linked_files).unwrap().pkg;
+            let bytes = write_sbs(&package).unwrap();
+            let text = std::str::from_utf8(&bytes).unwrap();
+            let document = roxmltree::Document::parse(text).unwrap();
+            let base = document.descendants().find(|n| n.has_tag_name("baseParameters")).unwrap();
+            let saved = super::base_parameters::read_base_params(Some(base), &mut Default::default());
+            use materialcraft_core::ParameterInheritance::{Absolute, RelativeToInput, RelativeToParent};
+            let expected = match mode {
+                Some(0) => Absolute,
+                Some(1) => RelativeToParent,
+                _ => RelativeToInput,
+            };
+            assert_eq!((saved.seed_mode, saved.seed), (expected, seed), "source {mode:?} {seed}");
+        }
+    }
+}

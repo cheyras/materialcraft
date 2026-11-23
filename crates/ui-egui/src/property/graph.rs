@@ -45,10 +45,17 @@ fn show_target(app: &mut MaterialCraftApp, ui: &mut Ui, target: materialcraft_en
                 }
             }
         });
-        let mut seed = graph.seed as f32;
-        if crate::widgets::slider(ui, tr("Random seed"), &mut seed, 0.0..=1000.0, 0).changed() {
-            emit("graph.seed", json!({"seed": seed.round() as i64}));
-        }
+        ui.horizontal(|ui| {
+            if let Some(mode) = super::parameter_control::inheritance_menu(ui, tr("Random seed"), graph.seed_mode) {
+                emit("graph.seed", json!({"inheritance": mode}));
+            }
+            ui.vertical(|ui| {
+                let mut seed = graph.seed as f32;
+                if crate::widgets::slider(ui, tr("Random seed"), &mut seed, 0.0..=1000.0, 0).changed() {
+                    emit("graph.seed", json!({"seed": seed.round() as i64}));
+                }
+            });
+        });
     });
     if target != materialcraft_engine::GraphTarget::active(&app.session) {
         for (id, parameters) in commands {

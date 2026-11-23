@@ -21,14 +21,7 @@ pub(crate) fn specs() -> Vec<CommandSpec> {
             always,
             size
         ),
-        cmd!("graph.seed", "Random seed", [], None, "{seed, graph?, document?}", always, |s, p| {
-            let seed = i64p(p, "seed").ok_or_else(|| bad("graph.seed", "`seed` is required"))?.clamp(0, i32::MAX as i64) as i32;
-            let target = crate::GraphTarget::resolve(s, p)?;
-            target.edit_merged(s, &format!("graph.seed:{}:{}", target.document, target.graph), "Random seed", |package| {
-                package.graph_mut(target.graph)?.seed = seed;
-                Ok(J::Null)
-            })
-        }),
+        cmd!("graph.seed", "Random seed", [], None, "{seed?, inheritance?: absolute|relativeToParent|relativeToInput, graph?, document?}", always, seed),
         cmd!("graph.format", "Output format", [], None, "{format: u8|u16|f16|f32, graph?, document?}", always, format),
         cmd!(
             "graph.cook",
@@ -77,6 +70,32 @@ fn graph_index(s: &Session, p: &J) -> Result<usize> {
             Ok(i)
         }
     }
+}
+
+fn seed(session: &mut Session, parameters: &J) -> Result<J> {
+    let command = "graph.seed";
+    let seed = parameters
+        .get("seed")
+        .map(|_| i64p(parameters, "seed").map(|n| n.clamp(0, i64::from(i32::MAX)) as i32).ok_or_else(|| bad(command, "expected an integer seed")))
+        .transpose()?;
+    let mode = parameters
+        .get("inheritance")
+        .map(|v| serde_json::from_value(v.clone()).map_err(|error| bad(command, format!("invalid inheritance: {error}"))))
+        .transpose()?;
+    if seed.is_none() && mode.is_none() {
+        return Err(bad(command, "a seed or inheritance mode is required"));
+    }
+    let target = crate::GraphTarget::resolve(session, parameters)?;
+    target.edit_merged(session, &format!("graph.seed:{}:{}", target.document, target.graph), "Random seed", |package| {
+        let graph = package.graph_mut(target.graph)?;
+        if let Some(seed) = seed {
+            graph.seed = seed;
+        }
+        if let Some(mode) = mode {
+            graph.seed_mode = mode;
+        }
+        Ok(J::Null)
+    })
 }
 
 fn open(s: &mut Session, p: &J) -> Result<J> {
@@ -330,7 +349,11 @@ fn from_selection(s: &mut Session, p: &J) -> Result<J> {
         let g = s.graph_mut()?;
         g.remove_nodes(&ids);
         let inst = g.add_node("graph_instance", [rect[0], rect[1]]);
-        g.node_mut(inst)?.params.insert("graph".into(), Value::Text(name.clone()));
+        let instance = g.node_mut(inst)?;
+        // The extracted graph keeps the source seed for a standalone preview. Cancel
+        // that offset here so later parent seed edits still reach its original nodes.
+        instance.base.seed = src.seed.wrapping_neg();
+        instance.params.insert("graph".into(), Value::Text(name.clone()));
         for (from, port, ident) in inputs {
             g.connect(from, &port, inst, &ident)?;
         }

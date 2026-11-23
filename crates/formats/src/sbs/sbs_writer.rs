@@ -146,10 +146,11 @@ impl SbsWriter {
         }
 
         out.push_str("</compNodes><baseParameters>");
-        out.push_str(&param_xml("randomseed", &Value::Int(graph.seed)).unwrap_or_default());
         let base = materialcraft_core::BaseParameters {
             size_mode: if graph.absolute_output_size.is_some() { materialcraft_core::SizeMode::Absolute } else { Default::default() },
             size: graph.absolute_output_size.unwrap_or_default(),
+            seed: graph.seed,
+            seed_mode: graph.seed_mode,
             format: graph.format,
             format_mode: materialcraft_core::ParameterInheritance::Absolute,
             pixel_ratio: graph.pixel_ratio,

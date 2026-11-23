@@ -19,6 +19,11 @@ pub struct ResolvedBaseParameters {
     pub pixel_size: [f32; 2],
 }
 
+// An image carries no random stream. Both relative modes add to the parent seed.
+fn resolve_seed(mode: ParameterInheritance, offset: i32, parent: u32) -> u32 {
+    mode.resolve(0, None, parent).wrapping_add(offset as u32)
+}
+
 impl ResolvedBaseParameters {
     pub(crate) fn graph(graph: &Graph, options: &crate::Options<'_>) -> Self {
         let parent = options.parent_base;
@@ -27,7 +32,7 @@ impl ResolvedBaseParameters {
             size: parent.map_or_else(|| graph.size_px(), |base| graph.output_size_px(base.size)),
             dynamic_size: graph.absolute_output_size.is_none() && parent.is_some_and(|base| base.dynamic_size),
             size_underflow: parent.filter(|_| graph.absolute_output_size.is_none()).map_or([0; 2], |base| base.size_underflow),
-            seed: parent.map_or(graph.seed as u32, |base| base.seed),
+            seed: resolve_seed(graph.seed_mode, graph.seed, parent.map_or(0, |base| base.seed)),
             format: parent.map_or(graph.format, |base| base.format),
             tiling: graph.tiling_mode.resolve(graph.tiling, options.parent_tiling, options.parent_tiling.unwrap_or(graph.tiling)),
             pixel_ratio: graph.pixel_ratio_mode.resolve(graph.pixel_ratio, parent_ratio, parent_ratio.unwrap_or(1)),
@@ -46,15 +51,12 @@ impl ResolvedBaseParameters {
         let size_underflow =
             std::array::from_fn(|axis| if size_base[axis].is_power_of_two() { shift[axis].saturating_add(size_base[axis].ilog2() as i32).min(0) } else { 0 });
 
-        // Images carry size and format, but do not carry a random stream
-        // Relative seed modes use the graph seed without accumulating upstream seeds
-        let inherited_seed = base.seed_mode.resolve(0, None, parent.seed);
         let inherited_pixel_size = base.pixel_size_mode.resolve([1.0; 2], input.map(|base| base.pixel_size), parent.pixel_size);
         Self {
             size,
             size_underflow,
             dynamic_size: size_mode.resolve(false, input.map(|base| base.dynamic_size), parent.dynamic_size),
-            seed: inherited_seed.wrapping_add(base.seed as u32),
+            seed: resolve_seed(base.seed_mode, base.seed, parent.seed),
             format: BaseParameter::Format.inheritance(base).resolve(base.format, input.map(|base| base.format), parent.format),
             tiling: base.tiling_mode.resolve(base.tiling, input.map(|base| base.tiling), parent.tiling),
             pixel_ratio: base.pixel_ratio_mode.resolve(base.pixel_ratio, input.map(|base| base.pixel_ratio), parent.pixel_ratio),

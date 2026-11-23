@@ -59,6 +59,46 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-23 root comparisons
 
+### Graph random seed inheritance on save and in nested graphs
+
+Saving a graph that omitted its random seed used to write an absolute zero. When another graph called that file, the reference renderer restarted its random stream at zero. MaterialCraft also ignored a child's authored seed mode when cooking an instance. The SBS reader, writer and evaluator now preserve how the child obtains its seed. An absolute seed starts a new stream. Either relative mode adds the child's signed offset to the resolved instance seed, wrapping at 32 bits. The graph properties panel and the `graph.seed` command expose inheritance. Grouping nodes keeps the original standalone seed and offsets it at the new instance so later parent seed edits still reach the grouped nodes.
+
+Build a child containing a single grayscale F32 Pixel Processor that returns Random(1). Connect an instance of that child to the parent output. Use child seeds omitted, absolute 0 or 5, parent-relative 0 or 5, and input-relative 5. For each, use an omitted instance seed, absolute 7 and parent-relative 3. Repeat four configurations with the child in a separate SBS file. Render each at 16² with parent seeds 0 and 19 and at 32 × 16 with seed 42. Compare every F32 bit with the one-worker Direct3D 11 reference. As an independent control, render the same random field at the calculated seed with no intervening seed offset.
+
+| Random-field comparison | Exact pixels / total · maximum absolute error |
+|---|---:|
+| Original reference field vs. the calculated seed | 22,528/22,528 · 0 |
+| Previous MaterialCraft vs. reference | 7,424/22,528 · 0.982471466 |
+| Current MaterialCraft vs. reference, 66 original renders | 22,528/22,528 · 0 |
+| Current MaterialCraft vs. reference, 66 renders after ordinary SBS saves | 22,528/22,528 · 0 |
+| Signed controls, 12 additional renders | 4,096/4,096 · 0 |
+
+The signed controls use child offsets −3 in each inheritance mode and a +19 child under an instance offset of −19. A separate child with the constant integer 5 supplied by a function still differs in absolute and parent-relative modes. Together these cases give 0/2,048 · 0.992930532. In the 546 inventory graph bodies, 539 omit the graph seed, including all 66 open roots. The other seven have literal parent-relative seeds, six at +2 and one at zero.
+
+For BNW Spots 1, put the complete saved graph into a fresh one-instance caller. At 128 × 64 use seed 372177 and Disorder 1 with U16 output. At 256² use seed 372421 and Disorder .96875 with U16, F16 and F32 output. Compare the reference caller loading the catalog with the reference caller loading the saved file. In that order the former absolute-zero save matched 1/8,192 · 39918, 3/65,536 · 48234, 40/65,536 · 0.736083984, 3/65,536 · 0.736003667. Removing just that parameter, or changing only its mode to parent-relative, restored 204,800/204,800 pixels in each experiment. Integer errors are stored levels and floating-point errors are absolute component differences.
+
+For BNW Spots 1 and Clouds 1 and 2, use a 16² default instance at seed 0, then a 64 × 32 instance at seed 372177. Set Disorder to .96875 where exposed. Switching the instance between the four formats alone leaves the stored child output unchanged in this setup. Before the fix, the original and saved child outputs in the reference matched 1,024/9,216 · 0.551033825, 1,024/9,216 · 0.572350621, 1,024/9,216 · 0.749904647 respectively over those eight reads per root. After the fix each pair agrees for 9,216/9,216 pixels with maximum error 0.
+
+To measure the four actual output formats independently, put an identity Levels filter after each instance and explicitly set its output precision. Read back F32 and compare the underlying U8, U16, F16 or F32 samples. For the remaining rows use a 16² default at seed 0 in F32 and a 32 × 16 instance at seed 569071 in U16 and F32. Set Disorder to .34375 where exposed. Use X Amount 3 and Y Amount 12 for Anisotropic Noise, and Branches 7 and Randomness .375 for Starburst. Each comparison reopens the complete child package through the ordinary SBS writer.
+
+| Root | MaterialCraft vs. original reference · exact / total · max | MaterialCraft vs. saved reference · exact / total · max | Reference original vs. save · exact / total · max |
+|---|---:|---:|---:|
+| bnw spots 1 | 9,216/9,216 · 0 | 9,216/9,216 · 0 | 9,216/9,216 · 0 |
+| clouds 1 | 9,216/9,216 · 0 | 9,216/9,216 · 0 | 9,216/9,216 · 0 |
+| clouds 2 | 9,216/9,216 · 0 | 9,216/9,216 · 0 | 9,216/9,216 · 0 |
+| dirt 1 | 1,280/1,280 · 0 | 1,280/1,280 · 0 | 1,280/1,280 · 0 |
+| dirt 3 | 1,280/1,280 · 0 | 1,280/1,280 · 0 | 1,280/1,280 · 0 |
+| dirt 5 | 1,280/1,280 · 0 | 1,280/1,280 · 0 | 1,280/1,280 · 0 |
+| dirt 6 | 1,280/1,280 · 0 | 1,280/1,280 · 0 | 1,280/1,280 · 0 |
+| dirt gradient | 1,279/1,280 · 1.52885914e-05 | 1,279/1,280 · 1.52885914e-05 | 1,280/1,280 · 0 |
+| fur 2 | 1,280/1,280 · 0 | 1,280/1,280 · 0 | 1,280/1,280 · 0 |
+| gaussian spots 2 | 1,280/1,280 · 0 | 1,280/1,280 · 0 | 1,280/1,280 · 0 |
+| moisture noise | 1,280/1,280 · 0 | 1,280/1,280 · 0 | 1,280/1,280 · 0 |
+| anisotropic noise | 1,280/1,280 · 0 | 1,280/1,280 · 0 | 1,280/1,280 · 0 |
+| starburst | 1,280/1,280 · 0 | 1,280/1,280 · 0 | 1,280/1,280 · 0 |
+
+In Dirt Gradient the 16² default F32 image first differs at (12,11), before the Levels readout. MaterialCraft gives .368169695 and the one-worker reference gives .368154407. Three repeats each at one and four workers give the same 255/256 match. All three two-worker renders and one of three eight-worker renders match all 256 pixels. The other two eight-worker renders match 255/256. Loading the original or saved child at one worker reproduces the same pixel. For the four larger BNW Spots 1 settings above, render the same compiled file four times at each of one, two, four and eight explicit workers. All four one-worker runs agree at every pixel in each setting. Eight workers produced two different buffers per setting. Comparing each of the three later eight-worker renders with the first gives 24,552/24,576 · 2, 196,596/196,608 · 2, 196,605/196,608 · 0.000244140625, 196,602/196,608 · 2.16364861e-05. Two and four workers also produced two buffers at 128 × 64. These repeat measurements and the earlier desktop comparisons leave the affected roots in progress. [Earlier comparisons by worker count](#patterns-with-an-explicit-reference-worker-count)
+
 ### Reopening a portable copy with detached function packages
 
 Start with an SBS graph calling a private function package by a relative filename. For the waveform series, use the earlier detached hash file with format version `0.1.3` and the same seven sizes, seeds, changed parameters and additional fixed fields. Use **Save Copy As** to write an `.mcraft` file. Open that copy in MaterialCraft and use **Save Copy As** to write `graph.sbs` in a fresh directory. The resulting waveform SBS references two adjacent function packages under `resources/packages/`. Both use version `1.1.0.202401`. The source caller and detached file retained their original bytes. [Earlier waveform cases](#reopened-starburst-symmetry-tile-and-waveform-graphs)

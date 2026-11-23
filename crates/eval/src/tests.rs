@@ -1840,3 +1840,32 @@ fn levels_widens_scalar_endpoints_to_opaque_gray_and_normalizes_integer_controls
         assert_eq!(cooked.nodes[&levels].parameters["in_high"], Value::Float4(expected));
     }
 }
+
+#[test]
+fn an_instanced_graph_resolves_its_own_seed_after_the_instance() {
+    use materialcraft_core::ParameterInheritance::{Absolute, RelativeToInput, RelativeToParent};
+    let (mut parent, instance) = instancing("Parent", "Field");
+    parent.seed = 19;
+    parent.node_mut(instance).unwrap().base.seed = 3;
+    let mut child = Graph::new("Field");
+    child.size = parent.size;
+    let noise = child.add_node("pixel_processor", [0.0; 2]);
+    let mut function = materialcraft_core::FunctionGraph::default();
+    let maximum = function.add_constant(Value::Float(1.0));
+    function.output = Some(function.add("rand", &[maximum], None));
+    child.node_mut(noise).unwrap().params.insert("function".into(), Value::Function(Box::new(function)));
+    let output = child.add_node("output", [100.0, 0.0]);
+    child.connect(noise, "output", output, "input").unwrap();
+    let mut pkg = Package::new("Seed controls");
+    pkg.graphs.extend([parent, child]);
+    let cache = Mutex::new(Cache::default());
+    for (mode, offset, expected) in [(Absolute, 0, 0), (Absolute, 5, 5), (RelativeToParent, 5, 27), (RelativeToInput, -3, 19)] {
+        pkg.graphs[1].seed = expected;
+        let direct = cook(&pkg, 1, &Options::new(&no_res), &cache);
+        pkg.graphs[1].seed = offset;
+        pkg.graphs[1].seed_mode = mode;
+        let nested = cook(&pkg, 0, &Options::new(&no_res), &cache);
+        assert_eq!(nested.nodes[&instance].error, None);
+        assert_eq!(nested.image(instance, 0).unwrap().data(), direct.image(output, 0).unwrap().data(), "{mode:?} {offset}");
+    }
+}
