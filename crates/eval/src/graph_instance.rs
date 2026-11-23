@@ -88,7 +88,7 @@ pub(crate) fn cook_instance(
     source_options.overrides = params.iter().filter(|(k, _)| source_graph.exposed.iter().any(|e| &e.id == *k)).map(|(k, v)| (k.clone(), v.clone())).collect();
     for exposed in &source_graph.exposed {
         let name = &exposed.id;
-        if fixed.contains(name) || (!params.contains_key(name) && matches!(source_graph.input_value(name), Some(Value::Int(_) | Value::Float(_)))) {
+        if fixed.contains(name) || (!params.contains_key(name) && source_graph.input_value(name).is_some_and(crate::parameter::supports_literal_argument)) {
             source_options.literal_inputs.push(name.clone());
         }
     }

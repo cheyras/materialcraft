@@ -321,13 +321,24 @@ fn cached_instances_distinguish_fixed_and_bound_integer_arguments() {
 
 #[test]
 fn instanced_float_angles_keep_their_precision_across_an_unrelated_write() {
-    use materialcraft_core::{ExposedParameter, FunctionGraph, GraphInstance, GraphPort, OutputFormat};
+    assert_instance_angle_precision(Value::Float(1.0));
+}
+
+#[test]
+fn instanced_vector_angles_preserve_fixed_and_parent_bound_precision() {
+    for turn in [Value::Float2([1.0, 0.25]), Value::Float3([1.0, 0.25, -0.5]), Value::Float4([1.0, 0.25, -0.5, 0.75])] {
+        assert_instance_angle_precision(turn);
+    }
+}
+
+fn assert_instance_angle_precision(argument: Value) {
+    use materialcraft_core::{ExposedParameter, FunctionGraph, GraphInstance, GraphPort, OutputFormat, ValueType};
     let (parent, instance) = instancing("Parent", "Angle");
     let mut child = Graph::new("Angle");
     child.exposed.push(ExposedParameter {
         id: "turn".into(),
         label: "Turn".into(),
-        default: Value::Float(1.0),
+        default: argument.clone(),
         connectable: false,
         clamp: false,
         description: String::new(),
@@ -341,7 +352,8 @@ fn instanced_float_angles_keep_their_precision_across_an_unrelated_write() {
     let mut body = FunctionGraph::default();
     let one = body.add_constant(Value::Float(1.0));
     body.output = Some(body.add("set", &[one], Some(Value::Text("scratch".into()))));
-    let mut expression = FunctionGraph::default();
+    let mut expression = FunctionGraph::input("turn", ValueType::of(&argument).unwrap());
+    let input = expression.output.unwrap();
     let write = expression.add("instance", &[], None);
     let call = expression.nodes.last_mut().unwrap();
     call.instance = Some(GraphInstance {
@@ -353,7 +365,7 @@ fn instanced_float_angles_keep_their_precision_across_an_unrelated_write() {
         defaults: Default::default(),
     });
     call.source = Some(Ok(std::sync::Arc::new(body)));
-    let turn = expression.add("get_float1", &[], Some(Value::Text("turn".into())));
+    let turn = if matches!(argument, Value::Float(_)) { input } else { expression.add("swizzle1", &[input], Some(Value::Int(0))) };
     let tau = expression.add_constant(Value::Float(std::f32::consts::TAU));
     let angle = expression.add("mul", &[turn, tau], None);
     let sine = expression.add("sin", &[angle], None);
@@ -367,12 +379,12 @@ fn instanced_float_angles_keep_their_precision_across_an_unrelated_write() {
     let mut package = Package::new("Fixed and bound turns");
     package.graphs.extend([parent, child]);
     let mut options = Options::new(&no_res);
-    options.overrides.insert("driver".into(), Value::Float(1.0));
+    options.overrides.insert("driver".into(), argument.clone());
     let cache = Mutex::new(Cache::default());
     for (explicit, bound) in [(false, false), (true, false), (true, true), (true, false)] {
         let node = package.graphs[0].node_mut(instance).unwrap();
         if explicit {
-            node.params.insert("turn".into(), Value::Float(1.0));
+            node.params.insert("turn".into(), argument.clone());
         }
         if bound {
             node.bindings.insert("turn".into(), "driver".into());
@@ -382,7 +394,7 @@ fn instanced_float_angles_keep_their_precision_across_an_unrelated_write() {
         let result = cook(&package, 0, &options, &cache);
         assert_eq!(result.nodes[&instance].error, None);
         let red = result.image(instance, 0).unwrap().get(0, 0, false)[0];
-        assert_eq!(red.to_bits(), if bound { (-0.0_f32).to_bits() } else { 0x343b_bd2e }, "explicit {explicit}, bound {bound}");
+        assert_eq!(red.to_bits(), if bound { (-0.0_f32).to_bits() } else { 0x343b_bd2e }, "{argument:?}, explicit {explicit}, bound {bound}");
     }
 }
 

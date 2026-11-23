@@ -59,6 +59,32 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-23 root comparisons
 
+### Float vector arguments in nested functions
+
+Fixed two-, three- and four-component float arguments now retain literal precision when an instance supplies the child graph's default, a stored vector, or a constant expression. A vector read from an exposed parent parameter retains runtime precision. This uses the graph evaluator's existing distinction between fixed and driven arguments. [Scalar argument measurements](#scalar-float-precision-in-nested-graph-instances)
+
+Expose a float vector of width 2, 3 or 4 in a child graph. Take the first components of (1, .503799975, .48120001, −.38157) as the default and of (.375, .723561, −.38157, .1875) as the changed value. In a color Pixel Processor, swizzle the last available lane and multiply by the F32 constant 6.2831855 to obtain an angle. Return its sine, its cosine, the angle and Random(1) as RGBA32F. Use the default, a stored override, an expression adding the changed vector to a zero vector, and a binding to the parent's exposed vector. Build three top-level controls using the two literal vectors and an exposed changed vector. Render each graph at 16 × 16 with seed 0 and 32 × 16 with seed 585193. Compare all four channels, including the seeded field.
+
+| Comparison | Exact whole pixels / total | Maximum absolute component error |
+|---|---:|---:|
+| Previous evaluator vs. one-worker D3D11, all 21 graphs | 10,752/16,128 | 1.78813934e−7 |
+| Corrected evaluator vs. one-worker D3D11, original and ordinary SBS reopen, each | 16,128/16,128 | 0 |
+| Reference original vs. ordinary SBS reopen | 16,128/16,128 | 0 |
+| Reference nested graphs vs. their corresponding top-level controls | 9,216/9,216 | 0 |
+| Desktop vs. standalone reference, original and reopened 2-lane default, 3-lane expression and 4-lane parent binding combined | 4,608/4,608 | 0 |
+
+To exercise node and FX-Map parameter functions, feed the absolute sine from the same last lane to a grayscale Uniform's color or to the opacity of a single additive square covering the canvas. Use the nested default, parent binding and both corresponding top-level controls at all three vector widths and both sizes. For each operation, the previous evaluator matched 6,912/9,216 · 8.34465027e−7 and the corrected evaluator matches 9,216/9,216 · 0. The nested and top-level reference controls match 9,216/9,216 · 0 across both operations.
+
+In Panorama Spot, separate the direction calculated per pixel from the fixed light position (.503799975, .48120001). The earlier per-pixel direction matched while the fixed light X and Y differed at every one of 768 pixels. Their maximum errors were 1.62050128e−7 and 2.60770321e−7. Z matched all 768. The corrected light direction and axis-length readout matches 768/768 · 0. Across the three panorama graphs, 15 intermediate or control graphs matched 11,520/11,520 · 0. The six complete-graph settings use the same two sizes, seeds, instance formats and procedural inputs as the earlier comparison. [Nested-filter settings](#output-precision-in-nested-generators-and-blurs) Each cell gives exact whole pixels / total and maximum absolute component error. The corrected original and reopened counts were independently measured against the reference desktop and the standalone renderer.
+
+| Graph | Previous evaluator, original | Corrected evaluator, original | Corrected evaluator, ordinary SBS reopen |
+|---|---:|---:|---:|
+| Panorama Shape | 2,268/2,304 · 2.86102295e-06 | 2,304/2,304 · 0 | 2,304/2,304 · 0 |
+| Panorama Shape 2 | 2,286/2,304 · 5.03659248e-06 | 2,304/2,304 · 0 | 2,304/2,304 · 0 |
+| Panorama Spot | 2,302/2,304 · 0.0012512207 | 2,304/2,304 · 0 | 2,304/2,304 · 0 |
+
+The earlier 18 settings for each shape matched 171,264/171,264 pixels per graph, and the 36 Spot settings matched 189,696/189,696. The 90 scalar-angle controls matched 215,040/215,040. Normal Sobel, Panorama 3D Position and Panorama Sphere Light each matched 2,304/2,304 original and 2,304/2,304 reopened pixels in the six nested settings. Maximum error in every recheck was zero.
+
 ### Ordinary SBS saves with verified library dependencies
 
 Opening a library file by its disk path and saving an ordinary SBS outside the library now preserves portable links through nested packages. Before emitting a library alias, the save verifies each reachable package against the bundled bytes and compares its loaded graphs using the same resolved call interfaces. A dependency with a changed file, edited graph, or local resources keeps its disk link.

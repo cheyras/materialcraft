@@ -23,7 +23,7 @@ pub struct Options<'a> {
     pub bitmap_formats: BTreeMap<String, OutputFormat>,
     /// Values for the graph's exposed parameters (graph instances), over the graph's own
     pub overrides: BTreeMap<String, Value>,
-    /// Scalar integer inputs fixed by the enclosing graph instance.
+    /// Exposed inputs whose fixed instance arguments can be folded during function evaluation.
     pub literal_inputs: Vec<String>,
     /// Decodes a package resource (bitmap) by name
     pub resource: &'a crate::ResourceDecoder<'a>,

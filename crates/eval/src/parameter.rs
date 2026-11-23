@@ -10,6 +10,10 @@ pub(crate) struct ResolvedParameters {
     pub dynamic_blend_opacity: bool,
 }
 
+pub(crate) fn supports_literal_argument(value: &Value) -> bool {
+    matches!(value, Value::Int(_) | Value::Float(_) | Value::Float2(_) | Value::Float3(_) | Value::Float4(_))
+}
+
 // The color cook needs the operand's original width and whether its channels were folded.
 fn uniform_color_operand(value: &Value, literal: bool) -> Option<Value> {
     match value {
@@ -123,11 +127,7 @@ pub(crate) fn resolve_parameters(
     }
 
     let fixed = if node.def == "graph_instance" {
-        parameters
-            .iter()
-            .filter(|(name, value)| matches!(value, Value::Int(_) | Value::Float(_)) && !dynamic.contains(*name))
-            .map(|(name, _)| name.clone())
-            .collect()
+        parameters.iter().filter(|(name, value)| supports_literal_argument(value) && !dynamic.contains(*name)).map(|(name, _)| name.clone()).collect()
     } else {
         Vec::new()
     };
