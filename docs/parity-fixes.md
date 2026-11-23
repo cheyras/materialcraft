@@ -59,6 +59,27 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-23 root comparisons
 
+### Single connected operands in vector constructors
+
+In an original Value Processor, construct float and integer vectors of widths two, three and four. For each width try every smaller operand width in the first port alone, the second port alone and both ports. Use (.375, −.6875, .25) or (17, −23, 5), taking the leading values for the first connected operand and the reversed list for the second operand in the two-wire controls. Repeat the 36 graphs at 16² and 32², seeds 79 and 197. With a single connection its components occupy the leading lanes and the remaining lanes are zero. For example, connecting (17, −23) only to the second port of an integer vector of width three returns (17, −23, 0).
+
+| Comparison | Previous exact / total | Previous maximum error | Current exact / total | Current maximum error |
+|---|---:|---:|---:|---:|
+| Float vectors, whole typed values | 24/36 | 1.0625 | 36/36 | 0 |
+| Integer vectors, whole typed values | 24/36 | 40 | 36/36 | 0 |
+| Five saved graphs, whole typed values | 4/10 | 40 | 10/10 | 0 |
+| Pixel Processor, first port empty | 0/8,192 | 1.99861372 | 8,192/8,192 | 0 |
+| Pixel Processor, second port empty | 8,192/8,192 | 0 | 8,192/8,192 | 0 |
+| FX-Map, first port empty, F32 and F16 | 0/384 | .625 | 384/384 | 0 |
+| FX-Map, first port empty, U16 | 0/128 | 20,480 | 128/128 | 0 |
+| FX-Map, zero input, U8 | 128/128 | 0 | 128/128 | 0 |
+
+Reopen five ordinary MaterialCraft saves in both applications. Use float widths three and four with the second port wired to a scalar or triple, integer width three with a pair on the second port, and integer width four with a scalar on the first port or both ports wired to pairs. The reference reproduced all ten original typed values. The same change in the function compiler applies to freshly authored graphs and reopened files.
+
+For the pixel controls use the [signed procedural F32 fields](#packed-products-in-the-second-endpoint-of-a-pixel-interpolation) at 64×32 and 32×64, seeds 435071 and 435090. Pack the sampled red channel alone in a pair and append (.1875,.875), or pack that constant pair alone in a four-vector. Repeat with each input port. For the FX-Map, expose a scalar on the second port of a pair in the root square's opacity expression and select its first or second component. Render at 16×8 with zero background and roughness. In order use F32 (.625, first), F32 (.625, second), F16 (.3125, first), U16 (.3125, second) and U8 (0, first), seeds 458151 + 29j starting at j = 0.
+
+The range covers physically disconnected ports. A separate pair with two wires still differs when its leading wire reads an undeclared variable and the other carries a nonzero value. Scanning the reachable expressions in all 546 root graph bodies found zero one-wire vector constructors with the leading port disconnected. Called function bodies were outside that scan. The root count stays at 479. The regression failed on the preceding compiler. All 401 node release tests, formatting, strict workspace Clippy, dependency layers and WebAssembly passed.
+
 ### Dense Quadrant traversal and reference worker counts
 
 Construct a grayscale FX-Map with a .0625 background, zero roughness, overall opacity 1, both regions (0,1,0,1), center culling enabled and wrapping disabled. Start at (.5,.5). At each subdivision link all four children to the next empty Quadrant. At the last level draw additive squares of size (1.75,2.25), rotation zero and luminosity `rand(.0625) + .0625 * $pos.x`. In the returning-offset version move the root branch by (1.25,0) and the final stamp by (−1.25,0). In the narrow version change only the size to (.375,1.25). Use seeds 441151 + 31j, with j from zero to three in the column order below.

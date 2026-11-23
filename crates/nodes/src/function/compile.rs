@@ -140,6 +140,12 @@ fn compile_nested(graph: &FunctionGraph, seed: u32, depth: usize, remaining: &mu
                 inputs.push(index);
             }
 
+            if matches!(node.op.as_str(), "vector2" | "vector3" | "vector4" | "ivector2" | "ivector3" | "ivector4")
+                && ports.first().is_some_and(|(_, input)| input.is_none())
+            {
+                // Connected components occupy the leading lanes. The inferred zero operand pads the end.
+                inputs.reverse();
+            }
             inputs
         };
 

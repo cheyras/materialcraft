@@ -47,17 +47,20 @@ fn unconnected_typed_operations_use_their_operand_types() {
 }
 
 #[test]
-fn partially_connected_vectors_fill_only_the_missing_components() {
-    for (operation, first, last, expected) in [
-        ("vector3", Some(Value::Float2([0.25, 0.75])), None, Value::Float3([0.25, 0.75, 0.0])),
-        ("vector4", None, Some(Value::Float2([0.25, 0.75])), Value::Float4([0.0, 0.0, 0.25, 0.75])),
-        ("ivector4", Some(Value::Int(7)), None, Value::Int4([7, 0, 0, 0])),
+fn vector_constructors_place_a_single_connected_operand_in_the_leading_lanes() {
+    for (operation, input, expected) in [
+        ("vector2", Value::Float(-0.375), Value::Float2([-0.375, 0.0])),
+        ("vector3", Value::Float2([0.25, 0.75]), Value::Float3([0.25, 0.75, 0.0])),
+        ("vector4", Value::Float2([0.25, 0.75]), Value::Float4([0.25, 0.75, 0.0, 0.0])),
+        ("vector4", Value::Float3([0.375, -0.6875, 0.25]), Value::Float4([0.375, -0.6875, 0.25, 0.0])),
+        ("ivector2", Value::Int(-23), Value::Int2([-23, 0])),
+        ("ivector3", Value::Int(17), Value::Int3([17, 0, 0])),
+        ("ivector4", Value::Int(7), Value::Int4([7, 0, 0, 0])),
+        ("ivector4", Value::Int2([17, -23]), Value::Int4([17, -23, 0, 0])),
     ] {
         let mut graph = FunctionGraph::default();
-        let inputs = [first.map(|value| graph.add_constant(value)), last.map(|value| graph.add_constant(value))];
-        let id = graph.add(operation, &[], None);
-        graph.nodes.last_mut().unwrap().inputs = inputs.to_vec();
-        graph.output = Some(id);
+        let source = graph.add_constant(input);
+        graph.output = Some(graph.add(operation, &[], None));
         let variables = Default::default();
         let context = EvaluationContext {
             image_formats: &[],
@@ -69,7 +72,11 @@ fn partially_connected_vectors_fill_only_the_missing_components() {
             variables: &variables,
         };
 
-        assert_eq!(compile(&graph, 0).unwrap().evaluate(&context, &mut EvaluationState::default()), Ok(expected), "{operation}");
+        for inputs in [[None, Some(source)], [Some(source), None]] {
+            graph.nodes.last_mut().unwrap().inputs = inputs.to_vec();
+            let value = compile(&graph, 0).unwrap().evaluate(&context, &mut EvaluationState::default()).unwrap();
+            assert_eq!(value, expected, "{operation} {inputs:?}");
+        }
     }
 }
 
