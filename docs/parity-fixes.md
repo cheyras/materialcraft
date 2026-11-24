@@ -59,6 +59,29 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-23 root comparisons
 
+### Physical copy boundaries in dense quadrant subtrees
+
+At 16 × 32, scale 1, roughness 1, disorder 0 and seed 0, all four original and four reopened F32 captures of Noise BNW Spots 1 agree bit for bit. MaterialCraft matches **370/512 pixels** on each, maximum 1.19209290e−7. Levels 1–5 alone match all 512. This gives a repeatable whole graph for testing how deeper draws combine. At 64 × 32 and scale 3 the same reference desktop produces different whole frames with the same seed. [Eight-capture results for both spots graphs](#bounded-work-for-empty-terminal-quadrants)
+
+To isolate the first change in draw order, make a complete eight-subdivision quadrant tree. At depth eight, place pairs of square grids on the same 32² area of an F32 canvas filled with one. Give one grid gain −1 and the other 2⁻²⁵. The overlap records either zero or 2⁻²⁵. Pack 32 pairs per 256² frame. Measure all 2,016 pairs of depth-three subtrees and reverse the gains on 192 pairs. Earlier active levels emit unit-copy squares of gain 2⁻⁷² away from the readout. Activating depths four through eight submits 1,364 copies per depth-three subtree. Starting at depth three adds one copy.
+
+| Order tested against the reference | Settings | Exact F32 pixels | Maximum error |
+|---|---:|---:|---:|
+| Previously measured terminal order, 1,364 copies | 69 | 4,521,984/4,521,984 | 0 |
+| Same order, 1,365 copies | 69 | 4,063,232/4,521,984 | 2.98023224e−8 |
+| Order recovered at 1,365, positive readout reflected in both axes | 69 | 4,521,984/4,521,984 | 0 |
+| Positions ranked separately, then reflected after adding a depth-two draw per four subtrees | 69 | 4,521,609/4,521,984 | 2.98023224e−8 |
+| Same reflection with 64 extra horizontal copies per subtree | 69 | 4,457,623/4,521,984 | 2.98023224e−8 |
+| Same reflection with varying extra copies | 69 | 4,494,769/4,521,984 | 2.98023224e−8 |
+
+For an independent test, overlap all 64 subtree grids on the same square of side .125 centered at (.5625,.4375). Use unit-size additive squares on depths three through eight with gain multipliers (1, −.75, 1.625, −.03125, .1875, −.375). Reflect the horizontal and vertical axes of each descendant according to the two low bits of its subtree's Morton index. For case j, generate 64 gains uniformly in [−.75,.75) with PCG64 seed 938137 + 49j and round to F32. In cases 2, 3 and 4 multiply every third gain, starting at zero, by 2⁻¹⁸. Use graph seed 35173 + 17j at 256², 512 × 256, 256 × 512, 128 × 256, 256 × 128 and 128² in that order.
+
+MaterialCraft matches **403,200/409,600**, maximum 4.76837158e−6, against each of the original and reopened packages. Summing in the order measured on the pair probes predicts **409,600/409,600**, maximum zero, on each package, including all 6,400 pixels in the overlap. Filling a quarter of a 5,460-copy batch changes the order even when no shape wraps. Applying the measured sequence directly to a whole spots graph still leaves differences.
+
+To measure repeated trees, initialize an ordinal in the outer Iterate, advance it at the root quadrant, and use the ordinal and quadrant position to select a marker from a generated input. Compare markers in both gain directions and verify adjacent pairs in independent renders. The depth-three markers pass 63/63 adjacent comparisons in one tree, 127/127 in two, and 255/255 in four. One four-tree comparison gave inconsistent gain reversals in the first capture. Four fresh captures in both directions agreed, and the independent adjacent comparisons passed.
+
+On two trees, mark all 32 depth-two draws, all 128 depth-three draws, and the first, middle (Morton index 511) and last leaf in each depth-three subtree. Both the single-copy field and a field with an extra horizontal copy at every depth-six draw pass 543/543 adjacent comparisons. The depth-three starts retain the same relative order in both. Some final leaves fall after the next subtree has started. With the two observed orders and the actual spot copy counts, replaying the full 16 × 32 case gives 437/512 and 438/512 pixels respectively, maximum 1.19209290e−7. The remainder still needs a common rule for mixed shapes and copy counts.
+
 ### Bounded work for empty terminal quadrants
 
 A quadrant can evaluate its properties, produce no shape and finish with every child disconnected or behind a cached empty switch. After evaluating the properties and resolving the children, the evaluator charges the visit to the existing discard allowance while units remain. An empty terminal quadrant uses an ordinary visit once that allowance runs out. A quadrant with no shape and a live child also uses an ordinary visit. [Evaluator](../crates/nodes/src/pattern/evaluation.rs) [Budget regression](../crates/nodes/src/pattern/tests.rs)
