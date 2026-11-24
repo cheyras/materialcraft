@@ -59,6 +59,23 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-23 root comparisons
 
+### Dense settings recovered in the third spots graph
+
+Build `f27ef77` renders six of the fourteen Noise BNW Spots 3 settings that previously reached the traversal bound. Compare the raw output to the recorded one- and eight-processor reference frames. At 64² use scale 3, disorder .34375, non-square expansion enabled and seed 411578. At 128² use scale 3, disorder .65625, non-square expansion disabled and seed 411761. In both rows keep the remaining exposed defaults.
+
+| Size and output | One processor | Eight processors | Maximum error on either | Ordinary save on one processor |
+|---|---:|---:|---:|---:|
+| 64² U8 | 4,096/4,096 | 4,096/4,096 | 0 | |
+| 64² U16 | 4,094/4,096 | 4,095/4,096 | 1 | 4,094/4,096, max 1 |
+| 64² F16 | 4,096/4,096 | 4,096/4,096 | 0 | |
+| 64² F32 | 4,094/4,096 | 4,094/4,096 | 1.06692314e−5 | |
+| 128² U16 | 16,376/16,384 | 16,375/16,384 | 1 | |
+| 128² F32 | 16,375/16,384 | 16,376/16,384 | 1.07288361e−5 | 16,375/16,384, max 1.07288361e−5 |
+
+The six newly rendered settings give 49,131/49,152 exact pixels on one processor and 49,132/49,152 on eight. Four formats at 64 × 16, scale 2, disorder .03125, non-square expansion enabled and seed 42 still reach the execution bound. The same holds at 64 × 32, scale 3, disorder .34375, non-square expansion enabled and seed 194504. These failures also reproduce after an ordinary save in F16 at 64 × 16 and U8 at 64 × 32. The earlier sweep rendered 48 other settings. [Earlier 62-setting comparison and saved-file matrix](#whole-root-precision-and-saved-comparisons-for-the-three-neighboring-spot-graphs)
+
+Rechecking the complete 87-setting Noise BNW Spots 1 v2 matrix on this build gives 831,506/842,752 exact pixels on one processor, 831,311/842,752 on eight and 137,715/139,008 on the 19 ordinary saves. All 141,568 U8 pixels match on both processor counts. The F32 maximum is 1.19209290e−7 on both and on the saved cases. The U16 maximum is one in all three sets. F16 maxima are .00048828125 and .0001220703125 on one and eight processors, and zero on the saves.
+
 ### Connected inactive descendants and dense quadrant draw order
 
 An inactive branch beyond the last drawn level can change the order of earlier draws. Use an outer Iterate with two complete quadrant trees. Draw Gaussians at depth one and additive paraboloids at depths two through eight. Mark the eight first-level Gaussians, 32 depth-two draws, 128 depth-three draws, and leaves 0, 511 and 1,023 in each depth-three subtree. Use the quadrant position to address each level and initialize a tree ordinal in the Iterate. At a selected pixel over a background of one, give the two markers gains of −1 and 2⁻²⁵, then exchange their gains in a second render. Other draws have a positive gain too small to change the readout.
