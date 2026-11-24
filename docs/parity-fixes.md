@@ -59,6 +59,59 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-23 root comparisons
 
+### Submission order in underfilled eight-level quadrant trees
+
+On a white grayscale F32 canvas, subdivide a quadrant eight times into four children. Put identical additive shapes in all 64 depth-three cells. In depth-first order starting at zero, move cells 50 and 0 to (.25,.25) and the others to (.75,.75). Give cell 50 gain −1, cell 0 gain 2⁻²⁵ and the others .125. Set the authored square size to (.875,.875). The center of the first mark reads 2⁻²⁵. Traversal order gave zero. In three repetitions with gain −.25, the same mark reads .25 plus three units of 2⁻²⁵. The original and its ordinary SBS save give identical readouts at 32², 64 × 32 and 32 × 64 with seeds 41381, 17 and 42. [Executable regression](../crates/nodes/src/pattern/tests/underfilled_quadrants.rs)
+
+Swapping the gains for each of four pairs (50/0, 54/58, 62/8 and 53/48) gives 24 settings per package. Original and reopened comparisons each improve from 40,672/40,960 pixels, maximum 2⁻²⁵, to 40,960/40,960, maximum 0. The three-repeat check improves from 5,048/5,120, maximum 8.94069672e−8, to 5,120/5,120 on each pass.
+
+The shared renderer groups the draws below each depth-two quadrant into its own draw and its four child subtrees. In the measured complete trees, eight groups of those ranges composite in a stable order. Each group processes successive repetitions in order. The renderer records the boundaries before discarding stamps that miss every sample. It counts nonzero tile copies, including subpixel draws, to detect the 5,460-copy boundary. The measured path covers additive analytic shapes with all 64 depth-three subtrees occupied in each repetition and every submission group below that boundary. [Group ranges and eligibility](../crates/nodes/src/pattern/underfilled_quadrants.rs)
+
+For independent F32 fields, draw at depths 2, 3 and 8. Use signed seeded gains, jittered frame offsets and five masks admitting 4, 8, 11, 6 and 9 positions per axis out of 32 in each depth-three subtree. Use 128 × 64, 256 × 128, 64 × 128, 128 × 256 and 128² with seed 41381 + 57j for row j starting at zero. A second series uses width 1 + (19g mod 13) for subtree g and changes the corner from which its mask grows. The repetition sweep includes every count from one through twelve.
+
+| Generated fields | F32 settings | Traversal order, exact / total · max | Corrected renderer, exact / total · max |
+|---|---:|---:|---:|
+| Fixed gate widths, two shapes and one, two or four repetitions | 30 | 568,951/589,824 · 3.6239624e−5 | 589,824/589,824 · 0 |
+| Uneven gate widths, one, two or four repetitions | 15 | 284,456/294,912 · 1.23977661e−5 | 294,912/294,912 · 0 |
+| Three, five, six or eight repetitions | 12 | 283,229/294,912 · 4.95910645e−5 | 294,912/294,912 · 0 |
+| Seven, nine, ten, eleven or twelve repetitions | 5 | 38,893/40,960 · 9.15527344e−5 | 40,960/40,960 · 0 |
+
+In Noise BNW Spots 1, isolate depths by disabling the other shapes while keeping their original branches. Use the six settings from the previous first-level comparison. Five permit each shallow isolate to finish. At 64 × 32, scale 3, seed 194442, the shallow isolates reach the traversal budget. The depth-eight, deep and all-draw settings complete on all six. Counts below compare stored F32 pixels with the one-processor reference. [Parameters for the six settings](#first-level-draw-order-in-repeated-spot-quadrants)
+
+| Draws enabled in the spots graph | Before, exact / total · max | After, exact / total · max |
+|---|---:|---:|
+| Depth 3 | 8,094/8,192 · 2.98023224e−8 | 8,192/8,192 · 0 |
+| Depth 4 | 8,060/8,192 · 2.98023224e−8 | 8,192/8,192 · 0 |
+| Depth 5 | 8,040/8,192 · 2.98023224e−8 | 8,192/8,192 · 0 |
+| Depth 6 | 8,023/8,192 · 1.49011612e−8 | 8,192/8,192 · 0 |
+| Depths 1–5 | 7,297/8,192 · 1.1920929e−7 | 7,902/8,192 · 5.96046448e−8 |
+| Depth 7 | 8,033/8,192 · 1.49011612e−8 | 8,107/8,192 · 3.7252903e−9 |
+| Depth 8 | 10,093/10,240 · 2.98023224e−8 | 10,093/10,240 · 2.98023224e−8 |
+| Depths 6–10 | 8,948/10,240 · 5.96046448e−8 | 8,948/10,240 · 5.96046448e−8 |
+| All authored depths | 8,618/10,240 · 2.38418579e−7 | 8,618/10,240 · 2.38418579e−7 |
+
+All 86 whole-root settings complete. Exact counts are 782,741/841,728 on one processor, 788,160/841,728 on eight and 196,084/196,352 in 19 ordinary saves. The previous comparison gives the same totals and per-format maxima. An additional original series uses each row below in U8, U16, F16 and F32. Reopen rows 1, 4, 5 and 8 from an ordinary SBS save.
+
+| Size | Seed | Scale | Disorder | Roughness |
+|---|---:|---:|---:|---:|
+| 8² | 0 | 1 | 0 | 1 |
+| 16 × 8 | 17 | 1 | .21875 | 0 |
+| 8 × 16 | 42 | 1 | .375 | .0625 |
+| 16² | 371149 | 2 | .6875 | .25 |
+| 32 × 16 | 537367 | 1 | .3125 | .5 |
+| 16 × 32 | 33753 | 2 | .203125 | 1 |
+| 32² | 31717 | 1 | .84375 | 2 |
+| 64 × 32 | 87239 | 2 | .25 | .03125 |
+
+| Whole-root series | U8 exact / total · max | U16 exact / total · max | F16 exact / total · max | F32 exact / total · max |
+|---|---:|---:|---:|---:|
+| Original, 32 settings | 4,672/4,672 · 0 | 4,670/4,672 · 1 | 4,672/4,672 · 0 | 3,965/4,672 · 1.78813934e−7 |
+| Reopened, 16 settings | 2,880/2,880 · 0 | 2,879/2,880 · 1 | 2,880/2,880 · 0 | 2,687/2,880 · 1.19209290e−7 |
+
+Full groups can split a subtree. For all 2,016 pairs of depth-three groups, plus 192 swapped-gain comparisons, a 23 × 23 gate per group matches the underfilled order on 1,168,032/1,168,032 overlap pixels. A 24 × 24 gate matches only 939,108/1,271,808. The first split occurs after 276 leaves of a subtree in Morton order, the remainder of 5,460 divided by 576. A separate prediction that submits full groups first matches all 69 frames in two uneven-density series and 68/69 in a third. Three one-processor recaptures of the differing setting, each preceded by a different control, match that prediction on all 393,216 pixels. Full-group ordering and the whole spots root remain open.
+
+Across three interleaved single-processor release runs per build, median process CPU for the 32² scale-2, 16 × 32 default and 64² changed root settings was 13.719 seconds before and 11.766 seconds after. Two settings on the two-repetition generated field took 6.203 and 6.328 seconds respectively. All 408 node release tests, formatting, strict workspace Clippy, dependency layers and WebAssembly passed.
+
 ### Runtime scalar arithmetic in graph and node seeds
 
 A graph or node can compute its random seed from a caller's parameters. Converting a driven float to a seed preserves the 32-bit representation of its floored value. For example, a width of 16 supplies `0x41800000`. Runtime scalar addition in a seed expression adds the operand words modulo 2³². With .75 and .25 the resulting word is `0x7dc00000`. Subtraction and multiplication in the measured expressions use ordinary float arithmetic. A folded conversion of the constant −1.5 returns the integer −2. The shared evaluator now selects these operations when evaluating a base random seed. [Regression covering both seed properties](../crates/eval/tests/seed_arithmetic.rs)

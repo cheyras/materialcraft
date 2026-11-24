@@ -14,6 +14,7 @@ mod repeated_six_level;
 mod shape;
 mod terminal_quadrants;
 mod tile_runs;
+mod underfilled_quadrants;
 mod variables;
 
 pub use catalog::{definition, definitions};
