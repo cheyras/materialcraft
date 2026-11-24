@@ -33,6 +33,7 @@ pub(super) struct UnderfilledQuadrants {
     group: usize,
     deeper_shape: Option<i32>,
     first_shape: Option<i32>,
+    first_copies: u64,
 }
 
 impl UnderfilledQuadrants {
@@ -81,10 +82,16 @@ impl UnderfilledQuadrants {
         if !gain.is_normal() {
             return false;
         }
-        let Some(count) = grid.and_then(|grid| grid.copy_count(stamp)) else { return false };
+        let Some(grid) = grid else { return false };
         if stamp.depth == 1 {
-            return *self.first_shape.get_or_insert(stamp.pattern) == stamp.pattern && self.deeper_shape != Some(stamp.pattern);
+            // The first-level shape owns a separate copy batch, including all its wrapped copies.
+            let Some(count) = grid.copies_per_axis(stamp).and_then(|[x, y]| x.checked_mul(y)) else { return false };
+            self.first_copies = self.first_copies.saturating_add(count);
+            return self.first_copies <= u64::from(COPIES_PER_BATCH)
+                && *self.first_shape.get_or_insert(stamp.pattern) == stamp.pattern
+                && self.deeper_shape != Some(stamp.pattern);
         }
+        let Some(count) = grid.copy_count(stamp) else { return false };
         if *self.deeper_shape.get_or_insert(stamp.pattern) != stamp.pattern || self.first_shape == Some(stamp.pattern) {
             return false;
         }

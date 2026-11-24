@@ -59,6 +59,18 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-23 root comparisons
 
+### Wide first-level shapes in additive quadrant trees
+
+The first-level shape in a complete eight-level quadrant tree can wrap more than twice on an axis. Counting those copies against the separate first-level batch restores the measured order of draws in the deeper subtrees. The shared renderer uses the stamp's rotated bounds and the graph's render and tiling regions. [Copy counts](../crates/nodes/src/pattern/footprint.rs) [Regression graph](../crates/nodes/src/pattern/tests/underfilled_quadrants.rs)
+
+Use the paired squares at depth three from the [submission-order comparison](#submission-order-in-underfilled-eight-level-quadrant-trees). Add a Gaussian to each first-level quadrant. For child j numbered 0–3 use size (5.5 + j, 7.75 − .5j), rotations 0, .125, .21875 and .34375 turns, and gain 2⁻⁸⁰. Swap the negative and small gains in the paired squares and run one and three repetitions. Also drive the gains with scalar constant functions and reopen the three-repeat swatch graph. At 32², 64 × 32 and 32 × 64, seeds 41381, 17 and 42, the six series improve from 30,288/30,720 F32 pixels, maximum 8.94069672e−8, to 30,720/30,720, maximum 0.
+
+At 32² and seed 41381, set all four first-level rotations to zero and all sizes to (68,76). Change the first child's width to 64, 68 and 72. Those settings submit 5,382, 5,460 and 5,538 first-level copies. The first two each match 1,024/1,024, maximum 0. The last matches 1,008/1,024, maximum 2.98023224e−8, and remains open.
+
+Enable the first five levels together in the [six spots settings](#first-level-draw-order-in-repeated-spot-quadrants). In the first graph, four or five first-level stamps cross the previous per-axis limit in each of the three differing settings. The five completed original cases improve from 7,902/8,192 F32 pixels, maximum 5.96046448e−8, to 8,192/8,192, maximum 0. Five freshly reopened cases give the same improvement. In the v2 graph these settings match 8,047/8,192 on the original and 8,048/8,192 after reopening, maximum 1.19209290e−7 on each. The two reference captures for v2 agree on 8,175/8,192, maximum 5.96046448e−8.
+
+Across all 86 whole-root settings for the first graph, 782,741/841,728 pixels match on one processor and 788,160/841,728 on eight. Nineteen ordinary saves match 196,084/196,352. The maximum F32 errors are 3.57627869e−7, 2.38418579e−7 and 2.38418579e−7 respectively. All six combined-depth isolates finish at 8,618/10,240 F32 pixels, maximum 2.38418579e−7.
+
 ### Submission order in underfilled eight-level quadrant trees
 
 On a white grayscale F32 canvas, subdivide a quadrant eight times into four children. Put identical additive shapes in all 64 depth-three cells. In depth-first order starting at zero, move cells 50 and 0 to (.25,.25) and the others to (.75,.75). Give cell 50 gain −1, cell 0 gain 2⁻²⁵ and the others .125. Set the authored square size to (.875,.875). The center of the first mark reads 2⁻²⁵. Traversal order gave zero. In three repetitions with gain −.25, the same mark reads .25 plus three units of 2⁻²⁵. The original and its ordinary SBS save give identical readouts at 32², 64 × 32 and 32 × 64 with seeds 41381, 17 and 42. [Executable regression](../crates/nodes/src/pattern/tests/underfilled_quadrants.rs)

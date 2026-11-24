@@ -1,6 +1,6 @@
 use super::*;
 
-fn overlapping_subtree_pixel(repetitions: i32, negative_gain: f32) -> f32 {
+fn overlapping_subtree_pixel(repetitions: i32, negative_gain: f32, wide_first_level: bool) -> f32 {
     let mut graph = PatternGraph::with_root(PatternNodeKind::Quadrant);
     let root = graph.root.unwrap();
     if repetitions > 1 {
@@ -25,6 +25,16 @@ fn overlapping_subtree_pixel(repetitions: i32, negative_gain: f32) -> f32 {
                 let child = graph.add(PatternNodeKind::Quadrant).unwrap();
                 graph.nodes[(parent - 1) as usize].children[slot] = Some(child);
                 let cell = [2 * x + slot % 2, 2 * y + slot / 2];
+                if depth == 1 && wide_first_level {
+                    let node = &mut graph.nodes[(child - 1) as usize];
+                    node.parameters = BTreeMap::from([
+                        ("patterntype".into(), Value::Int(6)),
+                        ("blendingmode".into(), Value::Int(0)),
+                        ("patternsize".into(), Value::Float2([5.5 + slot as f32, 7.75 - 0.5 * slot as f32])),
+                        ("patternrotation".into(), Value::Float([0.0, 0.125, 0.21875, 0.34375][slot])),
+                        ("opacity".into(), Value::Float(2.0_f32.powi(-80))),
+                    ]);
+                }
                 if depth == 3 {
                     let index = children.len();
                     let (target, gain) = match index {
@@ -49,7 +59,12 @@ fn overlapping_subtree_pixel(repetitions: i32, negative_gain: f32) -> f32 {
 #[test]
 fn overlapping_subtrees_in_an_underfilled_eight_level_tree() {
     let small = 2.0_f32.powi(-25);
-    assert_eq!(overlapping_subtree_pixel(1, -1.0).to_bits(), small.to_bits());
+    assert_eq!(overlapping_subtree_pixel(1, -1.0, false).to_bits(), small.to_bits());
     // The three negative draws reach 0.25 before the three small additions.
-    assert_eq!(overlapping_subtree_pixel(3, -0.25).to_bits(), (0.25 + 3.0 * small).to_bits());
+    assert_eq!(overlapping_subtree_pixel(3, -0.25, false).to_bits(), (0.25 + 3.0 * small).to_bits());
+}
+
+#[test]
+fn wide_first_level_stamps_keep_the_order_of_deeper_draws() {
+    assert_eq!(overlapping_subtree_pixel(1, -1.0, true).to_bits(), 2.0_f32.powi(-25).to_bits());
 }

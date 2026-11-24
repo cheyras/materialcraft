@@ -84,14 +84,18 @@ impl SampleGrid {
         self.tiling.repeats(&self.render, center, frame.radius, self.axes)
     }
 
-    pub fn copy_count(&self, stamp: &PatternStamp) -> Option<u32> {
+    pub fn copies_per_axis(&self, stamp: &PatternStamp) -> Option<[u64; 2]> {
         if self.axes == [false; 2] {
-            return Some(1);
+            return Some([1; 2]);
         }
         let frame = Footprint::new(stamp).ok()?;
-        let [x, y] = self.repeats(stamp, &frame).ok()?;
+        Some(self.repeats(stamp, &frame).ok()?.map(|axis| axis.count))
+    }
+
+    pub fn copy_count(&self, stamp: &PatternStamp) -> Option<u32> {
+        let [x, y] = self.copies_per_axis(stamp)?;
         // The measured terminal runs allow an original and one adjacent copy along each axis.
-        ((1..=2).contains(&x.count) && (1..=2).contains(&y.count)).then(|| (x.count * y.count) as u32)
+        ((1..=2).contains(&x) && (1..=2).contains(&y)).then(|| (x * y) as u32)
     }
 
     pub fn misses(&self, stamp: &PatternStamp) -> bool {
