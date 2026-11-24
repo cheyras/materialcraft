@@ -102,6 +102,36 @@ The six newly rendered settings give 49,131/49,152 exact pixels on one processor
 
 Rechecking the complete 87-setting Noise BNW Spots 1 v2 matrix on this build gives 831,506/842,752 exact pixels on one processor, 831,311/842,752 on eight and 137,715/139,008 on the 19 ordinary saves. All 141,568 U8 pixels match on both processor counts. The F32 maximum is 1.19209290e−7 on both and on the saved cases. The U16 maximum is one in all three sets. F16 maxima are .00048828125 and .0001220703125 on one and eight processors, and zero on the saves.
 
+### Recovered settings in the second version of the third spots graph
+
+Rechecking the 32 Noise BNW Spots 3 v2 settings that previously exceeded the traversal budget produces 16 images on build `f27ef77`. Compare the original output to the recorded desktop frames using one and eight processors. Three of eight previously blocked ordinary saves now render. The table counts only the settings revisited here. [Earlier 62-setting sweep and save procedure](#whole-root-precision-and-saved-comparisons-for-the-three-neighboring-spot-graphs) · [Shared terminal traversal change](#bounded-work-for-terminal-quadrant-siblings)
+
+| Format | One processor · exact / total · max | Eight processors · exact / total · max | Reopened on one processor · exact / total · max |
+|---|---:|---:|---:|
+| U8 | 21,504/21,504 · 0 | 21,504/21,504 · 0 | 5,120/5,120 · 0 |
+| U16 | 82,921/82,944 · 1 | 82,922/82,944 · 1 | |
+| F16 | 5,120/5,120 · 0 | 5,120/5,120 · 0 | |
+| F32 | 75,657/83,968 · 2.08616257e−7 | 75,152/83,968 · 2.38418579e−7 | 879/1,024 · 1.19209290e−7 |
+
+The 16 recovered originals match 185,202/193,536 pixels on one processor and 184,698/193,536 on eight. The three recovered saves match 5,999/6,144. To reproduce, set the exposed parameters below and leave other values at their defaults. A blank expansion field uses the exposed default.
+
+| Size | Seed | Scale | Disorder / speed / anisotropy / angle | Tile offset | Non-square expansion | Rendered | Still reaches budget |
+|---|---:|---:|---|---|---|---|---|
+| 128 × 128 | 0 | 2 | 0.37 / 0.6 / 0.3 / 0.125 | 0.17, 0.29 |  | U8 |  |
+| 32 × 32 | 113 | 2 | 0.37 / 0.6 / 0.3 / 0.125 | 0.17, 0.29 |  | F32 |  |
+| 64 × 64 | 42 | 2 | 0.37 / 0.6 / 0.3 / 0.125 | 0.17, 0.29 |  | U8, U16, F16, F32 |  |
+| 64 × 16 | 42 | 2 | 0.03125 / 0.03125 / 0.03125 / -0.21875 | -0.3125, 0.37890625 | true |  | U8, U16, F16, F32 |
+| 64 × 64 | 411585 | 3 | 0.34375 / 0.34375 / 0.34375 / 0.09375 | 0, 0.10546875 | true |  | U8, U16, F16, F32 |
+| 128 × 64 | 411646 | 2 | 0.96875 / 0.96875 / 0.96875 / 0.71875 | 0.625, -0.44140625 | false | U16, F32 |  |
+| 128 × 128 | 411768 | 3 | 0.65625 / 0.65625 / 0.65625 / 0.40625 | 0.3125, -0.16796875 | false |  | U16, F32 |
+| 128 × 512 | 411890 | 2 | 0.53125 / 0.53125 / 0.53125 / 0.28125 | 0.1875, -0.05859375 | false |  | U16, F32 |
+| 512 × 128 | 411951 | 1 | 0.09375 / 0.09375 / 0.09375 / -0.15625 | -0.25, 0.32421875 | true | U16, F32 |  |
+| 64 × 32 | 194535 | 3 | 0.34375 / 0.34375 / 0.34375 / 0.09375 | 0, 0.10546875 | true |  | U8, U16, F16, F32 |
+| 64 × 64 | 194629 | 2 | 0.53125 / 0.53125 / 0.53125 / 0.28125 | 0.1875, -0.05859375 | false | U16, F32 |  |
+| 32 × 32 | 162174 | 2 | 0.78125 / 1.015625 / 0.390625 / 0.40625 | 0.1708984375, -0.29296875 |  | U8, U16, F16, F32 |  |
+
+The 64 × 16 F16, 64² U16 at seed 411585, 128² F32, 128 × 512 F32 and 64 × 32 U8 saved cases still reach the same execution bound. The 64² U8 save at seed 42 and the 32² U8 and F32 saves at seed 162174 are the three recovered cases. At 32² the original F32 gives 894/1,024 and the save 879/1,024 on their respective one-processor captures, both with maximum error 1.19209290e−7.
+
 ### Connected inactive descendants and dense quadrant draw order
 
 An inactive branch beyond the last drawn level can change the order of earlier draws. Use an outer Iterate with two complete quadrant trees. Draw Gaussians at depth one and additive paraboloids at depths two through eight. Mark the eight first-level Gaussians, 32 depth-two draws, 128 depth-three draws, and leaves 0, 511 and 1,023 in each depth-three subtree. Use the quadrant position to address each level and initialize a tree ordinal in the Iterate. At a selected pixel over a background of one, give the two markers gains of −1 and 2⁻²⁵, then exchange their gains in a second render. Other draws have a positive gain too small to change the readout.
