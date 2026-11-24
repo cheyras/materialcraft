@@ -285,6 +285,7 @@ pub(super) fn cook_with_visit_limit(context: &CookContext, base_level_only: &[bo
         let vector = |name: &str| field(name).and_then(Value::as_vec4).map(|value| [value[0], value[1]]).unwrap_or([0.0; 2]);
         children.clear();
         let mut repeated = None;
+        let mut discarded_draw = false;
         let track_root_children =
             grayscale && node.kind == PatternNodeKind::Quadrant && visit.depth == 0 && (Some(node.id) == graph.root || opacity_depth == 6);
         match node.kind {
@@ -373,9 +374,8 @@ pub(super) fn cook_with_visit_limit(context: &CookContext, base_level_only: &[bo
                         let later_discard = terminal_siblings.as_mut().is_some_and(|(_, seen)| std::mem::replace(seen, true));
                         if later_discard {
                             remaining += 1;
-                        } else if discard_allowance > 0 {
-                            discard_allowance -= 1;
-                            remaining += 1;
+                        } else {
+                            discarded_draw = true;
                         }
                     } else {
                         stamps.push(stamp);
@@ -457,6 +457,13 @@ pub(super) fn cook_with_visit_limit(context: &CookContext, base_level_only: &[bo
                     true
                 }
             });
+        }
+        // A quadrant with no shape and no live children has finished evaluating its
+        // properties. Charge it to the same bounded allowance as a discarded draw.
+        let empty_quadrant = node.kind == PatternNodeKind::Quadrant && pattern == 0 && children.is_empty();
+        if discard_allowance > 0 && (discarded_draw || empty_quadrant) {
+            discard_allowance -= 1;
+            remaining += 1;
         }
         if children.len() + pending.len() + usize::from(repeated.is_some()) > remaining {
             return Err("pattern graph exceeded its execution budget".into());

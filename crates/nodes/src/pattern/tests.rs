@@ -1757,6 +1757,30 @@ fn center_at_roughness(graph: PatternGraph, roughness: f32) -> f32 {
     (definition.cook)(&context).unwrap()[0].get_gray(8, 8, false)
 }
 
+fn render_with_visit_limit(graph: &PatternGraph, limit: usize) -> crate::CookResult {
+    let params = resolve_params(
+        find("fx_map").unwrap(),
+        &BTreeMap::from([
+            ("pattern".into(), Value::PatternGraph(Box::new(graph.clone()))),
+            ("roughness".into(), Value::Float(0.0)),
+            ("color_mode".into(), Value::Bool(false)),
+        ]),
+    );
+    let context = CookContext {
+        w: 4,
+        h: 4,
+        seed: 19,
+        tile: false,
+        inputs: &[],
+        input_formats: &[],
+        format: materialcraft_core::OutputFormat::F32,
+        params: &params,
+        resource: &|_| None,
+        vars: &BTreeMap::new(),
+    };
+    super::evaluation::cook_with_visit_limit(&context, &[], limit)
+}
+
 #[test]
 fn terminal_quadrants_charge_the_first_discard_of_each_sibling_group() {
     let mut graph = PatternGraph::with_root(PatternNodeKind::Iterate);
@@ -1771,30 +1795,7 @@ fn terminal_quadrants_charge_the_first_discard_of_each_sibling_group() {
     square(&mut graph, 3);
     graph.nodes[3].parameters.insert("patternsize".into(), Value::Float2([1.0 / 64.0; 2]));
 
-    let render = |graph: &PatternGraph| {
-        let params = resolve_params(
-            find("fx_map").unwrap(),
-            &BTreeMap::from([
-                ("pattern".into(), Value::PatternGraph(Box::new(graph.clone()))),
-                ("roughness".into(), Value::Float(0.0)),
-                ("color_mode".into(), Value::Bool(false)),
-            ]),
-        );
-        let context = CookContext {
-            w: 4,
-            h: 4,
-            seed: 19,
-            tile: false,
-            inputs: &[],
-            input_formats: &[],
-            format: materialcraft_core::OutputFormat::F32,
-            params: &params,
-            resource: &|_| None,
-            vars: &BTreeMap::new(),
-        };
-        super::evaluation::cook_with_visit_limit(&context, &[], 64)
-    };
-    let image = render(&graph).unwrap().remove(0);
+    let image = render_with_visit_limit(&graph, 64).unwrap().remove(0);
     for y in 0..4 {
         for x in 0..4 {
             assert_eq!(image.get_gray(x, y, false), 0.375);
@@ -1804,12 +1805,43 @@ fn terminal_quadrants_charge_the_first_discard_of_each_sibling_group() {
     // Visible siblings each consume a visit, even if their pixels coincide.
     let mut visible = graph.clone();
     visible.nodes[3].parameters.insert("patternsize".into(), Value::Float2([2.0; 2]));
-    assert!(render(&visible).unwrap_err().contains("execution budget"));
+    assert!(render_with_visit_limit(&visible, 64).unwrap_err().contains("execution budget"));
 
     // With only one child per branch, extending the iteration still exhausts the ordinary allowances.
     graph.nodes[2].children[1..].fill(None);
     graph.nodes[0].parameters.insert("numberadded".into(), Value::Int(80));
-    assert!(render(&graph).unwrap_err().contains("execution budget"));
+    assert!(render_with_visit_limit(&graph, 64).unwrap_err().contains("execution budget"));
+}
+
+#[test]
+fn empty_terminal_quadrants_share_the_discard_allowance() {
+    let mut graph = PatternGraph::with_root(PatternNodeKind::Iterate);
+    let marker = graph.add(PatternNodeKind::Quadrant).unwrap();
+    let parent = graph.add(PatternNodeKind::Quadrant).unwrap();
+    let empty = graph.add(PatternNodeKind::Quadrant).unwrap();
+    let gate = graph.add(PatternNodeKind::Switch).unwrap();
+    let live = graph.add(PatternNodeKind::Quadrant).unwrap();
+    graph.nodes[0].children = vec![Some(marker), Some(parent)];
+    graph.nodes[0].parameters.insert("numberadded".into(), Value::Int(24));
+    square(&mut graph, 1);
+    graph.nodes[1].parameters.insert("opacity".into(), Value::Float(0.375));
+    graph.nodes[2].children.fill(Some(empty));
+    graph.nodes[3].children[0] = Some(gate);
+    graph.nodes[4].children[1] = Some(live);
+    square(&mut graph, 5);
+
+    let image = render_with_visit_limit(&graph, 64).unwrap().remove(0);
+    for y in 0..4 {
+        for x in 0..4 {
+            assert_eq!(image.get_gray(x, y, false), 0.375);
+        }
+    }
+
+    graph.nodes[4].parameters.insert("switch".into(), Value::Bool(true));
+    assert!(render_with_visit_limit(&graph, 64).unwrap_err().contains("execution budget"));
+    graph.nodes[4].parameters.insert("switch".into(), Value::Bool(false));
+    graph.nodes[0].parameters.insert("numberadded".into(), Value::Int(80));
+    assert!(render_with_visit_limit(&graph, 64).unwrap_err().contains("execution budget"));
 }
 
 #[test]

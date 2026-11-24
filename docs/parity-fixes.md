@@ -59,6 +59,51 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-23 root comparisons
 
+### Bounded work for empty terminal quadrants
+
+A quadrant can evaluate its properties, produce no shape and finish with every child disconnected or behind a cached empty switch. After evaluating the properties and resolving the children, the evaluator charges the visit to the existing discard allowance while units remain. An empty terminal quadrant uses an ordinary visit once that allowance runs out. A quadrant with no shape and a live child also uses an ordinary visit. [Evaluator](../crates/nodes/src/pattern/evaluation.rs) [Budget regression](../crates/nodes/src/pattern/tests.rs)
+
+Start an Iterate with a full-frame additive square of gain .375 on a black canvas. On its repeated branch, recursively connect four identical quadrants per level. Each last quadrant connects to a switch whose right branch draws a square of size (1.25,.75) and gain .0625 when log₂(width) ≥ 6. Use zero roughness. For two subdivisions and three repetitions, render 16², 32 × 16, 16 × 32, 64 × 32 and 64² in U8, U16, F16 and F32. For size index i and format index j in that order, use seed 51271 + 31i + j. The original and its ordinary SBS save each match 29,696/29,696 pixels, maximum 0.
+
+With eight subdivisions and sixteen repetitions, the tree visits 1,048,576 terminal quadrants. At 16² and 32 × 16 the switches select their disconnected branch. At each size use U16 and F32, with j = 0 and 1 respectively. Previously all eight original and reopened renders reached the visit limit. They now match 1,536/1,536 pixels in each package, maximum 0. With a small test allowance, switching to a live child or requesting additional repetitions still returns the execution-budget error.
+
+In the two spots roots, use 64 × 32, scale 3 and seed 194442. Preserve all branches and disable the other shape levels in the pattern map being inspected. The following ten F32 isolates previously returned a traversal error. The maximum error is the absolute difference in stored float values. [Full parameter settings](#first-level-draw-order-in-repeated-spot-quadrants)
+
+| Root | Enabled levels | Exact / 2,048 pixels · maximum error |
+|---|---|---:|
+| Noise BNW Spots 1 | 1–5 | 2,038/2,048 · 5.96046448e−8 |
+| Noise BNW Spots 1 | 1 | 2,048/2,048 · 0 |
+| Noise BNW Spots 1 | 2 | 2,039/2,048 · 2.98023224e−8 |
+| Noise BNW Spots 1 | 3 | 2,044/2,048 · 7.4505806e−9 |
+| Noise BNW Spots 1 | 4 | 2,047/2,048 · 3.7252903e−9 |
+| Noise BNW Spots 1 | 5 | 2,046/2,048 · 1.86264515e−9 |
+| Noise BNW Spots 1 | 6 | 2,015/2,048 · 9.31322575e−10 |
+| Noise BNW Spots 1 | 7 | 2,021/2,048 · 2.32830644e−10 |
+| Noise BNW Spots 1 v2 | 7 | 2,048/2,048 · 0 |
+| Noise BNW Spots 1 v2 | 9–10 | 2,048/2,048 · 0 |
+
+Capture levels 1–5 again in the first graph and levels 7–8 in v2, then reopen an ordinary MaterialCraft save in the reference desktop. U8, U16 and F16 each match 2,048/2,048 pixels on all four captures. F32 counts follow.
+
+| Root | Original F32 · maximum | Reopened F32 · maximum |
+|---|---:|---:|
+| Noise BNW Spots 1 | 2,018/2,048 · 5.96046448e−8 | 1,997/2,048 · 5.96046448e−8 |
+| Noise BNW Spots 1 v2 | 2,047/2,048 · 5.96046448e−8 | 2,047/2,048 · 2.98023224e−8 |
+
+To check repeatability, capture each original and reopened package four times on one processor. Before each capture, render a control with seed 322027 + 37i + j, where i runs from 0 to 3 and j is 0 for the 16 × 32 comparison and 1 for the 64 × 32 comparison. The smaller setting uses scale 1, roughness 1, disorder 0 and seed 0. Compare each stored F32 pixel across the eight native frames, then compare MaterialCraft at the positions where all eight agree. The last column counts pixels for which at least one of the eight native values equals MaterialCraft's value.
+
+| Root and draws | Size | Distinct native frames | Native invariant / total | Exact at invariant pixels | Maximum native spread | Exact on any capture |
+|---|---|---:|---:|---:|---:|---:|
+| Noise BNW Spots 1, selected levels | 16 × 32 | 1 | 512/512 | 512/512 | 0 | 512/512 |
+| Noise BNW Spots 1, selected levels | 64 × 32 | 8 | 1,890/2,048 | 1,889/1,890 | 1.1920929e-07 | 2,046/2,048 |
+| Noise BNW Spots 1 v2, selected levels | 16 × 32 | 1 | 512/512 | 473/512 | 0 | 473/512 |
+| Noise BNW Spots 1 v2, selected levels | 64 × 32 | 6 | 2,044/2,048 | 2,044/2,044 | 5.96046448e-08 | 2,048/2,048 |
+| Noise BNW Spots 1, whole root | 16 × 32 | 1 | 512/512 | 370/512 | 0 | 370/512 |
+| Noise BNW Spots 1, whole root | 64 × 32 | 8 | 1,608/2,048 | 1,511/1,608 | 1.1920929e-07 | 1,940/2,048 |
+| Noise BNW Spots 1 v2, whole root | 16 × 32 | 2 | 506/512 | 471/506 | 5.96046448e-08 | 475/512 |
+| Noise BNW Spots 1 v2, whole root | 64 × 32 | 6 | 2,044/2,048 | 2,044/2,044 | 5.96046448e-08 | 2,048/2,048 |
+
+The complete v2 comparison has 831,506/842,752 matching pixels on one processor and 831,311/842,752 on eight over 87 settings. Its 19 saved settings match 137,715/139,008. Both roots remain in progress.
+
 ### Wide first-level shapes in additive quadrant trees
 
 The first-level shape in a complete eight-level quadrant tree can wrap more than twice on an axis. Counting those copies against the separate first-level batch restores the measured order of draws in the deeper subtrees. The shared renderer uses the stamp's rotated bounds and the graph's render and tiling regions. [Copy counts](../crates/nodes/src/pattern/footprint.rs) [Regression graph](../crates/nodes/src/pattern/tests/underfilled_quadrants.rs)
@@ -67,7 +112,7 @@ Use the paired squares at depth three from the [submission-order comparison](#su
 
 At 32² and seed 41381, set all four first-level rotations to zero and all sizes to (68,76). Change the first child's width to 64, 68 and 72. Those settings submit 5,382, 5,460 and 5,538 first-level copies. The first two each match 1,024/1,024, maximum 0. The last matches 1,008/1,024, maximum 2.98023224e−8, and remains open.
 
-Enable the first five levels together in the [six spots settings](#first-level-draw-order-in-repeated-spot-quadrants). In the first graph, four or five first-level stamps cross the previous per-axis limit in each of the three differing settings. The five completed original cases improve from 7,902/8,192 F32 pixels, maximum 5.96046448e−8, to 8,192/8,192, maximum 0. Five freshly reopened cases give the same improvement. In the v2 graph these settings match 8,047/8,192 on the original and 8,048/8,192 after reopening, maximum 1.19209290e−7 on each. The two reference captures for v2 agree on 8,175/8,192, maximum 5.96046448e−8.
+Enable the first five levels together in the [six spots settings](#first-level-draw-order-in-repeated-spot-quadrants). In the first graph, four or five first-level stamps cross the previous per-axis limit in each of the three differing settings. The five completed original cases improve from 7,902/8,192 F32 pixels, maximum 5.96046448e−8, to 8,192/8,192, maximum 0. Five freshly reopened cases give the same improvement. In the v2 graph the corresponding probe selects levels 7–8 of its pattern map. These settings match 8,047/8,192 on the original and 8,048/8,192 after reopening, maximum 1.19209290e−7 on each. The two reference captures for v2 agree on 8,175/8,192, maximum 5.96046448e−8.
 
 Across all 86 whole-root settings for the first graph, 782,741/841,728 pixels match on one processor and 788,160/841,728 on eight. Nineteen ordinary saves match 196,084/196,352. The maximum F32 errors are 3.57627869e−7, 2.38418579e−7 and 2.38418579e−7 respectively. All six combined-depth isolates finish at 8,618/10,240 F32 pixels, maximum 2.38418579e−7.
 
