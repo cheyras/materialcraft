@@ -231,7 +231,7 @@ pub(super) fn cook_with_visit_limit(context: &CookContext, base_level_only: &[bo
             let mode =
                 node.kind == PatternNodeKind::Quadrant && matches!(id, "patterntype" | "blendingmode" | "imagefiltering" | "imagepremul" | "randominherited");
             if !mode {
-                variables.enter(names, &mut declared);
+                variables.enter(names, visit.depth, &mut declared);
             }
             let inputs = if mode { &variables.modes } else { &variables.drawing };
             // An unbound direct link leaves the field at its default. A getter inside an expression still evaluates to its typed zero.

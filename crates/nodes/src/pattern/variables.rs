@@ -18,12 +18,23 @@ pub(super) fn declarations(program: &Program, names: &mut BTreeMap<String, Value
     }
 }
 
+#[derive(Default)]
+struct LocalValues {
+    depth: Option<u32>,
+    saved: BTreeMap<u32, Value>,
+}
+
+pub(super) struct Declaration {
+    name: String,
+    outer: Option<(u32, Value)>,
+}
+
 pub(super) struct PatternVariables<'a> {
     published: &'a BTreeMap<String, Value>,
     pub(super) drawing: BTreeMap<String, Value>,
     pub(super) modes: BTreeMap<String, Value>,
-    saved: BTreeMap<String, Value>,
-    scopes: Vec<(usize, Vec<String>)>,
+    locals: BTreeMap<String, LocalValues>,
+    scopes: Vec<(usize, Vec<Declaration>)>,
 }
 
 impl<'a> PatternVariables<'a> {
@@ -35,21 +46,26 @@ impl<'a> PatternVariables<'a> {
         for name in ["$depth", "$depthpow2", "$number"] {
             modes.insert(name.into(), Value::Float(0.0));
         }
-        Self { modes, drawing, published, saved: BTreeMap::new(), scopes: Vec::new() }
+        Self { modes, drawing, published, locals: BTreeMap::new(), scopes: Vec::new() }
     }
 
-    pub(super) fn enter(&mut self, names: &BTreeMap<String, ValueType>, declared: &mut Vec<String>) {
+    pub(super) fn enter(&mut self, names: &BTreeMap<String, ValueType>, depth: u32, declared: &mut Vec<Declaration>) {
         for (name, kind) in names {
-            if self.modes.remove(name).is_some() || !self.drawing.contains_key(name) {
-                // A property that declares a name reopens its last pattern value across visits.
-                let value = self.saved.remove(name).unwrap_or_else(|| kind.default_value());
-                self.drawing.insert(name.clone(), value);
-                declared.push(name.clone());
+            let local = self.locals.entry(name.clone()).or_default();
+            if local.depth == Some(depth) || (local.depth.is_none() && !self.modes.contains_key(name) && self.drawing.contains_key(name)) {
+                continue;
             }
+            // A child may read its parent's value. Declaring the name opens the
+            // last value written at this quadrant depth, including across siblings.
+            self.modes.remove(name);
+            let value = local.saved.remove(&depth).unwrap_or_else(|| kind.default_value());
+            let previous = self.drawing.insert(name.clone(), value);
+            let outer = local.depth.replace(depth).zip(previous);
+            declared.push(Declaration { name: name.clone(), outer });
         }
     }
 
-    pub(super) fn keep_for_children(&mut self, pending: usize, declared: Vec<String>) {
+    pub(super) fn keep_for_children(&mut self, pending: usize, declared: Vec<Declaration>) {
         if !declared.is_empty() {
             self.scopes.push((pending, declared));
         }
@@ -59,11 +75,15 @@ impl<'a> PatternVariables<'a> {
         // Once a waiting sibling is popped, the declaring node and all its descendants have finished.
         while self.scopes.last().is_some_and(|(pending, _)| pending_after_pop < *pending) {
             if let Some((_, declared)) = self.scopes.pop() {
-                for name in declared {
-                    if let Some(value) = self.drawing.remove(&name) {
-                        self.saved.insert(name.clone(), value);
+                for Declaration { name, outer } in declared {
+                    let Some(local) = self.locals.get_mut(&name) else { continue };
+                    if let (Some(depth), Some(value)) = (local.depth.take(), self.drawing.remove(&name)) {
+                        local.saved.insert(depth, value);
                     }
-                    if let Some(value) = self.published.get(&name) {
+                    if let Some((depth, value)) = outer {
+                        local.depth = Some(depth);
+                        self.drawing.insert(name, value);
+                    } else if let Some(value) = self.published.get(&name) {
                         self.drawing.insert(name.clone(), value.clone());
                         self.modes.insert(name, value.clone());
                     }

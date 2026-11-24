@@ -1946,6 +1946,34 @@ fn set_then_return(name: &str, value: Value, result: Value) -> Value {
 }
 
 #[test]
+fn quadrant_children_accumulate_in_their_own_depth() {
+    let mut graph = PatternGraph::with_root(PatternNodeKind::Quadrant);
+    let writer = graph.add(PatternNodeKind::Quadrant).unwrap();
+    let reader = graph.add(PatternNodeKind::Quadrant).unwrap();
+    let increment = graph.add(PatternNodeKind::Quadrant).unwrap();
+    graph.nodes[0].children = vec![Some(writer), Some(reader), Some(increment), Some(increment)];
+    graph.nodes[0].parameters.insert("branchoffset".into(), set_then_return("count", Value::Float(0.25), Value::Float2([0.0; 2])));
+    for node in 1..=3 {
+        square(&mut graph, node);
+    }
+    graph.nodes[1].parameters.insert("opacity".into(), set_then_return("count", Value::Float(0.8125), Value::Float(0.8125)));
+    let read = FunctionGraph::input("count", materialcraft_core::ValueType::Float);
+    graph.nodes[2].parameters.insert("opacity".into(), Value::Function(Box::new(read.clone())));
+
+    let mut counter = read;
+    let current = counter.output.unwrap();
+    let step = counter.add_constant(Value::Float(0.0625));
+    let next = counter.add("add", &[current, step], None);
+    counter.output = Some(counter.add("set", &[next], Some(Value::Text("count".into()))));
+    graph.nodes[3].parameters.insert("opacity".into(), Value::Function(Box::new(counter)));
+
+    let image = cook(graph).unwrap().remove(0);
+    for (x, y, expected) in [(4, 4, 0.8125), (12, 4, 0.25), (4, 12, 0.875), (12, 12, 0.9375)] {
+        assert_eq!(image.get_gray(x, y, false), expected);
+    }
+}
+
+#[test]
 fn quadrant_modes_read_published_inputs_and_shadow_outer_pattern_bindings() {
     use materialcraft_core::ValueType;
 

@@ -59,6 +59,25 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-23 root comparisons
 
+### Inherited and writable variables across quadrant depths
+
+A quadrant child can read a value assigned by its parent. When the child declares the same name with Set, it opens the last value written at its own quadrant depth. Later writes at that depth can continue from that value across sibling nodes. A sibling that only reads the inherited name still sees the parent’s value. Iterate and Switch keep the current quadrant depth. MaterialCraft now saves and restores the two bindings separately. [Variable evaluator](../crates/nodes/src/pattern/variables.rs) [Traversal regression](../crates/nodes/src/pattern/tests.rs)
+
+Start with an empty root quadrant. Its branch offset assigns .25 to a named variable and returns (0,0). Connect additive squares in all four child slots. In slot order, write .8125 and emit it, read the parent’s value, add .0625 to the child binding and emit it, then perform the same increment again. On black the four F32 quadrant values are (.8125,.25,.875,.9375). Previously the second quadrant also emitted .8125. This reproduces with and without an outer Iterate and with either a direct getter or a getter plus zero. The four independently measured 16² controls improve from 768/1,024 to 1,024/1,024, maximum .5625 to zero.
+
+Repeat the four-child graph with a float, a float pair that emits its second component, and an integer in units of 1/128. In the pair graph set the first component to half the second. For size index i use 16², 32 × 16, 16 × 32 and 32². The corresponding (parent, first child, increment) triples are (.25,.8125,.0625), (−.125,.375,.125), (.5,.25,−.03125) and (1.25,−.1875,.0625). The first triple uses the exposed defaults. For format index j use U8, U16, F16 and F32, with seed 31873 + 37i + j. Export the raw result from the reference desktop, then repeat after an ordinary MaterialCraft save and reopen.
+
+| Output | Prior exact / 6,912 · maximum | Current original | Current reopened | Current maximum |
+|---|---:|---:|---:|---:|
+| U8 | 5,184 · 255 | 6,912/6,912 | 6,912/6,912 | 0 |
+| U16 | 5,184 · 65,535 | 6,912/6,912 | 6,912/6,912 | 0 |
+| F16 | 5,184 · 1.4375 | 6,912/6,912 | 6,912/6,912 | 0 |
+| F32 | 5,184 · 1.4375 | 6,912/6,912 | 6,912/6,912 | 0 |
+
+In a separate complete tree, write .375 on an empty quadrant’s branch offset and read it at depth three on a square over a .125 background. At depths three and six, a depth-one writer gives 3,840/3,840 exact pixels per package over three seeds in each of the F32, U16 and F16 settings below. At depth seven only 20 of the 64 square cells receive the parent’s value in the reference. At depth eight a depth-one writer reaches 26 cells, and a depth-two writer reaches 56. MaterialCraft carries the value to all 64. At depth eight, with a depth-one writer, exact counts are 312/768 in F32, 624/1,536 in U16 and 624/1,536 in F16, on each package. Maximum errors are .375, 24,575 and .375 respectively. Use 16² F32 at seed 17, 32 × 16 U16 at seed 31, and 16 × 32 F16 at seed 42, adding 109 for each subsequent seed. Initializing the name in the outer Iterate also reproduces the depth-eight differences. A depth-zero writer gives all 3,840 pixels in that control. Work subdivision in deeper trees remains open.
+
+Across the 86 whole Noise BNW Spots 1 settings, the one- and eight-processor captures still give 782,741/841,728 and 788,160/841,728. The 19 ordinary saves give 196,084/196,352. Twelve mixed settings of the neighboring v2 root retain their earlier output bit for bit, 28,160/28,160 between MaterialCraft builds. Its one-processor reference comparison is 28,082/28,160 for those settings. All 411 release node tests passed, together with formatting, strict workspace Clippy, dependency layers and WebAssembly. [Full whole-root settings and errors by format](#first-level-draw-order-in-repeated-spot-quadrants)
+
 ### Physical copy boundaries in dense quadrant subtrees
 
 At 16 × 32, scale 1, roughness 1, disorder 0 and seed 0, all four original and four reopened F32 captures of Noise BNW Spots 1 agree bit for bit. MaterialCraft matches **370/512 pixels** on each, maximum 1.19209290e−7. Levels 1–5 alone match all 512. This gives a repeatable whole graph for testing how deeper draws combine. At 64 × 32 and scale 3 the same reference desktop produces different whole frames with the same seed. [Eight-capture results for both spots graphs](#bounded-work-for-empty-terminal-quadrants)
