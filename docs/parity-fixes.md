@@ -57,6 +57,29 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 - **2026-11-13 - Unconnected output images:** Unconnected output bridges now produce transparent RGBA instead of grayscale. The importer separately retains each output's declared image type so saving an unconnected output preserves the graph interface. Both material templates match all 1,179,648 RGBA8 pixels across six recorded cases. All 2,560 direct grayscale/color declaration probe pixels also match, and both declared image types survive save/reload.
 
+## 2026-11-24 root comparisons
+
+### Undefined components in a computed quadrant tint
+
+A quadrant can blend a computed tint with one undefined component. In a color square, an undefined red with finite alpha affects red alone. Floating outputs store the undefined channel as `0x7fffffff` in F32 and `0x7fff` in F16. Both integer formats store zero. A grayscale quadrant uses the alpha of a computed color. A square with undefined alpha or undefined scalar luminosity leaves its background visible. The horizontal offset ramp blends at undefined opacity and produces undefined components. [Quadrant property evaluation](../crates/nodes/src/pattern/evaluation.rs) · [Per-channel storage](../crates/nodes/src/pattern/raster.rs) · [Regression cases](../crates/nodes/src/pattern/tests.rs)
+
+To reproduce, connect four child slots of a quadrant to one unit square. Use a color background of (.25, .375, .5, .75), or its grayscale value .375. Subtract a published scalar from itself and divide the resulting zero by itself. In color, place the result in red of (red, .25, .125, .5), replace alpha in (.125, .25, .125, alpha), or use the result as a scalar tint. In gray, use the scalar and both color vectors. Test all six at blend mode 0, then red, alpha and gray scalar at mode 1 and red and gray scalar at mode 2. At mode 0 the color square with undefined red stores (NaN, .5, .5625, .875). Modes 1 and 2 store (NaN, .3125, .3125, .875).
+
+Use the published default .8125 at 16² F32 with seed 40991 and 32 × 16 U16 with seed 41005. Use .3125 at 16² F16 with seed 40998 and 32 × 16 U8 with seed 41012. Save each of the eleven graphs normally in MaterialCraft, reopen it in the reference desktop, and compare the raw channels. For the shape controls, use mode 0 with red, alpha and gray scalar tints. Test a Gaussian and both offset ramps, variation .375, then a connected uniform image with color (.5, .25, .125, .75) or gray .5. Repeat each with subtraction in place of division to supply finite zero.
+
+| Raw output | Squares | Reopened squares | Gaussian and ramps | Connected images |
+|---|---:|---:|---:|---:|
+| U8 | 5,632/5,632 | 5,632/5,632 | 9,216/9,216 | 3,072/3,072 |
+| U16 | 5,632/5,632 | 5,632/5,632 | 9,216/9,216 | 3,072/3,072 |
+| F16 | 2,816/2,816 | 2,816/2,816 | 4,608/4,608 | 1,536/1,536 |
+| F32 | 2,816/2,816 | 2,816/2,816 | 4,608/4,608 | 1,536/1,536 |
+
+All 70,656 pixels agree in every stored bit. The maximum difference between finite channels is zero. Previously every one of the 88 square renders and the 48 undefined shape and image controls returned a cook error. The 48 finite controls already matched.
+
+The same eleven fields expose a separate writable-variable discrepancy. Replace zero divided by zero with an assignment of the previous local value plus .0625 to the same name, and read a published value in the parent branch. U8 and U16 each match 1,536/5,632 pixels with maxima of 96 and 24,576 codes. F16 and F32 each match 768/2,816 with maximum finite error .25 and 768 differing nonfinite channels. Checking the local for equality with itself before its first write distinguishes the first child from later siblings in the reference desktop. [Earlier assignment and read-only controls](#independent-writable-variables-in-six-level-quadrant-trees)
+
+The tint change preserves all measured MaterialCraft buffers in seven original and four reopened settings per root for Noise BNW Spots 1 and its second version. The original checks include exposed defaults, all four formats at 16 × 32, and two changed F32 settings. Against one- and eight-processor desktop captures the first version matches 20,618/20,992 and 20,455/20,992, maximum one U16 code. Its ordinary saves match 2,799/2,816, maximum 5.96046448e−8. The second version matches 20,904/20,992 at both processor counts, maximum 1.19209290e−7, and 4,273/4,352 on saves, maximum 5.96046448e−8. The outstanding dense F32 comparisons keep both roots in progress. [First version settings](#a-full-copy-batch-in-the-last-root-quadrant) · [Second version settings](#whole-root-precision-and-saved-comparisons-for-the-three-neighboring-spot-graphs)
+
 ## 2026-11-23 root comparisons
 
 ### Independent writable variables in six-level quadrant trees

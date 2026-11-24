@@ -269,7 +269,11 @@ pub(super) fn cook_with_visit_limit(context: &CookContext, base_level_only: &[bo
                 tile: context.tile,
                 variables: inputs,
             };
-            let value = program.evaluate_with_random(&evaluation, &mut state, random)?;
+            let value = if node.kind == PatternNodeKind::Quadrant && id == "opacity" {
+                program.evaluate_pattern_tint(&evaluation, &mut state, random)?
+            } else {
+                program.evaluate_with_random(&evaluation, &mut state, random)?
+            };
             // A quadrant's mode expressions keep their own writes. A later stamp property can read writes from the draw expressions.
             if !mode {
                 for (name, value) in state.assignments() {
@@ -339,14 +343,15 @@ pub(super) fn cook_with_visit_limit(context: &CookContext, base_level_only: &[bo
                     let offset = vector("frameoffset");
                     let tint = field("opacity").unwrap_or(&Value::Float4([1.0; 4]));
                     let rgba = tint.as_vec4().ok_or("pattern color must be a float or float4")?;
-                    if !rgba.iter().all(|v| v.is_finite()) {
+                    let computed_tint = functions.contains_key(&(node.id, "opacity"));
+                    if rgba.iter().any(|v| v.is_infinite() || (v.is_nan() && !computed_tint)) {
                         return Err("pattern color must be finite".into());
                     }
                     let color = match tint {
                         Value::Float(luminosity) => [1.0, 1.0, 1.0, *luminosity],
                         _ if grayscale => {
                             // A color expression supplies its alpha. A literal swatch supplies its mean RGB.
-                            let luminosity = if functions.contains_key(&(node.id, "opacity")) { rgba[3] } else { (rgba[0] + rgba[1] + rgba[2]) / 3.0 };
+                            let luminosity = if computed_tint { rgba[3] } else { (rgba[0] + rgba[1] + rgba[2]) / 3.0 };
                             [1.0, 1.0, 1.0, luminosity]
                         }
                         _ => rgba,

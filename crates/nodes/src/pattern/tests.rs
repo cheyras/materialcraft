@@ -245,6 +245,57 @@ fn assert_stamp_pixel(shape: i32, color: bool, tint: Value, gain: f32, backgroun
 }
 
 #[test]
+fn quadrant_tint_blends_undefined_components_individually() {
+    let mut tint = FunctionGraph::default();
+    let depth = tint.add("get_float1", &[], Some(Value::Text("$depth".into())));
+    let zero = tint.add("sub", &[depth, depth], None);
+    let undefined = tint.add("div", &[zero, zero], None);
+    let eighth = tint.add("const_float1", &[], Some(Value::Float(0.125)));
+    let quarter = tint.add("const_float1", &[], Some(Value::Float(0.25)));
+    let half = tint.add("const_float1", &[], Some(Value::Float(0.5)));
+    let red_nan = tint.add("vector2", &[undefined, quarter], None);
+    let blue_alpha = tint.add("vector2", &[eighth, half], None);
+    let red_tint = tint.add("vector4", &[red_nan, blue_alpha], None);
+    let red_green = tint.add("vector2", &[eighth, quarter], None);
+    let alpha_nan = tint.add("vector2", &[eighth, undefined], None);
+    let alpha_tint = tint.add("vector4", &[red_green, alpha_nan], None);
+
+    let background = [0.25_f32, 0.375, 0.5, 0.75];
+    for (shape, color, output, expected) in [
+        (2, true, red_tint, [0x7fff_ffff, 0.5_f32.to_bits(), 0.5625_f32.to_bits(), 0.875_f32.to_bits()]),
+        (2, true, alpha_tint, background.map(f32::to_bits)),
+        (2, true, undefined, background.map(f32::to_bits)),
+        (2, false, red_tint, [0.875_f32.to_bits(); 4]),
+        (2, false, alpha_tint, [0.375_f32.to_bits(); 4]),
+        (2, false, undefined, [0.375_f32.to_bits(); 4]),
+        (17, true, alpha_tint, [0x7fff_ffff; 4]),
+        (17, false, undefined, [0x7fff_ffff; 4]),
+        (18, true, alpha_tint, background.map(f32::to_bits)),
+    ] {
+        tint.output = Some(output);
+        let mut graph = PatternGraph::with_root(PatternNodeKind::Quadrant);
+        graph.nodes[0].parameters = BTreeMap::from([
+            ("patterntype".into(), Value::Int(shape)),
+            ("patternsuppl".into(), Value::Float(0.375)),
+            ("opacity".into(), Value::Function(Box::new(tint.clone()))),
+        ]);
+        let image = stamp_on_background(graph, color, 1.0, background, 40991);
+        let pixel = image.get(16, 16, false).map(f32::to_bits);
+        assert_eq!(&pixel[..image.channels()], &expected[..image.channels()]);
+    }
+}
+
+#[test]
+fn quadrant_fields_reject_nonfinite_geometry_and_infinite_tints() {
+    for (field, value) in [("frameoffset", Value::Float2([f32::NAN, 0.0])), ("opacity", Value::Float(f32::INFINITY))] {
+        let mut graph = PatternGraph::with_root(PatternNodeKind::Quadrant);
+        graph.nodes[0].parameters =
+            BTreeMap::from([("patterntype".into(), Value::Int(2)), (field.into(), Value::Function(Box::new(FunctionGraph::constant(value))))]);
+        assert!(cook_with_variables(graph, &BTreeMap::new(), 40991).is_err());
+    }
+}
+
+#[test]
 fn zero_authored_stamp_opacity_is_distinct_from_zero_graph_opacity() {
     let linked = |value| Value::Function(Box::new(FunctionGraph::constant(Value::Float(value))));
     let tiny = f32::from_bits(1 << 19);

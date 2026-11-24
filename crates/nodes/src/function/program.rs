@@ -114,6 +114,17 @@ impl Program {
         self.evaluate_finite(context, state, random)
     }
 
+    /// A quadrant blends its tint components individually, including an undefined channel.
+    pub(crate) fn evaluate_pattern_tint(
+        &self,
+        context: &EvaluationContext<'_>,
+        state: &mut EvaluationState,
+        random: &mut FunctionRandom,
+    ) -> Result<Value, String> {
+        state.variables.clear();
+        self.run_with_random(context, state, random)
+    }
+
     fn evaluate_finite(&self, context: &EvaluationContext<'_>, state: &mut EvaluationState, random: &mut FunctionRandom) -> Result<Value, String> {
         let value = self.run_with_random(context, state, random)?;
         // Callers may clamp undefined intermediates; completed functions must be finite

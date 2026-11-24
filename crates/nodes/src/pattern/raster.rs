@@ -90,7 +90,7 @@ pub(super) fn render(
         ordered.sort_by_key(|(stamp, _)| draw_order(stamp));
     }
     for (stamp, selection) in traversal.chain(ordered) {
-        if !stamp.center.iter().chain(&stamp.size).chain(&stamp.color).chain([&stamp.rotation, &stamp.variation]).all(|value| value.is_finite()) {
+        if !stamp.center.iter().chain(&stamp.size).chain([&stamp.rotation, &stamp.variation]).all(|value| value.is_finite()) {
             return Err("pattern parameters must be finite".into());
         }
 
@@ -120,8 +120,9 @@ pub(super) fn render(
         let sample_shape = shape::prepare(stamp.pattern, stamp.variation);
 
         let frame = Footprint::new(stamp)?;
-        // The horizontal offset ramp can still contribute its variation at zero stamp opacity.
-        if authored_alpha == 0.0 && matches!(stamp.pattern, 2..=16 | 18) {
+        // The horizontal offset ramp still blends its variation at zero or undefined opacity.
+        // Image stamps can affect the blend at zero opacity, and skip it at undefined opacity.
+        if stamp.pattern != 17 && (authored_alpha.is_nan() || (authored_alpha == 0.0 && stamp.pattern < 256)) {
             continue;
         }
         let mut texture = if stamp.pattern >= 256 {
@@ -218,7 +219,9 @@ pub(super) fn render(
                                 (Kind::Gray, _) => background + value,
                             });
                             if !target.is_finite() {
-                                if !nonfinite_gray_opacity {
+                                let undefined_channel = target.is_nan()
+                                    && (authored_alpha.is_nan() || background.is_nan() || (kind == Kind::Color && stamp.color[channel].is_nan()));
+                                if !nonfinite_gray_opacity && !undefined_channel {
                                     return Err("pattern accumulation overflowed".into());
                                 }
                                 // Each stamp reads the preceding stored result. Only the completed blend saturates.
