@@ -59,6 +59,30 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-23 root comparisons
 
+### A full copy batch in the last root quadrant
+
+In a complete eight-level additive tree with two full batches per neighboring pair of depth-two quadrants, the next 5,460 physical copies come from three parts of the first tree. In zero-based child-slot traversal order, take the depth-two draw at 15, then the depth-three subtrees 62 and 63, then 48 and 49. Stop after 5,460 copies when these parts together contain one full batch and a smaller remainder. A cut within one wrapped stamp can submit some of its copies now and the others later. The shared evaluator uses the observed batch counts and the ordered spans. [Evaluator and shape conditions](../crates/nodes/src/pattern/underfilled_quadrants.rs) · [Two-square regression](../crates/nodes/src/pattern/tests/underfilled_quadrants.rs)
+
+Use the earlier signed-square procedure with depth-two (negative, positive) pairs (15,4), (12,15), (15,0) and (14,15). Use a plain quadrant for the first and fourth trees and one outer iteration for the second and third. Add faint first-level Gaussians to the second and fourth. The 32² default with pair (15,4) reads 2⁻²⁵ at (.265625,.265625), previously zero. Repeat at 16 × 32, 32 × 16 and 64 × 32 with the same changed gains, seed series and four output formats as the preceding batch experiment. [Gains, seeds and ordinary-save procedure](#leading-copy-batches-in-complete-quadrant-trees)
+
+| Output | Previous exact / 16,384 · max | Current original exact / 16,384 · max | Current ordinary save exact / 16,384 · max |
+|---|---:|---:|---:|
+| U8 | 16,384 · 0 | 16,384 · 0 | 16,384 · 0 |
+| U16 | 16,384 · 0 | 16,384 · 0 | 16,384 · 0 |
+| F16 | 16,300 · 2⁻²⁴ | 16,384 · 0 | 16,384 · 0 |
+| F32 | 15,712 · 2⁻²⁴ | 16,286 · 5.29395623e−23 | 16,286 · 5.29395623e−23 |
+
+Together the four graphs match 65,438/65,536 original and 65,438/65,536 reopened pixels. Three retain a residual in F32. In five independently authored fields with one, two and four trees, all 1,250 signed order comparisons agree. Doubling the physical copies everywhere except depth-two pairs starting at 2, 6 and 10 in the first tree produces a second full batch in the last root quadrant. In this control 65/269 predicted orders differ. For a separate boundary check, double the footprints in subtrees 62 and 63 to place the cut there, or leave them at unit size to place it in 48 and 49. Place the boundary stamp across the horizontal seam for two copies, or across both seams for four. Test each copy against a depth-two square at 4 with both gain directions. All 56 comparisons agree, including cuts one, two and three copies into a four-copy stamp. All 245 earlier procedural settings still give 1,138,688/1,138,688 exact pixels.
+
+| Noise BNW Spots 1 | One processor · exact / total · max | Eight processors · exact / total · max | Ordinary saves · exact / total · max |
+|---|---:|---:|---:|
+| U8 | 108,800/108,800 · 0 | 108,799/108,800 · 1 | 90,112/90,112 · 0 |
+| U16 | 328,342/328,448 · 1 | 328,259/328,448 · 1 | 93,683/93,696 · 1 |
+| F16 | 108,799/108,800 · .0001220703125 | 108,799/108,800 · .00048828125 | 6,400/6,400 · 0 |
+| F32 | 253,651/295,680 · 2.38418579e−7 | 234,924/295,680 · 3.57627869e−7 | 5,920/6,144 · 2.38418579e−7 |
+
+The 86 one-processor settings gain 4,246 exact pixels, reaching 799,592/841,728. The eight-processor comparisons lose 1,247, reaching 780,781/841,728. The 19 ordinary saves gain 13, reaching 196,115/196,352. At 16 × 32 with scale and roughness one, disorder zero and seed zero, the whole F32 image improves from 393 to 403 of 512, maximum 1.19209290e−7, in four original and four reopened captures. The early levels match 512/512 in each. Under the 256² exposed defaults and seed zero, F32 improves from 51,179 to 53,802 of 65,536 on one processor and changes from 43,327 to 42,389 on the eight-processor capture. The one-processor 256² F16 original is now exact. One 2,048-pixel F32 setting loses two exact pixels on one processor. One U16 setting becomes exact on one processor and loses whole-frame agreement on eight. At 32 × 64, seed 456747, scale two, roughness one and disorder .84375, interleave four fresh renders with changed seeds. The new F32 result loses exactly two matches against each of the five one-processor frames, including two of the 1,709 invariant pixels. At 64 × 32, seed 162172, scale one, disorder .5625 and roughness .6015625, all five one-processor U16 frames match 2,048/2,048. The eight-processor captures give three distinct frames. All 2,045 invariant pixels agree, and each of the three varying pixels agrees with at least one capture. Subsequent submissions and processor-dependent differences remain open. [Earlier measurements and repeated captures](#leading-copy-batches-in-complete-quadrant-trees)
+
 ### Leading copy batches in complete quadrant trees
 
 In a complete eight-level grayscale quadrant tree, each pair of neighboring depth-two quadrants contains eight depth-three subtrees. Number the subtrees 0–63 in child-slot traversal order. When every pair emits two full batches of 5,460 physical copies plus a remainder smaller than a batch, the first tree submits 10,920 copies from each of the spans starting at subtrees 24, 40 and 8, in that order. This was measured with additive draws at every level from two through eight and a separate optional shape at level one. Copies outside the sampled pixels still count. A cut within a wrapped stamp separates individual copies. The renderer applies the measured prefix and keeps its existing traversal for the remaining deeper draws. [Shared evaluator](../crates/nodes/src/pattern/underfilled_quadrants.rs) · [Two-square regression](../crates/nodes/src/pattern/tests/underfilled_quadrants.rs)

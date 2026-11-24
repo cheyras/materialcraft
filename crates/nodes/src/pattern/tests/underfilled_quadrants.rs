@@ -69,8 +69,7 @@ fn wide_first_level_stamps_keep_the_order_of_deeper_draws() {
     assert_eq!(overlapping_subtree_pixel(1, -1.0, true).to_bits(), 2.0_f32.powi(-25).to_bits());
 }
 
-#[test]
-fn filled_quadrant_batches_submit_the_middle_pair_before_the_upper_pair() {
+fn filled_quadrant_pixel(negative: usize, positive: usize) -> f32 {
     let mut graph = PatternGraph::with_root(PatternNodeKind::Iterate);
     let iterate = graph.root.unwrap();
     let root = graph.add(PatternNodeKind::Quadrant).unwrap();
@@ -92,10 +91,13 @@ fn filled_quadrant_batches_submit_the_middle_pair_before_the_upper_pair() {
             let second = graph.add(PatternNodeKind::Quadrant).unwrap();
             graph.nodes[(first - 1) as usize].children[slot] = Some(second);
             let cell = [2 * (quadrant % 2) + slot % 2, 2 * (quadrant / 2) + slot / 2];
-            let gain = match 4 * quadrant + slot {
-                10 => -1.0,
-                2 => small,
-                _ => faint,
+            let ordinal = 4 * quadrant + slot;
+            let gain = if ordinal == negative {
+                -1.0
+            } else if ordinal == positive {
+                small
+            } else {
+                faint
             };
             let shift = if gain == faint { [0.0; 2] } else { cell.map(|i| 0.265625 - (i as f32 + 0.5) * 0.25) };
             let node = &mut graph.nodes[(second - 1) as usize];
@@ -104,5 +106,15 @@ fn filled_quadrant_batches_submit_the_middle_pair_before_the_upper_pair() {
         }
     }
     let image = cook_in_regions(graph, &BTreeMap::new(), 41381, [32; 2], [[0.0, 1.0, 0.0, 1.0]; 2], 1.0).unwrap().remove(0);
-    assert_eq!(image.get_gray(8, 8, false).to_bits(), small.to_bits());
+    image.get_gray(8, 8, false)
+}
+
+#[test]
+fn filled_quadrant_batches_submit_the_middle_pair_before_the_upper_pair() {
+    assert_eq!(filled_quadrant_pixel(10, 2).to_bits(), 2.0_f32.powi(-25).to_bits());
+}
+
+#[test]
+fn a_full_batch_collects_separate_ranges_of_the_last_quadrant() {
+    assert_eq!(filled_quadrant_pixel(15, 4).to_bits(), 2.0_f32.powi(-25).to_bits());
 }

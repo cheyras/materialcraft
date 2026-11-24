@@ -2,7 +2,7 @@ use materialcraft_core::{PatternNode, PatternNodeKind};
 
 use super::{
     footprint::SampleGrid,
-    pattern_stamp::{DrawPosition, DrawRun, PatternStamp},
+    pattern_stamp::{CopyPositions, DrawPosition, DrawRun, PatternStamp},
     raster::MIN_STAMP_SIZE,
     tile_runs::{COPIES_PER_BATCH, LEADING_SUBTREES},
 };
@@ -20,6 +20,9 @@ const GROUPS: [&[(usize, usize)]; 8] = [
     &[(30, 40), (66, 68)],
     &[(10, 20)],
 ];
+// After the leading pairs fill their batches, the last root child collects a
+// batch from these three ranges in submission order. They are separate in traversal.
+const LAST_CHILD_GROUP: usize = 4;
 const RANGES_PER_CHILD: usize = 1 + 4 * 5;
 const RANGES_PER_TREE: usize = 4 * RANGES_PER_CHILD;
 
@@ -56,6 +59,8 @@ pub(super) struct UnderfilledQuadrants {
     first_shape: Option<i32>,
     first_copies: u64,
     pairs: Vec<QuadrantPair>,
+    last_child_spans: [CopyPositions; GROUPS[LAST_CHILD_GROUP].len()],
+    last_child_span: Option<usize>,
     active_deep_draws: usize,
 }
 
@@ -91,8 +96,13 @@ impl UnderfilledQuadrants {
         if !parent {
             self.occupied.push(false);
         }
-        let Some(group) = GROUPS.iter().position(|spans| spans.iter().any(|&(lo, hi)| (lo..hi).contains(&segment))) else { return false };
+        let Some((group, span)) =
+            GROUPS.iter().enumerate().find_map(|(group, spans)| spans.iter().position(|&(lo, hi)| (lo..hi).contains(&segment)).map(|span| (group, span)))
+        else {
+            return false;
+        };
         self.group = group;
+        self.last_child_span = (group == LAST_CHILD_GROUP && self.visits[0] == 1).then_some(span);
         true
     }
 
@@ -127,6 +137,11 @@ impl UnderfilledQuadrants {
         }
         let Some(pair) = self.pairs.last_mut() else { return false };
         pair.record(count, index, retained);
+        if let Some(span) = self.last_child_span
+            && self.last_child_spans[span].record(count, retained).is_none()
+        {
+            return false;
+        }
         self.active_deep_draws += 1;
         self.copies[self.group] = self.copies[self.group].saturating_add(count);
         true
@@ -142,23 +157,41 @@ impl UnderfilledQuadrants {
             return None;
         }
         let position = |stamp| DrawPosition { stamp, copy: 0 };
-        let mut runs = Vec::new();
+        let mut leading = Vec::new();
         for group in LEADING_SUBTREES {
             let pair = self.pairs.get(group / 8)?;
-            runs.push(DrawRun::between(stamps, position(pair.start), pair.cut?)?);
+            leading.push((position(pair.start), pair.cut?));
         }
+        let copies: u64 = self.last_child_spans.iter().map(|span| u64::from(span.total)).sum();
+        if copies / u64::from(COPIES_PER_BATCH) == 1 {
+            let mut remaining = COPIES_PER_BATCH;
+            for (&(first, _), span) in GROUPS[LAST_CHILD_GROUP].iter().zip(&self.last_child_spans) {
+                let start = *self.starts.get(first + 1 + first / 20)?;
+                let count = remaining.min(span.total);
+                let end = span.at(count);
+                leading.push((position(start), DrawPosition { stamp: start.checked_add(end.stamp)?, copy: end.copy }));
+                remaining -= count;
+                if remaining == 0 {
+                    break;
+                }
+            }
+        }
+        leading.retain(|(start, end)| start < end);
+        let mut runs: Vec<_> = leading.iter().map(|&(start, end)| DrawRun::between(stamps, start, end)).collect::<Option<_>>()?;
+        // Remove the submitted pieces in traversal order. A wrapped stamp may contribute to both sides of a cut.
+        leading.sort_unstable();
+        let mut submitted = leading.into_iter().peekable();
         for tree in 0..trees {
             for child in 0..4 {
                 let base = tree * RANGES_PER_TREE + child * RANGES_PER_CHILD;
                 let mut start = position(*self.starts.get(base + 1)?);
-                if tree == 0
-                    && let Some(group) = LEADING_SUBTREES.iter().find(|&&group| group / 16 == child)
-                {
-                    let pair = self.pairs.get(group / 8)?;
-                    runs.push(DrawRun::between(stamps, start, position(pair.start))?);
-                    start = pair.cut?;
+                let end = position(*self.starts.get(base + RANGES_PER_CHILD)?);
+                while submitted.peek().is_some_and(|(first, _)| *first < end) {
+                    let (first, next) = submitted.next()?;
+                    runs.push(DrawRun::between(stamps, start, first)?);
+                    start = next;
                 }
-                runs.push(DrawRun::between(stamps, start, position(*self.starts.get(base + RANGES_PER_CHILD)?))?);
+                runs.push(DrawRun::between(stamps, start, end)?);
             }
         }
         Some(runs)
