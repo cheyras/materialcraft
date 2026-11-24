@@ -80,6 +80,18 @@ The same eleven fields expose a separate writable-variable discrepancy. Replace 
 
 The tint change preserves all measured MaterialCraft buffers in seven original and four reopened settings per root for Noise BNW Spots 1 and its second version. The original checks include exposed defaults, all four formats at 16 × 32, and two changed F32 settings. Against one- and eight-processor desktop captures the first version matches 20,618/20,992 and 20,455/20,992, maximum one U16 code. Its ordinary saves match 2,799/2,816, maximum 5.96046448e−8. The second version matches 20,904/20,992 at both processor counts, maximum 1.19209290e−7, and 4,273/4,352 on saves, maximum 5.96046448e−8. The outstanding dense F32 comparisons keep both roots in progress. [First version settings](#a-full-copy-batch-in-the-last-root-quadrant) · [Second version settings](#whole-root-precision-and-saved-comparisons-for-the-three-neighboring-spot-graphs)
 
+### The remaining sample in a dense draw-order replay
+
+Use Noise BNW Spots 1 at 16 × 32 in F32, with scale and roughness one, disorder zero and seed zero. The production renderer matches 403/512 pixels of the repeatable one-processor frame, maximum 1.19209290e−7. An independent replay of the recorded draw contributions orders 1,706 markers and locates 17 physical copy boundaries. It matches 511/512 pixels, maximum 5.96046448e−8. One of 387 additional pair comparisons also reverses. [Root settings and physical-copy measurements](#a-full-copy-batch-in-the-last-root-quadrant)
+
+At pixel (4,24), there are sixteen contributions. The replay adds .07803279906511307 before .02525315061211586, .03236100822687149 and .01711149513721466. To test their order, use two overlapping signed squares on a white background, with gains −1 and 2⁻²⁵, and swap their gains for a second read. Test thirteen pairs at the implicated positions, first alone and then with 150 unrelated pairs in the frame. Both measurements give the same thirteen answers. The .07803279906511307 contribution follows all three smaller weights. With their measured order, the pixel sum changes from .649192750453949 to the exact desktop value .6491926908493042. The rule that produces this order across seeds and copy distributions remains open.
+
+### Writable first reads through graph instances
+
+Inside a child graph, connect all four quadrant child slots to a square. In the parent quadrant's branch offset, assign a published scalar to a local and return (0,0). In the square's luminosity, read the same local and assign .375 if it equals itself, or .625 otherwise. Instantiate the graph five ways. Leaving the child input at its default, setting it to literal .4375 and computing it from literal .3125 + .125 each produce four .375 squares. Wiring the caller's published scalar, or computing .4375 plus zero times that scalar, produces .625 in the first square and .375 in the other three.
+
+Use 16² F32, seed 41301 and caller default .8125, then 32 × 16 F32, seed 41309 and caller value .3125. Ordinary saves reproduce all five reference results. MaterialCraft matches 2,304/2,304 pixels across the three fixed cases and 1,152/1,536 across the two caller-dependent cases. The same counts hold on originals and saves, with maximum errors zero and .25 respectively. [Direct first-read and tint comparisons](#undefined-components-in-a-computed-quadrant-tint)
+
 ## 2026-11-23 root comparisons
 
 ### Independent writable variables in six-level quadrant trees
