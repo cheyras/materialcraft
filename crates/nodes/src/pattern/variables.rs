@@ -71,6 +71,14 @@ impl<'a> PatternVariables<'a> {
         }
     }
 
+    pub(super) fn start_root_child(&mut self) {
+        // A six-level quadrant tree starts a separate evaluation task per root child.
+        // Active declarations on the root still supply values to read-only descendants.
+        for local in self.locals.values_mut() {
+            local.saved.clear();
+        }
+    }
+
     pub(super) fn resume(&mut self, pending_after_pop: usize) {
         // Once a waiting sibling is popped, the declaring node and all its descendants have finished.
         while self.scopes.last().is_some_and(|(pending, _)| pending_after_pop < *pending) {

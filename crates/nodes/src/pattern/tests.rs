@@ -1974,6 +1974,35 @@ fn quadrant_children_accumulate_in_their_own_depth() {
 }
 
 #[test]
+fn six_level_quadrant_children_start_independent_counters() {
+    for depth in [5, 6] {
+        let mut graph = PatternGraph::with_root(PatternNodeKind::Quadrant);
+        for level in 0..depth {
+            let next = graph.add(PatternNodeKind::Quadrant).unwrap();
+            graph.nodes[level].children.fill(Some(next));
+        }
+        square(&mut graph, depth);
+        let mut counter = FunctionGraph::input("count", materialcraft_core::ValueType::Float);
+        let previous = counter.output.unwrap();
+        let step = counter.add_constant(Value::Float(1.0 / 4096.0));
+        let next = counter.add("add", &[previous, step], None);
+        counter.output = Some(counter.add("set", &[next], Some(Value::Text("count".into()))));
+        graph.nodes[depth].parameters.insert("opacity".into(), Value::Function(Box::new(counter)));
+
+        let side = 1 << depth;
+        let image = cook_at_size(graph, &BTreeMap::new(), 598241, side).unwrap().remove(0);
+        let half = i64::from(side / 2);
+        for slot in 0..4 {
+            let x = slot % 2 * half;
+            let y = slot / 2 * half;
+            let first = if depth == 5 { 256 * slot + 1 } else { 1 };
+            assert_eq!(image.get_gray(x, y, false), first as f32 / 4096.0, "depth {depth}, child {slot}");
+            assert_eq!(image.get_gray(x + 1, y, false), (first + 1) as f32 / 4096.0);
+        }
+    }
+}
+
+#[test]
 fn quadrant_modes_read_published_inputs_and_shadow_outer_pattern_bindings() {
     use materialcraft_core::ValueType;
 

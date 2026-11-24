@@ -23,6 +23,22 @@ enum QuadrantChildren {
     Other,
 }
 
+fn has_uniform_quadrant_leaves(root: u32, depth: u32, nodes: &BTreeMap<u32, (&PatternNode, bool, QuadrantChildren)>) -> bool {
+    let mut level = BTreeSet::from([root]);
+    for current in 0..=depth {
+        let mut next = BTreeSet::new();
+        for id in level {
+            let Some(&(node, _, children)) = nodes.get(&id) else { return false };
+            if node.kind != PatternNodeKind::Quadrant || (children == QuadrantChildren::None) != (current == depth) {
+                return false;
+            }
+            next.extend(node.children.iter().flatten().copied());
+        }
+        level = next;
+    }
+    true
+}
+
 #[derive(Default)]
 struct SevenLevelRuns {
     seen_root: bool,
@@ -148,6 +164,9 @@ pub(super) fn cook_with_visit_limit(context: &CookContext, base_level_only: &[bo
     let mut branch_starts = [None; 4];
 
     let mut variables = PatternVariables::new(context.vars.graph_values());
+    let separate_child_variables = opacity_depth == 6
+        && functions.values().any(|(_, names)| !names.is_empty())
+        && graph.root.is_some_and(|root| has_uniform_quadrant_leaves(root, opacity_depth, &nodes));
     let mut max_depth = 0;
     let mut state = EvaluationState::default();
     let mut terminal_siblings: Option<(usize, bool)> = None;
@@ -181,6 +200,9 @@ pub(super) fn cook_with_visit_limit(context: &CookContext, base_level_only: &[bo
             terminal_siblings = None;
         }
         variables.resume(pending.len());
+        if separate_child_variables && visit.depth == 1 {
+            variables.start_root_child();
+        }
         max_depth = max_depth.max(visit.depth);
         if empty_switches.contains(&visit.node) {
             continue;

@@ -59,6 +59,25 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-23 root comparisons
 
+### Independent writable variables in six-level quadrant trees
+
+In a plain quadrant tree with six subdivision levels, each connected child of the root starts its own writable variable scope. Successive visits within that child retain the value at the declaring depth. With five full levels a counter spans all four root children. The evaluator checks the reachable nodes and terminal depths before starting separate scopes. An active declaration on the root remains available to descendants that only read it. [Scope handling](../crates/nodes/src/pattern/variables.rs) · [Traversal](../crates/nodes/src/pattern/evaluation.rs) · [Five- and six-level regression](../crates/nodes/src/pattern/tests.rs)
+
+Use a full six-level tree, a tree with all four root children followed by five single-child levels, and one with only opposite child slots at every level. For a five-level control, use all four slots throughout. At the leaves, draw a unit square and keep the first visited position in a local float. When the value is zero, write .125 + .5 × (1 + x + sy) / s², where s is the number of cells along an axis and (x,y) is the zero-based cell. Otherwise write the existing value. In the 64² complete tree the first positions have linear indices 0, 32, 2,048 and 2,080. There are four counters even when each root child contains only one leaf.
+
+For two other original fields, add 1/4,096 to a local counter at depth six or depth one in a complete six-level tree. Read the F32 field in a Pixel Processor using nearest sampling. Subtract the first pixel and add .125. For the depth-one field give the leaves a positive gain of 1e−30. Subtracting the first pixel removes an initial offset observed across separate reference renders of uninitialized variables. At 64² the depth-six field records 1,024 increments per root child. For both counter fields and all four first-position fields render s², 2s × s, s × s/2 and s × 2s. Use s = 64 for six levels and 32 for five. Use seed 598241 + 283i + j for size index i and format index j in the table order. Repeat after an ordinary save and reopen.
+
+| Output | Previous exact / 118,272 · max | Current original | Current ordinary save | Current max |
+|---|---:|---:|---:|---:|
+| U8 | 84,286 · 192 | 118,272/118,272 | 118,272/118,272 | 0 |
+| U16 | 67,390 · 49,151 | 118,272/118,272 | 118,272/118,272 | 0 |
+| F16 | 67,390 · .75 | 118,272/118,272 | 118,272/118,272 | 0 |
+| F32 | 67,390 · .75 | 118,272/118,272 | 118,272/118,272 | 0 |
+
+Across the inventory, ten roots contain eleven pure quadrant trees ending at depth six. Their reachable quadrant properties contain no direct Set. Compare the two 256² and 128 × 64 desktop controls for each of BNW Spots 1 and Clouds 1 and 2, then four 64² changed-format captures each for BNW Spots 3, Directional Noise, Dirt Gradient, Fluid, Microscope View, Scratches 4 and Wood Fibers 2. All 34 MaterialCraft buffers retain their earlier bits. The reference comparisons give 28,672/28,672 U8, 249,844/249,856 U16, 28,672/28,672 F16 and 28,659/28,672 F32, with maxima of 0, 2, 0 and 2.59876251e−5 respectively. The thirteen differing F32 pixels are one in Dirt Gradient and twelve in Wood Fibers 2. [Early noise roots and their desktop settings](#live-desktop-and-standalone-rendering-of-three-noise-roots)
+
+A separate read/write discrepancy already occurs with a single level of four sibling squares. In the root branch offset, assign a published input to a local float and return (0,0). Reading the local in a child gives the published .8125 or .3125. Adding .0625 and assigning the result to a different name gives .875 or .375. Assigning that same sum back to the name just read returns zero in the reference and accumulates across the four squares in MaterialCraft. The 16² default gives 0/256, maximum .25. Replacing that child expression with a literal assignment of .25 restores 256/256 agreement. In the six-level version using an increment of 1/4,096, the 64² default still gives 0/4,096 F32 pixels, maximum .25, on both the original and ordinary save. The read-only version matches 4,096/4,096 on both. Uninitialized first-position fields can also retain a value from an earlier capture. Only the specified measurements are marked exact.
+
 ### A full copy batch in the last root quadrant
 
 In a complete eight-level additive tree with two full batches per neighboring pair of depth-two quadrants, the next 5,460 physical copies come from three parts of the first tree. In zero-based child-slot traversal order, take the depth-two draw at 15, then the depth-three subtrees 62 and 63, then 48 and 49. Stop after 5,460 copies when these parts together contain one full batch and a smaller remainder. A cut within one wrapped stamp can submit some of its copies now and the others later. The shared evaluator uses the observed batch counts and the ordered spans. [Evaluator and shape conditions](../crates/nodes/src/pattern/underfilled_quadrants.rs) · [Two-square regression](../crates/nodes/src/pattern/tests/underfilled_quadrants.rs)
