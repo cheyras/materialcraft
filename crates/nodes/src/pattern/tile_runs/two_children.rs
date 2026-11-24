@@ -81,9 +81,10 @@ pub(super) fn ranges(subtree_ends: &[u32]) -> Option<Vec<Range<u32>>> {
     let ends: &[u32; 64] = subtree_ends.try_into().ok()?;
     let mut bounds = [0; 65];
     bounds[1..].copy_from_slice(ends);
-    let mut lead24 = leading_pair(&bounds, 24, 52)?;
-    let mut lead40 = leading_pair(&bounds, 40, 56)?;
-    let [lead8, mut tail8] = leading(&bounds, 8)?;
+    let [first, second, third] = super::LEADING_SUBTREES;
+    let mut lead24 = leading_pair(&bounds, first, 52)?;
+    let mut lead40 = leading_pair(&bounds, second, 56)?;
+    let [lead8, mut tail8] = leading(&bounds, third)?;
     let pair0 = paired(&bounds, 0, 58)?;
     let pair16 = paired(&bounds, 16, 50)?;
     let mut pair32 = paired(&bounds, 32, 54)?;

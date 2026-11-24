@@ -68,3 +68,41 @@ fn overlapping_subtrees_in_an_underfilled_eight_level_tree() {
 fn wide_first_level_stamps_keep_the_order_of_deeper_draws() {
     assert_eq!(overlapping_subtree_pixel(1, -1.0, true).to_bits(), 2.0_f32.powi(-25).to_bits());
 }
+
+#[test]
+fn filled_quadrant_batches_submit_the_middle_pair_before_the_upper_pair() {
+    let mut graph = PatternGraph::with_root(PatternNodeKind::Iterate);
+    let iterate = graph.root.unwrap();
+    let root = graph.add(PatternNodeKind::Quadrant).unwrap();
+    graph.nodes[(iterate - 1) as usize].children[1] = Some(root);
+    let faint = 2.0_f32.powi(-76);
+    let small = 2.0_f32.powi(-25);
+    let mut next = None;
+    for _ in (3..=8).rev() {
+        let id = graph.add(PatternNodeKind::Quadrant).unwrap();
+        let node = &mut graph.nodes[(id - 1) as usize];
+        node.parameters = additive_square(faint, [0.0; 2], [0.0; 2]);
+        node.children.fill(next);
+        next = Some(id);
+    }
+    for quadrant in 0..4 {
+        let first = graph.add(PatternNodeKind::Quadrant).unwrap();
+        graph.nodes[(root - 1) as usize].children[quadrant] = Some(first);
+        for slot in 0..4 {
+            let second = graph.add(PatternNodeKind::Quadrant).unwrap();
+            graph.nodes[(first - 1) as usize].children[slot] = Some(second);
+            let cell = [2 * (quadrant % 2) + slot % 2, 2 * (quadrant / 2) + slot / 2];
+            let gain = match 4 * quadrant + slot {
+                10 => -1.0,
+                2 => small,
+                _ => faint,
+            };
+            let shift = if gain == faint { [0.0; 2] } else { cell.map(|i| 0.265625 - (i as f32 + 0.5) * 0.25) };
+            let node = &mut graph.nodes[(second - 1) as usize];
+            node.parameters = additive_square(gain, [0.0; 2], shift);
+            node.children.fill(next);
+        }
+    }
+    let image = cook_in_regions(graph, &BTreeMap::new(), 41381, [32; 2], [[0.0, 1.0, 0.0, 1.0]; 2], 1.0).unwrap().remove(0);
+    assert_eq!(image.get_gray(8, 8, false).to_bits(), small.to_bits());
+}

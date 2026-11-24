@@ -2,9 +2,9 @@ use materialcraft_core::{PatternNode, PatternNodeKind};
 
 use super::{
     footprint::SampleGrid,
-    pattern_stamp::{DrawRun, PatternStamp},
+    pattern_stamp::{DrawPosition, DrawRun, PatternStamp},
     raster::MIN_STAMP_SIZE,
-    tile_runs::COPIES_PER_BATCH,
+    tile_runs::{COPIES_PER_BATCH, LEADING_SUBTREES},
 };
 
 // Each of the sixteen depth-two quadrants contributes five consecutive ranges:
@@ -24,6 +24,27 @@ const RANGES_PER_CHILD: usize = 1 + 4 * 5;
 const RANGES_PER_TREE: usize = 4 * RANGES_PER_CHILD;
 
 #[derive(Default)]
+struct QuadrantPair {
+    start: usize,
+    copies: u32,
+    cut: Option<DrawPosition>,
+}
+
+impl QuadrantPair {
+    fn record(&mut self, copies: u32, index: usize, retained: bool) {
+        let needed = (2 * COPIES_PER_BATCH).saturating_sub(self.copies);
+        if needed > 0 && needed <= copies {
+            self.cut = Some(if retained && needed < copies {
+                DrawPosition { stamp: index, copy: needed }
+            } else {
+                DrawPosition { stamp: index + usize::from(retained), copy: 0 }
+            });
+        }
+        self.copies = self.copies.saturating_add(copies);
+    }
+}
+
+#[derive(Default)]
 pub(super) struct UnderfilledQuadrants {
     // Indices into the retained stamps at each shallow quadrant, including empty ranges.
     starts: Vec<usize>,
@@ -34,6 +55,8 @@ pub(super) struct UnderfilledQuadrants {
     deeper_shape: Option<i32>,
     first_shape: Option<i32>,
     first_copies: u64,
+    pairs: Vec<QuadrantPair>,
+    active_deep_draws: usize,
 }
 
 impl UnderfilledQuadrants {
@@ -62,6 +85,9 @@ impl UnderfilledQuadrants {
         if (parent && depth != 2) || (!parent && depth != 3) {
             return false;
         }
+        if parent && segment.is_multiple_of(10) {
+            self.pairs.push(QuadrantPair { start: retained, ..Default::default() });
+        }
         if !parent {
             self.occupied.push(false);
         }
@@ -70,7 +96,7 @@ impl UnderfilledQuadrants {
         true
     }
 
-    pub(super) fn draw(&mut self, stamp: &PatternStamp, weights: &[f32], grid: Option<&SampleGrid>) -> bool {
+    pub(super) fn draw(&mut self, stamp: &PatternStamp, weights: &[f32], grid: Option<&SampleGrid>, index: usize, retained: bool) -> bool {
         let Some(weight) = weights.get(stamp.depth as usize) else { return false };
         let gain = weight * stamp.color[3];
         if stamp.blend != 0 || !(2..=16).contains(&stamp.pattern) || stamp.depth == 0 {
@@ -99,9 +125,43 @@ impl UnderfilledQuadrants {
             let Some(occupied) = self.occupied.last_mut() else { return false };
             *occupied = true;
         }
-        self.copies[self.group] += count;
-        // A full batch can split the subtree and move later submissions into another group.
-        self.copies[self.group] < COPIES_PER_BATCH
+        let Some(pair) = self.pairs.last_mut() else { return false };
+        pair.record(count, index, retained);
+        self.active_deep_draws += 1;
+        self.copies[self.group] = self.copies[self.group].saturating_add(count);
+        true
+    }
+
+    fn full_batches<'a>(&self, stamps: &'a [PatternStamp], trees: usize) -> Option<Vec<DrawRun<'a>>> {
+        // Every quadrant from depth two through eight emits a draw. When a pair
+        // fills a third batch the competing streams can interleave before this cut.
+        if self.active_deep_draws != self.visits[2..].iter().sum::<usize>()
+            || self.pairs.len() != trees * 8
+            || self.pairs.iter().any(|pair| pair.copies / COPIES_PER_BATCH != 2)
+        {
+            return None;
+        }
+        let position = |stamp| DrawPosition { stamp, copy: 0 };
+        let mut runs = Vec::new();
+        for group in LEADING_SUBTREES {
+            let pair = self.pairs.get(group / 8)?;
+            runs.push(DrawRun::between(stamps, position(pair.start), pair.cut?)?);
+        }
+        for tree in 0..trees {
+            for child in 0..4 {
+                let base = tree * RANGES_PER_TREE + child * RANGES_PER_CHILD;
+                let mut start = position(*self.starts.get(base + 1)?);
+                if tree == 0
+                    && let Some(group) = LEADING_SUBTREES.iter().find(|&&group| group / 16 == child)
+                {
+                    let pair = self.pairs.get(group / 8)?;
+                    runs.push(DrawRun::between(stamps, start, position(pair.start))?);
+                    start = pair.cut?;
+                }
+                runs.push(DrawRun::between(stamps, start, position(*self.starts.get(base + RANGES_PER_CHILD)?))?);
+            }
+        }
+        Some(runs)
     }
 
     pub(super) fn finish(mut self, stamps: &[PatternStamp]) -> Option<Vec<DrawRun<'_>>> {
@@ -115,7 +175,8 @@ impl UnderfilledQuadrants {
             return None;
         }
         self.starts.push(stamps.len());
-        let mut runs = Vec::new();
+        let filled = self.copies.iter().any(|&copies| copies >= COPIES_PER_BATCH);
+        let mut runs = if filled { self.full_batches(stamps, trees)? } else { Vec::new() };
         let mut range = |tree: usize, first: usize, end: usize| {
             let start = *self.starts.get(tree * RANGES_PER_TREE + first)?;
             let stop = *self.starts.get(tree * RANGES_PER_TREE + end)?;
@@ -125,12 +186,14 @@ impl UnderfilledQuadrants {
             }
             Some(())
         };
-        for spans in GROUPS {
-            for tree in 0..trees {
-                for &(first, end) in spans {
-                    // Insert the first-level marker at the start of each twenty-range child.
-                    let child_marker = 1 + first / 20;
-                    range(tree, child_marker + first, child_marker + end)?;
+        if !filled {
+            for spans in GROUPS {
+                for tree in 0..trees {
+                    for &(first, end) in spans {
+                        // Insert the first-level marker at the start of each twenty-range child.
+                        let child_marker = 1 + first / 20;
+                        range(tree, child_marker + first, child_marker + end)?;
+                    }
                 }
             }
         }

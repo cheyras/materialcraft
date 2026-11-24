@@ -59,6 +59,32 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-23 root comparisons
 
+### Leading copy batches in complete quadrant trees
+
+In a complete eight-level grayscale quadrant tree, each pair of neighboring depth-two quadrants contains eight depth-three subtrees. Number the subtrees 0–63 in child-slot traversal order. When every pair emits two full batches of 5,460 physical copies plus a remainder smaller than a batch, the first tree submits 10,920 copies from each of the spans starting at subtrees 24, 40 and 8, in that order. This was measured with additive draws at every level from two through eight and a separate optional shape at level one. Copies outside the sampled pixels still count. A cut within a wrapped stamp separates individual copies. The renderer applies the measured prefix and keeps its existing traversal for the remaining deeper draws. [Shared evaluator](../crates/nodes/src/pattern/underfilled_quadrants.rs) · [Two-square regression](../crates/nodes/src/pattern/tests/underfilled_quadrants.rs)
+
+For a minimal whole image, start with white, roughness zero and .875-square additive stamps at depths two through eight. Give ordinary stamps gain 2⁻⁷⁶. At depth two move two squares to (.265625,.265625) and expose their gains. Use the four (negative, positive) quadrant pairs (10,2), (2,0), (6,10) and (0,6). Use an outer one-repeat Iterate on the first and third trees, a plain quadrant on the other two, and faint first-level Gaussians on the last two. At 32², 16 × 32, 32 × 16 and 64 × 32 use (−1,2⁻²⁵), (−.5,2⁻²⁵), (−1,2⁻²⁴) and (2⁻²⁵,−1). The first pair uses the exposed defaults. Use seed 41381 + 103i + j with size index i and format index j in U8, U16, F16, F32 order. At the first 32² F32 readout the previous renderer returned zero and the reference returned 2⁻²⁵.
+
+| Output | Previous original exact / 16,384 · max | Current original | Current ordinary save | Current max |
+|---|---:|---:|---:|---:|
+| U8 | 16,384 · 0 | 16,384/16,384 | 16,384/16,384 | 0 |
+| U16 | 16,384 · 0 | 16,384/16,384 | 16,384/16,384 | 0 |
+| F16 | 16,321 · 2⁻²⁴ | 16,384/16,384 | 16,384/16,384 | 0 |
+| F32 | 15,782 · 2⁻²⁴ | 16,384/16,384 | 16,384/16,384 | 0 |
+
+All 131,072 typed comparisons match. Separately, compare signed marker pairs in five procedural fields spanning one, two and four trees, squares and paraboloids, and both uniform and spatially varying counts of one, two and four copies. Keep a positive subpixel gain on the unmarked draws. Each depth-three subtree contains 1,365 logical draws. All 1,435/1,435 ordering comparisons agree. For a negative control with two trees, double the copies except in depth-two pairs starting at 2, 6 and 10 of the first tree. Some pairs now fill four batches. Five of 287 predictions reverse in two independent runs. The implementation tests the batch counts for every pair. Cuts one copy into a two-copy stamp and one, two or three copies into a four-copy stamp pass all 84 signed boundary comparisons. The earlier repeated-tree, variable-footprint, wide-shape and underfilled controls retain 1,007,616/1,007,616 exact pixels in 117 settings.
+
+| Noise BNW Spots 1 | One processor · exact / total · max | Eight processors · exact / total · max | Ordinary saves · exact / total · max |
+|---|---:|---:|---:|
+| U8 | 108,800/108,800 · 0 | 108,799/108,800 · 1 | 90,112/90,112 · 0 |
+| U16 | 328,323/328,448 · 1 | 328,278/328,448 · 1 | 93,679/93,696 · 1 |
+| F16 | 108,797/108,800 · .00048828125 | 108,799/108,800 · .00048828125 | 6,400/6,400 · 0 |
+| F32 | 249,426/295,680 · 2.38418579e−7 | 236,152/295,680 · 3.57627869e−7 | 5,911/6,144 · 2.38418579e−7 |
+
+Across the 86 settings, exact counts change from 782,741 to 795,346 of 841,728 on one processor and from 788,160 to 782,028 on eight. Nineteen ordinary saves change from 196,084 to 196,102 of 196,352. On one processor two additional U16 settings are exact and all 27 previously differing F32 settings improve. At 16 × 32, scale one, roughness one, zero disorder and seed zero, all four original and four reopened F32 captures give 393/512, previously 370/512, maximum 1.19209290e−7. The early levels still match 512/512. At 256², exposed defaults and seed zero, five single-processor captures agree. F32 improves from 43,491 to 51,179 of 65,536, while F16 changes from 65,535 to 65,534 of 65,536. No previously exact single-processor setting loses whole-frame agreement.
+
+Four previously exact eight-processor settings have one differing pixel each in the recorded frames. Repeat the 16 × 32 scale-one U16 setting, the 64 × 128 U16 setting at seed 456840, and both 256² default floating-point formats four times, interleaving changed seeds. Including the recorded eight-processor result, the latter three settings each give five distinct frames. At the separate 16 × 32 U16 default in the second series, five measurements on each processor count reproduce their own result. MaterialCraft matches 512/512 on one and 511/512 on eight, maximum one. Later batches and processor-dependent ordering remain open. [Whole-root settings and prior counts](#first-level-draw-order-in-repeated-spot-quadrants) · [Independent pixel-order replay](#connected-inactive-descendants-and-dense-quadrant-draw-order)
+
 ### Dense settings recovered in the third spots graph
 
 Build `f27ef77` renders six of the fourteen Noise BNW Spots 3 settings that previously reached the traversal bound. Compare the raw output to the recorded one- and eight-processor reference frames. At 64² use scale 3, disorder .34375, non-square expansion enabled and seed 411578. At 128² use scale 3, disorder .65625, non-square expansion disabled and seed 411761. In both rows keep the remaining exposed defaults.

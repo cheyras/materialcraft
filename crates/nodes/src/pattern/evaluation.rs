@@ -350,7 +350,10 @@ pub(super) fn cook_with_visit_limit(context: &CookContext, base_level_only: &[bo
                     // Evaluate every property before discarding a stamp. Its assignments can reach
                     // later visits. Keep the first stamp so raster setup still validates depth weights.
                     let missed = !stamps.is_empty() && grid.as_ref().is_some_and(|grid| grid.misses(&stamp));
-                    if underfilled.as_mut().is_some_and(|runs| !runs.draw(&stamp, opacities.as_deref().unwrap_or_default(), grid.as_ref())) {
+                    if underfilled
+                        .as_mut()
+                        .is_some_and(|runs| !runs.draw(&stamp, opacities.as_deref().unwrap_or_default(), grid.as_ref(), stamps.len(), !missed))
+                    {
                         underfilled = None;
                     }
                     if sparse_runs.as_mut().is_some_and(|runs| runs.draw(&stamp, opacities.as_deref().unwrap_or_default(), !missed).is_none()) {
