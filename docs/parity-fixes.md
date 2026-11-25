@@ -76,6 +76,17 @@ For an independent image, draw .875 squares at depths two through eight, with ba
 
 Including 128² U16 at exposed defaults and the 16 × 32 seed-zero U8, U16 and F16 settings gives 24,145/25,088 exact original pixels on one processor, up from 24,115, and 23,763/25,088 on eight, down from 23,767. The maximum integer error is one U16 code. Four original and four reopened repeat captures of the seed-zero F32 setting each give 404/512. Four other saved settings retain 2,799/2,816 exact pixels, maximum 5.96046448e−8. The second version of the root retains every previous bit in the eight original and four saved settings. The order of subsequent batches and processor-dependent differences remain open.
 
+Repeating the [86 distinct original settings and 19 ordinary saves](#a-full-copy-batch-in-the-last-root-quadrant) gives these whole-root results. Integer errors count storage codes. Floating-point counts compare stored bits and maxima give absolute errors.
+
+| Noise BNW Spots 1 storage | One processor · exact pixels · max | Eight processors · exact pixels · max | Reopened · exact pixels · max |
+|---|---:|---:|---:|
+| U8 | 108,800/108,800 · 0 | 108,799/108,800 · 1 | 90,112/90,112 · 0 |
+| U16 | 328,353/328,448 · 1 | 328,258/328,448 · 1 | 93,683/93,696 · 1 |
+| F16 | 108,799/108,800 · .0001220703125 | 108,799/108,800 · .00048828125 | 6,400/6,400 · 0 |
+| F32 | 256,650/295,680 · 2.38418579e−7 | 234,986/295,680 · 3.57627869e−7 | 5,925/6,144 · 2.38418579e−7 |
+
+On one processor, 25 settings gained exact pixels, 61 retained their counts and 46 match completely. The total rose from 799,592 to 802,602 of 841,728. The newly exact setting is 128 × 64 U16, seed 411625, scale two, disorder and roughness .96875, nonsquare expansion disabled. On eight processors, seven settings gained pixels, fifteen lost pixels and 64 retained their counts. The total rose from 780,781 to 780,842 of 841,728, with 39 completely exact settings. One saved setting gained five exact F32 pixels, bringing the reopened total to 196,120/196,352. Fourteen of the nineteen saved settings match completely.
+
 The two-square regression first returned zero in place of 2⁻²⁵. All 506 release tests for the node library and evaluator, formatting, strict workspace Clippy, dependency layers and WebAssembly pass.
 
 ### Connected image properties and the first quadrant draw
