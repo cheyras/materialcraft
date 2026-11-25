@@ -73,6 +73,7 @@ enum Continuation {
     None,
     EmptySwitch,
     InactiveBranch(u32),
+    RoutedIteration(PatternNodeKind),
 }
 
 fn on_tree_pass(graph: &mut FunctionGraph, pass: i32) -> u32 {
@@ -179,7 +180,12 @@ fn marked_tree_pixel(
         }
         parents = children;
     }
-    if let Continuation::InactiveBranch(depth) = continuation {
+    let inactive_depth = match continuation {
+        Continuation::InactiveBranch(depth) => Some(depth),
+        Continuation::RoutedIteration(_) => Some(10),
+        _ => None,
+    };
+    if let Some(depth) = inactive_depth {
         let mut child = graph.add(PatternNodeKind::Quadrant).unwrap();
         for _ in 0..depth {
             let parent = graph.add(PatternNodeKind::Quadrant).unwrap();
@@ -189,6 +195,11 @@ fn marked_tree_pixel(
         let switch = graph.add(PatternNodeKind::Switch).unwrap();
         graph.nodes[(switch - 1) as usize].children = vec![Some(root), Some(child)];
         graph.nodes[(iterate - 1) as usize].children[1] = Some(switch);
+    }
+    if let Continuation::RoutedIteration(kind) = continuation {
+        let relay = graph.add(kind).unwrap();
+        graph.nodes[(relay - 1) as usize].children[0] = Some(iterate);
+        graph.root = Some(relay);
     }
     let image = cook_in_regions(graph, &BTreeMap::new(), 41381, [32; 2], [[0.0, 1.0, 0.0, 1.0]; 2], 1.0).unwrap().remove(0);
     image.get_gray(8, 8, false)
@@ -225,6 +236,20 @@ fn wrapped_copies_can_fill_a_third_batch_in_the_next_tree() {
     let pixel = |subtrees: &[usize]| marked_tree_pixel((3, 30), (2, 10), Continuation::EmptySwitch, subtrees, Some([2, 2]), Some(2));
     assert_eq!(pixel(&[25]).to_bits(), 2.0_f32.powi(-25).to_bits());
     assert_eq!(pixel(&[]).to_bits(), 0);
+}
+
+#[test]
+fn a_second_tree_quadrant_precedes_the_last_first_tree_pair_at_depth_ten() {
+    let pixel = marked_tree_pixel((2, 2), (3, 60), Continuation::InactiveBranch(10), &[], Some([2, 1]), None);
+    assert_eq!(pixel.to_bits(), 2.0_f32.powi(-25).to_bits());
+}
+
+#[test]
+fn outer_iteration_retains_its_batches_through_a_routing_node() {
+    for kind in [PatternNodeKind::Switch, PatternNodeKind::Dot] {
+        let pixel = marked_tree_pixel((2, 2), (3, 60), Continuation::RoutedIteration(kind), &[], Some([2, 1]), None);
+        assert_eq!(pixel.to_bits(), 2.0_f32.powi(-25).to_bits());
+    }
 }
 
 #[test]

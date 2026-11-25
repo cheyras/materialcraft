@@ -299,7 +299,7 @@ fn evaluate(context: &CookContext, base_level_only: &[bool], visit_limit: usize,
             pending.push((next, repeats_left - 1));
         }
         let &(node, literal_geometry, quadrant_children) = nodes.get(&visit.node).ok_or("missing pattern node")?;
-        if underfilled.as_mut().is_some_and(|runs| !runs.visit(node, visit.depth, stamps.len(), Some(node.id) == graph.root)) {
+        if underfilled.as_mut().is_some_and(|runs| !runs.visit(node, visit.depth, stamps.len())) {
             underfilled = None;
         }
         if seven_level_runs.as_mut().is_some_and(|runs| !runs.visit(node, visit.depth, stamps.len())) {

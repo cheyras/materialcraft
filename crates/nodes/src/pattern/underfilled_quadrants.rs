@@ -28,8 +28,8 @@ const LAST_CHILD_GROUP: usize = 4;
 // Indexed by child slot within the last root quadrant. Each group can fill a
 // batch with its depth-two draw and its last two child subtrees alone.
 const COLLECTING_GROUPS: [usize; 4] = [0, 1, 2, LAST_CHILD_GROUP];
-// The first two leading pairs receive pending subtrees before continuing in the next tree.
-const REPEATED_GROUPS: [usize; 2] = [6, 5];
+// The three leading pairs carry unfinished copy batches into the following tree.
+const REPEATED_GROUPS: [usize; 3] = [6, 5, 7];
 const RANGES_PER_CHILD: usize = 1 + 4 * 5;
 const RANGES_PER_TREE: usize = 4 * RANGES_PER_CHILD;
 
@@ -61,7 +61,7 @@ struct FollowingPair {
     third_child: u32,
     fourth_child: u32,
     fourth_child_branches: [u32; 4],
-    deferred_subtrees: [u32; 3],
+    deferred_subtrees: [u32; 4],
 }
 
 impl FollowingPair {
@@ -78,7 +78,7 @@ impl FollowingPair {
             4 if self.children == 4 => self.fourth_child_branches[(visits_at_depth - 1) % 4] = copies,
             5 if self.children == 2 => self.second_child_tail = [self.second_child_tail[1], copies],
             5 if self.children == 4 => {
-                // The first two subtrees of the second branch join separate later batches.
+                // Consecutive subtrees of the second branch join separate later batches.
                 let child = (visits_at_depth - 1) % 16;
                 if let Some(offset) = child.checked_sub(4).and_then(|i| self.deferred_subtrees.get_mut(i)) {
                     *offset = copies;
@@ -127,6 +127,7 @@ pub(super) struct UnderfilledQuadrants {
     // Indices into the retained stamps at each shallow quadrant, including empty ranges.
     starts: Vec<usize>,
     visits: [usize; 9],
+    saw_iteration: bool,
     occupied: Vec<bool>,
     copies: [u32; GROUPS.len()],
     group: usize,
@@ -137,13 +138,13 @@ pub(super) struct UnderfilledQuadrants {
     collecting: [CollectingGroup; COLLECTING_GROUPS.len()],
     repeated: [RepeatedPair; REPEATED_GROUPS.len()],
     tracked_span: Option<TrackedSpan>,
-    has_deeper_level: bool,
+    graph_depth: u32,
     active_deep_draws: usize,
 }
 
 impl UnderfilledQuadrants {
     pub(super) fn new(graph_depth: u32) -> Self {
-        Self { has_deeper_level: graph_depth > 8, ..Self::default() }
+        Self { graph_depth, ..Self::default() }
     }
 
     fn tracked_span(&self, group: usize, span: usize) -> Option<TrackedSpan> {
@@ -160,9 +161,14 @@ impl UnderfilledQuadrants {
         }
     }
 
-    pub(super) fn visit(&mut self, node: &PatternNode, depth: u32, retained: usize, root: bool) -> bool {
+    pub(super) fn visit(&mut self, node: &PatternNode, depth: u32, retained: usize) -> bool {
         match node.kind {
-            PatternNodeKind::Iterate => return root && node.children.first() == Some(&None),
+            PatternNodeKind::Iterate => {
+                // A switch or dot can route to the outer iteration before any quadrant runs.
+                let outer = !self.saw_iteration && self.visits[0] == 0 && depth == 0;
+                self.saw_iteration = true;
+                return outer && node.children.first() == Some(&None);
+            }
             PatternNodeKind::Switch | PatternNodeKind::Dot => return true,
             PatternNodeKind::Quadrant => {}
         }
@@ -308,7 +314,7 @@ impl UnderfilledQuadrants {
             }
             let late = group.reaches_final_subtrees();
             // At connected depth eight only the third slot submits two consecutive batches in this prefix.
-            if late && (self.has_deeper_level || slot == 2) {
+            if late && (self.graph_depth > 8 || slot == 2) {
                 self.append_paired_batches(slot, leading)?;
             } else {
                 self.append_batch(slot, leading)?;
@@ -332,22 +338,30 @@ impl UnderfilledQuadrants {
     }
 
     fn append_repeated_pairs(&self, leading: &mut Vec<(DrawPosition, DrawPosition)>) -> Option<()> {
-        if !self.has_deeper_level || self.visits[0] < 2 {
+        if self.graph_depth <= 8 || self.visits[0] < 2 {
             return Some(());
         }
         let first_group = &self.collecting[0];
         let deferred = &first_group.pair.deferred_subtrees;
         let branch_start = self.span_start(0, COLLECTING_GROUPS[0], 2)?;
-        let mut runs = Vec::with_capacity(8);
+        let mut runs = Vec::with_capacity(12);
         for (slot, &group) in REPEATED_GROUPS.iter().enumerate() {
             let subtree = LEADING_SUBTREES[slot];
             let pair = self.pairs.get(subtree / 8)?;
             let repeated = &self.repeated[slot];
-            // The pair's remainder and two neighboring subtrees precede a pending
-            // depth-five subtree. Those pending subtrees arrive in reverse child order.
-            let branch = deferred[1 - slot]..deferred[2 - slot];
+            let (middle_start, middle, range, branch) = if slot == 2 {
+                // Connected depths nine and eleven can submit the depth-five draw after
+                // the next tree's pair. Only depth ten establishes this complete prefix.
+                if self.graph_depth != 10 {
+                    break;
+                }
+                let fourth = &first_group.pair.fourth_child_branches;
+                (branch_start, &first_group.spans[2], fourth[2]..fourth[3], deferred[2]..deferred[3])
+            } else {
+                (self.span_start(0, group, 1)?, &repeated.middle, 0..repeated.middle.total, deferred[1 - slot]..deferred[2 - slot])
+            };
             let tail = pair.copies.checked_sub(2 * COPIES_PER_BATCH)?;
-            let carried = tail.checked_add(repeated.middle.total)?.checked_add(branch.end.checked_sub(branch.start)?)?;
+            let carried = tail.checked_add(range.end.checked_sub(range.start)?)?.checked_add(branch.end.checked_sub(branch.start)?)?;
             if carried >= COPIES_PER_BATCH {
                 // Either stream filling before the next tree can change their relative order.
                 return Some(());
@@ -357,7 +371,7 @@ impl UnderfilledQuadrants {
             let next_copies = repeated.next.total.checked_sub(available % COPIES_PER_BATCH)?;
             let end = *self.starts.get((subtree / 16 + 1) * RANGES_PER_CHILD)?;
             runs.push((pair.cut?, DrawPosition { stamp: end, copy: 0 }));
-            runs.push(Self::copy_range(self.span_start(0, group, 1)?, &repeated.middle, 0..repeated.middle.total)?);
+            runs.push(Self::copy_range(middle_start, middle, range)?);
             runs.push(Self::copy_range(branch_start, &first_group.spans[2], branch)?);
             runs.push(Self::copy_range(self.span_start(1, group, 0)?, &repeated.next, 0..next_copies)?);
         }
