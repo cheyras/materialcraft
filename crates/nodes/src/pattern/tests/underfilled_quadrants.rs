@@ -69,14 +69,20 @@ fn wide_first_level_stamps_keep_the_order_of_deeper_draws() {
     assert_eq!(overlapping_subtree_pixel(1, -1.0, true).to_bits(), 2.0_f32.powi(-25).to_bits());
 }
 
-fn filled_quadrant_pixel(negative: usize, positive: usize) -> f32 {
+enum Continuation {
+    None,
+    EmptySwitch,
+    InactiveBranch(u32),
+}
+
+fn filled_quadrant_pixel(negative: usize, positive: usize, continuation: Continuation) -> f32 {
     let mut graph = PatternGraph::with_root(PatternNodeKind::Iterate);
     let iterate = graph.root.unwrap();
     let root = graph.add(PatternNodeKind::Quadrant).unwrap();
     graph.nodes[(iterate - 1) as usize].children[1] = Some(root);
     let faint = 2.0_f32.powi(-76);
     let small = 2.0_f32.powi(-25);
-    let mut next = None;
+    let mut next = matches!(continuation, Continuation::EmptySwitch).then(|| graph.add(PatternNodeKind::Switch).unwrap());
     for _ in (3..=8).rev() {
         let id = graph.add(PatternNodeKind::Quadrant).unwrap();
         let node = &mut graph.nodes[(id - 1) as usize];
@@ -105,21 +111,46 @@ fn filled_quadrant_pixel(negative: usize, positive: usize) -> f32 {
             node.children.fill(next);
         }
     }
+    if let Continuation::InactiveBranch(depth) = continuation {
+        let mut child = graph.add(PatternNodeKind::Quadrant).unwrap();
+        for _ in 0..depth {
+            let parent = graph.add(PatternNodeKind::Quadrant).unwrap();
+            graph.nodes[(parent - 1) as usize].children[0] = Some(child);
+            child = parent;
+        }
+        let switch = graph.add(PatternNodeKind::Switch).unwrap();
+        graph.nodes[(switch - 1) as usize].children = vec![Some(root), Some(child)];
+        graph.nodes[(iterate - 1) as usize].children[1] = Some(switch);
+    }
     let image = cook_in_regions(graph, &BTreeMap::new(), 41381, [32; 2], [[0.0, 1.0, 0.0, 1.0]; 2], 1.0).unwrap().remove(0);
     image.get_gray(8, 8, false)
 }
 
 #[test]
 fn filled_quadrant_batches_submit_the_middle_pair_before_the_upper_pair() {
-    assert_eq!(filled_quadrant_pixel(10, 2).to_bits(), 2.0_f32.powi(-25).to_bits());
+    assert_eq!(filled_quadrant_pixel(10, 2, Continuation::None).to_bits(), 2.0_f32.powi(-25).to_bits());
 }
 
 #[test]
 fn a_full_batch_collects_separate_ranges_of_the_last_quadrant() {
-    assert_eq!(filled_quadrant_pixel(15, 4).to_bits(), 2.0_f32.powi(-25).to_bits());
+    assert_eq!(filled_quadrant_pixel(15, 4, Continuation::None).to_bits(), 2.0_f32.powi(-25).to_bits());
 }
 
 #[test]
 fn a_filled_batch_can_start_in_the_first_branch_of_the_last_quadrant() {
-    assert_eq!(filled_quadrant_pixel(12, 0).to_bits(), 2.0_f32.powi(-25).to_bits());
+    assert_eq!(filled_quadrant_pixel(12, 0, Continuation::None).to_bits(), 2.0_f32.powi(-25).to_bits());
+}
+
+#[test]
+fn a_closed_switch_below_the_final_quadrants_changes_the_next_full_batch() {
+    let small = 2.0_f32.powi(-25).to_bits();
+    assert_eq!(filled_quadrant_pixel(5, 0, Continuation::None).to_bits(), 0);
+    assert_eq!(filled_quadrant_pixel(5, 0, Continuation::EmptySwitch).to_bits(), small);
+    assert_eq!(filled_quadrant_pixel(0, 5, Continuation::EmptySwitch).to_bits(), 0);
+}
+
+#[test]
+fn an_inactive_branch_contributes_its_connected_quadrant_depth() {
+    assert_eq!(filled_quadrant_pixel(5, 0, Continuation::InactiveBranch(8)).to_bits(), 0);
+    assert_eq!(filled_quadrant_pixel(5, 0, Continuation::InactiveBranch(9)).to_bits(), 2.0_f32.powi(-25).to_bits());
 }

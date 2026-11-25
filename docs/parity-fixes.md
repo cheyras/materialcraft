@@ -59,6 +59,42 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-25 root comparisons
 
+### Connected graph depth and the ninth quadrant batch
+
+Start with the [complete eight-level tree and its first eight batches](#the-next-full-batch-in-an-eight-level-quadrant-tree). Draw .875 squares at depths two through eight on white, with roughness zero and gain 2⁻⁷⁶. Place depth-two squares 5 and 0 together at (.265625, .265625) with respective gains −1 and 2⁻²⁵. The center sample at 32² F32 is zero. Connect an empty Switch to one child slot of a final quadrant and the sample becomes 2⁻²⁵. Exchanging the gains reverses both results. Connecting the first leaf, the last leaf, any one of the four root subtrees or all leaves gives the same change. Disconnecting that edge restores the original result.
+
+The deciding property is the maximum quadrant depth connected to the root. Put the entire eight-level tree on the selected side of a Switch. On the other side, attach a chain reaching depth three, eight, nine or ten. Without executing any node in that chain, depths three and eight give zero and depths nine and ten give 2⁻²⁵. A disconnected ten-level chain gives zero. A separate field marked 714 pairs of draws. All 714 orders agreed with the deeper sequence for both the nine- and ten-level chains. An eight-level chain reversed 88 pairs, including 73 comparisons through the ninth batch. [Graph depth](../crates/core/src/pattern_graph.rs) · [Renderer and regressions](../crates/nodes/src/pattern/tests/underfilled_quadrants.rs)
+
+When the eighth batch reaches one of the last two depth-five subtrees in subtree 17, a deeper connected graph can submit a second batch from the same stream. Continue up to the start of subtree 18, take subtree 19's own draw and its final depth-four branch, then continue through quadrant 5 until both batches contain 10,920 physical copies. The shared renderer counts wrapped copies and copies that miss the image. Across ten qualifying distributions, all 3,177 signed-pair comparisons agreed. Unconditionally extending the sequence failed 801 of 5,180 comparisons in sixteen other distributions. [Copy submissions](../crates/nodes/src/pattern/underfilled_quadrants.rs)
+
+Beginning with one copy per draw, put 167 additional copies early in subtree 50. The first of the final two depth-five subtrees now begins at copy offset 5,459 and all 397 checked pairs retain their order. Adding one more copy moves that offset to 5,460 and reverses 16 pairs. Placing the same 168 copies in subtree 16 gives the same result. Adding 360 copies within the final 169 draws of subtree 17 preserves all 396 comparable pairs. A separate two-tree probe put the 10,920-copy cut inside a two- or four-copy stamp. All 56 edge and corner comparisons agreed in both gain directions.
+
+For an independent image comparison, use depth-two pairs (5,0), (0,5) and (5,1). Connect a Switch below each leaf with an unselected quadrant on its true side. Select that side only when the horizontal size exponent reaches nine. Render at 32² with gains (−1,2⁻²⁵), 16 × 32 with (−.5,2⁻²⁵), 32 × 16 with (−1,2⁻²⁴) and 64 × 32 with (2⁻²⁵,−1). At each size render U8, U16, F16 and F32 using consecutive seeds beginning at 41381, 41484, 41587 and 41690 respectively. Save each graph normally in MaterialCraft and reopen it in both applications. The reference pixels agree between original and reopened packages at all 48 settings.
+
+| Storage | Previous exact pixels | Previous maximum | Current original | Current reopened | Maximum on both |
+|---|---:|---:|---:|---:|---:|
+| U8 | 12,288/12,288 | 0 | 12,288/12,288 | 12,288/12,288 | 0 |
+| U16 | 12,288/12,288 | 0 | 12,288/12,288 | 12,288/12,288 | 0 |
+| F16 | 12,225/12,288 | 2⁻²⁴ | 12,288/12,288 | 12,288/12,288 | 0 |
+| F32 | 11,784/12,288 | 2⁻²⁴ | 12,288/12,288 | 12,288/12,288 | 0 |
+
+On the [eight previously recorded Noise BNW Spots 1 settings](#the-next-full-batch-in-an-eight-level-quadrant-tree), the one-processor count rises from 24,145 to 24,180 of 25,088 exact pixels. The eight-processor count falls from 23,763 to 23,743. On one processor the two 16 × 32 F32 settings improve from 404 to 416 and from 403 to 409 of 512 pixels. The 32 × 64 setting improves from 1,914 to 1,925 of 2,048 and the 64² setting from 3,510 to 3,512 of 4,096. Their maximum absolute errors are 1.19209290e−7, 1.19209290e−7, 5.96046448e−8 and 2.38418579e−7 respectively. Four ordinary saves retain 2,799/2,816, maximum 5.96046448e−8.
+
+The full 86-setting comparison gives 806,533/841,728 on one processor and 780,289/841,728 on eight. Of the one-processor settings, 27 gained exact pixels, three lost exact pixels and 56 retained their counts. Forty-seven match completely. On eight processors seven gained, 22 lost and 57 retained their counts. Thirty-eight match completely. The 64 × 128 F16 setting at seed 411686, scale one, disorder and roughness .1875 and nonsquare expansion enabled became exact on one processor and lost one exact pixel on eight. Nineteen ordinary saves improved to 196,125/196,352 with 14 completely exact settings. Four original and four reopened captures of the 16 × 32 seed-zero F32 setting each give 416/512.
+
+| Storage | One processor · exact pixels · maximum | Eight processors · exact pixels · maximum | Reopened · exact pixels · maximum |
+|---|---:|---:|---:|
+| U8 | 108,800/108,800 · 0 | 108,799/108,800 · 1 | 90,112/90,112 · 0 |
+| U16 | 328,361/328,448 · 1 | 328,258/328,448 · 1 | 93,687/93,696 · 1 |
+| F16 | 108,800/108,800 · 0 | 108,798/108,800 · .00048828125 | 6,400/6,400 · 0 |
+| F32 | 260,572/295,680 · 2.38418579e−7 | 234,434/295,680 · 3.57627869e−7 | 5,926/6,144 · 2.38418579e−7 |
+
+The 32 single-edge and mixed-connectivity controls improve from 31,298/32,768 to 32,768/32,768. The twelve unselected-branch controls improve from 11,994/12,288 to 12,288/12,288. Both previous maxima were 2⁻²⁵, and both current maxima are zero. The 397 earlier settings retain 1,294,280/1,294,336 exact pixels, maximum 5.29395623e−23. A separate high-density control adds 2,729 copies within subtree 58. Quadrant 14 and subtrees 58 and 59 now fill 5,460 copies before joining any other subtree. Their batch precedes the draws from quadrants 2 and 3 in all sixteen signed comparisons with those two batches. This early submission and the remaining later batches are open.
+
+The full measurement after the preceding eighth-batch change also covered the second version of Noise BNW Spots 1. All 87 original settings and 19 ordinary saves retained their previous output bits. The one-processor total was 831,506/842,752 and the eight-processor total was 831,311/842,752. Saved files matched 137,715/139,008. The [per-format counts and errors](#dense-settings-recovered-in-the-third-spots-graph) still apply to that comparison.
+
+The closed-Switch regression returned zero in place of 2⁻²⁵ before the change. The node library and evaluator passed all 510 release tests. Formatting, strict workspace Clippy, dependency layers and WebAssembly also passed.
+
 ### Published filter properties upstream of a quadrant draw
 
 Connect each of six filters to the unused pattern image socket of the [four-square first-read probe](#connected-image-properties-and-the-first-quadrant-draw). Supply a fixed white Uniform where the filter takes an image. Use a per-pixel function returning .5, a Transform 2D offset of (0,0), grayscale weights (1,0,0,0), a Directional Blur angle of .25, a Levels input low of zero or Warp intensity zero. Make two graphs per filter. In one, compute the value entirely from constants. In the other, add zero times the published scalar to each component. The fixed graph draws .375 in all four quadrants. A published drawing input changes the first quadrant to .625 even when the filter returns identical pixels. The evaluator carries the property read through the image output and its cache entry. The Pixel Processor reports the reads of the same compiled function that produces its pixels. [Parameter evaluation](../crates/eval/src/parameter.rs) · [Pixel function](../crates/nodes/src/function/processor.rs) · [Cache and sampling-mode regressions](../crates/eval/tests/pattern_opacity.rs)

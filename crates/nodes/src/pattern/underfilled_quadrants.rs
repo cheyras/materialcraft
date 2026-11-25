@@ -1,3 +1,5 @@
+use std::ops::Range;
+
 use materialcraft_core::{PatternNode, PatternNodeKind};
 
 use super::{
@@ -49,6 +51,33 @@ impl QuadrantPair {
 }
 
 #[derive(Default)]
+struct FollowingPair {
+    children: usize,
+    second_child_tail: [u32; 2],
+    third_child: u32,
+    fourth_child: u32,
+    fourth_child_branches: [u32; 4],
+}
+
+impl FollowingPair {
+    fn visit(&mut self, depth: u32, visits_at_depth: usize, copies: u32) {
+        match depth {
+            3 => {
+                self.children += 1;
+                match self.children {
+                    3 => self.third_child = copies,
+                    4 => self.fourth_child = copies,
+                    _ => {}
+                }
+            }
+            4 if self.children == 4 => self.fourth_child_branches[(visits_at_depth - 1) % 4] = copies,
+            5 if self.children == 2 => self.second_child_tail = [self.second_child_tail[1], copies],
+            _ => {}
+        }
+    }
+}
+
+#[derive(Default)]
 pub(super) struct UnderfilledQuadrants {
     // Indices into the retained stamps at each shallow quadrant, including empty ranges.
     starts: Vec<usize>,
@@ -65,10 +94,16 @@ pub(super) struct UnderfilledQuadrants {
     tracked_span: Option<usize>,
     // Copy offsets at the starts of the two most recent depth-five subtrees in the last span.
     last_subtree_starts: [u32; 2],
+    following_pair: FollowingPair,
+    has_deeper_level: bool,
     active_deep_draws: usize,
 }
 
 impl UnderfilledQuadrants {
+    pub(super) fn new(graph_depth: u32) -> Self {
+        Self { has_deeper_level: graph_depth > 8, ..Self::default() }
+    }
+
     pub(super) fn visit(&mut self, node: &PatternNode, depth: u32, retained: usize, root: bool) -> bool {
         match node.kind {
             PatternNodeKind::Iterate => return root && node.children.first() == Some(&None),
@@ -83,6 +118,9 @@ impl UnderfilledQuadrants {
         if depth > 3 {
             if depth == 5 && self.group == LAST_CHILD_GROUP && self.tracked_span == Some(2) {
                 self.last_subtree_starts = [self.last_subtree_starts[1], self.last_child_spans[2].total];
+            }
+            if depth <= 5 && self.group == FOLLOWING_GROUP && self.tracked_span == Some(2) {
+                self.following_pair.visit(depth, *visits, self.following_spans[2].total);
             }
             return true;
         }
@@ -110,6 +148,9 @@ impl UnderfilledQuadrants {
         };
         self.group = group;
         self.tracked_span = (self.visits[0] == 1 && matches!(group, LAST_CHILD_GROUP | FOLLOWING_GROUP)).then_some(span);
+        if depth == 3 && group == FOLLOWING_GROUP && self.tracked_span == Some(2) {
+            self.following_pair.visit(depth, self.visits[3], self.following_spans[2].total);
+        }
         true
     }
 
@@ -155,19 +196,56 @@ impl UnderfilledQuadrants {
         true
     }
 
-    fn append_batch(&self, group: usize, spans: &[CopyPositions], leading: &mut Vec<(DrawPosition, DrawPosition)>) -> Option<()> {
-        let mut remaining = COPIES_PER_BATCH;
-        for (&(first, _), span) in GROUPS[group].iter().zip(spans) {
+    fn append_copies(
+        &self,
+        group: usize,
+        spans: &[CopyPositions],
+        pieces: impl IntoIterator<Item = (usize, Range<u32>)>,
+        mut remaining: u32,
+        leading: &mut Vec<(DrawPosition, DrawPosition)>,
+    ) -> Option<()> {
+        for (index, range) in pieces {
+            let &(first, _) = GROUPS[group].get(index)?;
+            let span = spans.get(index)?;
             let start = *self.starts.get(first + 1 + first / 20)?;
-            let count = remaining.min(span.total);
-            let end = span.at(count);
-            leading.push((DrawPosition { stamp: start, copy: 0 }, DrawPosition { stamp: start.checked_add(end.stamp)?, copy: end.copy }));
+            let position = |offset| {
+                let cut = span.at(offset);
+                Some(DrawPosition { stamp: start.checked_add(cut.stamp)?, copy: cut.copy })
+            };
+            let count = remaining.min(range.end.checked_sub(range.start)?);
+            if count != 0 {
+                leading.push((position(range.start)?, position(range.start + count)?));
+            }
             remaining -= count;
             if remaining == 0 {
                 return Some(());
             }
         }
         None
+    }
+
+    fn append_batch(&self, group: usize, spans: &[CopyPositions], leading: &mut Vec<(DrawPosition, DrawPosition)>) -> Option<()> {
+        self.append_copies(group, spans, spans.iter().enumerate().map(|(i, span)| (i, 0..span.total)), COPIES_PER_BATCH, leading)
+    }
+
+    fn append_following(&self, leading: &mut Vec<(DrawPosition, DrawPosition)>) -> Option<()> {
+        let [first, middle, tail] = &self.following_spans;
+        let pair = &self.following_pair;
+        let before_tail = u64::from(first.total) + u64::from(middle.total) + u64::from(pair.second_child_tail[0]);
+        if !self.has_deeper_level || before_tail >= u64::from(COPIES_PER_BATCH) {
+            return self.append_batch(FOLLOWING_GROUP, &self.following_spans, leading);
+        }
+        // A deeper connected graph lets this stream submit twice at a late cut,
+        // even when the deepest branch is on the unselected side of a switch.
+        // Only the fourth child's own draw and its last branch join the next batch.
+        let pieces = [
+            (0, 0..first.total),
+            (1, 0..middle.total),
+            (2, 0..pair.third_child),
+            (2, pair.fourth_child..pair.fourth_child_branches[0]),
+            (2, pair.fourth_child_branches[3]..tail.total),
+        ];
+        self.append_copies(FOLLOWING_GROUP, &self.following_spans, pieces, 2 * COPIES_PER_BATCH, leading)
     }
 
     fn full_batches<'a>(&self, stamps: &'a [PatternStamp], trees: usize) -> Option<Vec<DrawRun<'a>>> {
@@ -192,7 +270,7 @@ impl UnderfilledQuadrants {
             self.append_batch(LAST_CHILD_GROUP, &self.last_child_spans, &mut leading)?;
             // The next group submits first when the previous batch reaches either of its final two depth-five subtrees.
             if before_tail + u64::from(self.last_subtree_starts[0]) < u64::from(COPIES_PER_BATCH) {
-                self.append_batch(FOLLOWING_GROUP, &self.following_spans, &mut leading)?;
+                self.append_following(&mut leading)?;
             }
         }
         leading.retain(|(start, end)| start < end);
