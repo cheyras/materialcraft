@@ -75,41 +75,59 @@ enum Continuation {
     InactiveBranch(u32),
 }
 
-fn filled_quadrant_pixel(negative: usize, positive: usize, continuation: Continuation) -> f32 {
+fn quadrant_tail(graph: &mut PatternGraph, mut next: Option<u32>, wrapped: bool) -> Option<u32> {
+    for depth in (4..=8).rev() {
+        let id = graph.add(PatternNodeKind::Quadrant).unwrap();
+        let node = &mut graph.nodes[(id - 1) as usize];
+        node.parameters = additive_square(2.0_f32.powi(-76), [0.0; 2], [0.0; 2]);
+        if wrapped && depth == 8 {
+            let mut offset = FunctionGraph::default();
+            let corner = offset.add_constant(Value::Float2([0.0; 2]));
+            let center = offset.add("get_float2", &[], Some(Value::Text("$pos".into())));
+            offset.output = Some(offset.add("sub", &[corner, center], None));
+            node.parameters.insert("frameoffset".into(), Value::Function(Box::new(offset)));
+        }
+        node.children.fill(next);
+        next = Some(id);
+    }
+    next
+}
+
+fn filled_tree_pixel(negative: (usize, usize), positive: (usize, usize), continuation: Continuation, wrapped_subtrees: &[usize]) -> f32 {
     let mut graph = PatternGraph::with_root(PatternNodeKind::Iterate);
     let iterate = graph.root.unwrap();
     let root = graph.add(PatternNodeKind::Quadrant).unwrap();
     graph.nodes[(iterate - 1) as usize].children[1] = Some(root);
-    let faint = 2.0_f32.powi(-76);
-    let small = 2.0_f32.powi(-25);
-    let mut next = matches!(continuation, Continuation::EmptySwitch).then(|| graph.add(PatternNodeKind::Switch).unwrap());
-    for _ in (3..=8).rev() {
-        let id = graph.add(PatternNodeKind::Quadrant).unwrap();
-        let node = &mut graph.nodes[(id - 1) as usize];
-        node.parameters = additive_square(faint, [0.0; 2], [0.0; 2]);
-        node.children.fill(next);
-        next = Some(id);
-    }
-    for quadrant in 0..4 {
-        let first = graph.add(PatternNodeKind::Quadrant).unwrap();
-        graph.nodes[(root - 1) as usize].children[quadrant] = Some(first);
-        for slot in 0..4 {
-            let second = graph.add(PatternNodeKind::Quadrant).unwrap();
-            graph.nodes[(first - 1) as usize].children[slot] = Some(second);
-            let cell = [2 * (quadrant % 2) + slot % 2, 2 * (quadrant / 2) + slot / 2];
-            let ordinal = 4 * quadrant + slot;
-            let gain = if ordinal == negative {
-                -1.0
-            } else if ordinal == positive {
-                small
-            } else {
-                faint
-            };
-            let shift = if gain == faint { [0.0; 2] } else { cell.map(|i| 0.265625 - (i as f32 + 0.5) * 0.25) };
-            let node = &mut graph.nodes[(second - 1) as usize];
-            node.parameters = additive_square(gain, [0.0; 2], shift);
-            node.children.fill(next);
+    let end = matches!(continuation, Continuation::EmptySwitch).then(|| graph.add(PatternNodeKind::Switch).unwrap());
+    let plain = quadrant_tail(&mut graph, end, false);
+    let wrapped = if wrapped_subtrees.is_empty() { plain } else { quadrant_tail(&mut graph, end, true) };
+    let mut parents = vec![(root, [0_usize; 2])];
+    for depth in 1..=3 {
+        let mut children = Vec::new();
+        for (parent, [x, y]) in parents {
+            for slot in 0..4 {
+                let id = graph.add(PatternNodeKind::Quadrant).unwrap();
+                graph.nodes[(parent - 1) as usize].children[slot] = Some(id);
+                let cell = [2 * x + slot % 2, 2 * y + slot / 2];
+                let ordinal = children.len();
+                let node = &mut graph.nodes[(id - 1) as usize];
+                if depth >= 2 {
+                    let marker = (depth, ordinal);
+                    let (gain, shift) = if marker == negative || marker == positive {
+                        let shift = cell.map(|i| 0.265625 - (i as f32 + 0.5) / (1 << depth) as f32);
+                        (if marker == negative { -1.0 } else { 2.0_f32.powi(-25) }, shift)
+                    } else {
+                        (2.0_f32.powi(-76), [0.0; 2])
+                    };
+                    node.parameters = additive_square(gain, [0.0; 2], shift);
+                }
+                if depth == 3 {
+                    node.children.fill(if wrapped_subtrees.contains(&ordinal) { wrapped } else { plain });
+                }
+                children.push((id, cell));
+            }
         }
+        parents = children;
     }
     if let Continuation::InactiveBranch(depth) = continuation {
         let mut child = graph.add(PatternNodeKind::Quadrant).unwrap();
@@ -124,6 +142,24 @@ fn filled_quadrant_pixel(negative: usize, positive: usize, continuation: Continu
     }
     let image = cook_in_regions(graph, &BTreeMap::new(), 41381, [32; 2], [[0.0, 1.0, 0.0, 1.0]; 2], 1.0).unwrap().remove(0);
     image.get_gray(8, 8, false)
+}
+
+fn filled_quadrant_pixel(negative: usize, positive: usize, continuation: Continuation) -> f32 {
+    filled_tree_pixel((2, negative), (2, positive), continuation, &[])
+}
+
+#[test]
+fn successive_quadrant_batches_preserve_their_child_ranges() {
+    for (negative, positive) in [((2, 14), (2, 8)), ((2, 1), (3, 2)), ((2, 13), (2, 8)), ((2, 9), (3, 34))] {
+        assert_eq!(filled_tree_pixel(negative, positive, Continuation::EmptySwitch, &[]).to_bits(), 2.0_f32.powi(-25).to_bits());
+    }
+    assert_eq!(filled_quadrant_pixel(14, 8, Continuation::None).to_bits(), 2.0_f32.powi(-25).to_bits());
+}
+
+#[test]
+fn wrapped_leaves_can_fill_a_quadrant_batch_before_a_leading_pair() {
+    assert_eq!(filled_tree_pixel((2, 14), (2, 2), Continuation::EmptySwitch, &[]).to_bits(), 0);
+    assert_eq!(filled_tree_pixel((2, 14), (2, 2), Continuation::EmptySwitch, &[58]).to_bits(), 2.0_f32.powi(-25).to_bits());
 }
 
 #[test]

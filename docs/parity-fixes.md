@@ -59,6 +59,36 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-25 root comparisons
 
+### Physical copy batches across neighboring quadrants
+
+Use the [eight-level additive tree](#connected-graph-depth-and-the-ninth-quadrant-batch). Number the sixteen depth-two quadrants and the 64 depth-three subtrees from zero in child-slot order. With one copy per draw, a depth-two quadrant and its last two child subtrees supply 2,731 copies. Adding 2,728 copies inside subtree 58 leaves quadrant 14 waiting. Adding one more fills a batch of 5,460. It now draws before quadrants 2 and 3. The corresponding boundaries in subtrees 50 and 54 move their batches ahead of quadrants 6 and 10 respectively. A full batch from quadrant 15 and subtrees 62 and 63 precedes all three. Two simultaneously filled groups retain their relative order in the measured controls. [Shared copy ordering](../crates/nodes/src/pattern/underfilled_quadrants.rs)
+
+When the first seven batches take their ordinary order, the next streams begin at quadrants 12, 14 and 13, in that order. Each joins its last two child subtrees to draws from a second quadrant pair. The respective pairs are 4–5, 0–1 and 8–9. A first batch ending before the final two depth-five subtrees of 17, 1 or 33 can interleave with another stream. On the measured later cuts with a deeper connected graph, each stream supplies two consecutive batches. All three skip the third child subtree of the receiving quadrant. The first also skips three branches beneath the fourth child. At connected depth eight the middle stream still supplies two consecutive batches. The other two have a different continuation. Across 83 distributions, all 51,108 tested signed comparisons involving the predicted prefix agreed in both gain directions. Separate two-tree controls put the second batch boundary inside a two- or four-copy stamp. All 112 edge and corner observations agreed across the last two streams.
+
+For an independent image, use the same white background, .875 squares and ordinary gain 2⁻⁷⁶. Place two squares at (.265625,.265625). Use depth-two quadrants 14 and 8, depth-two quadrant 1 and depth-three subtree 2, depth-two quadrants 13 and 8, or depth-two quadrant 9 and depth-three subtree 34. In each pair the first square takes the negative gain. Render the [four sizes, gain settings, seeds and storage formats](#connected-graph-depth-and-the-ninth-quadrant-batch) with and without the inactive child below the leaves. Compare again after an ordinary MaterialCraft save and reopen. Both applications preserve their respective original pixels in all 128 settings.
+
+| Storage | Earlier exact at either depth | Deeper connection, original and reopened | Ends at depth eight, original and reopened | Maximum at depth eight |
+|---|---:|---:|---:|---:|
+| U8 | 16,384/16,384 | 16,384/16,384 | 16,384/16,384 | 0 |
+| U16 | 16,384/16,384 | 16,384/16,384 | 16,384/16,384 | 0 |
+| F16 | 16,330/16,384 | 16,384/16,384 | 16,378/16,384 | 2⁻²⁴ |
+| F32 | 15,976/16,384 | 16,384/16,384 | 16,348/16,384 | 2⁻²⁴ |
+
+All deeper-connection maxima are zero. The 42 differing pixels in the depth-eight controls belong to the pair at quadrant 9 and subtree 34. To exercise an early batch independently, move all 1,024 final squares of a chosen subtree to the tile corner using a frame offset of zero minus the quadrant position. This adds 3,072 wrapped copies. Use subtrees 50, 58, 54 or 62 separately, 62 with 50 or 54, and an unshifted control. At 32² F32, 16 × 32 U8, 32 × 16 U16 and 64 × 32 F16, all 28,672 original and all 28,672 reopened pixels agree, maximum zero. The earlier result was 28,455/28,672 on each, maximum 2⁻²⁵. The two renderer regressions both returned zero in place of 2⁻²⁵ before the fix. [Renderer regressions](../crates/nodes/src/pattern/tests/underfilled_quadrants.rs)
+
+The 16 × 32 seed-zero F32 setting of Noise BNW Spots 1 improves from 416 to 428 exact pixels out of 512 in each of four original and four reopened reference captures, maximum 1.19209290e−7. At 64 × 32 with scale three, the four original references agree on 1,832 of 2,048 pixels. Of these, MaterialCraft matches 1,675, up from 1,672. The four reopened references agree on 1,679 pixels, of which 1,567 match, up from 1,564. All eight maximum errors are 1.19209290e−7. The depth-eight continuation and the work carried into the next tree remain open. [Settings for both repeated captures](#bounded-work-for-empty-terminal-quadrants)
+
+Across 86 original settings, 814,166/841,728 pixels match on one processor, a gain of 7,633. Thirty-two settings improve and none lose exact pixels. Both 128² U16 images with default parameters and seeds 0 and 42 now match completely, bringing the whole-frame count to 49 of 86. On eight processors, 778,908/841,728 match, a loss of 1,381. Four settings improve, 24 lose pixels, and the same 38 frames match completely. The 19 ordinary saves gain ten exact pixels to 196,135/196,352, with 15 completely exact frames.
+
+| Storage | One processor · exact pixels · maximum | Eight processors · exact pixels · maximum | Reopened · exact pixels · maximum |
+|---|---:|---:|---:|
+| U8 | 108,800/108,800 · 0 | 108,799/108,800 · 1 | 90,112/90,112 · 0 |
+| U16 | 328,381/328,448 · 1 | 328,250/328,448 · 1 | 93,690/93,696 · 1 |
+| F16 | 108,800/108,800 · 0 | 108,798/108,800 · .00048828125 | 6,400/6,400 · 0 |
+| F32 | 268,185/295,680 · 2.38418579e−7 | 233,061/295,680 · 3.57627869e−7 | 5,933/6,144 · 2.38418579e−7 |
+
+All 397 earlier procedural settings now match all 1,294,336 pixels, recovering the last 56. All 48 opposite-gain settings also match 49,152/49,152, recovering 98. The 32 mixed-connectivity settings and twelve static-branch settings retain 32,768/32,768 and 12,288/12,288 respectively. Maximum error is zero throughout. The full measurement of the preceding ninth-batch build retained the second version's counts of 831,506/842,752 on one processor, 831,311/842,752 on eight and 137,715/139,008 on 19 saves. On this build, eight original settings and four saves of that version retain the previous local output bits. The node and evaluator release suites passed all 512 tests. Formatting, strict workspace Clippy, dependency layers and WebAssembly passed.
+
 ### Connected graph depth and the ninth quadrant batch
 
 Start with the [complete eight-level tree and its first eight batches](#the-next-full-batch-in-an-eight-level-quadrant-tree). Draw .875 squares at depths two through eight on white, with roughness zero and gain 2⁻⁷⁶. Place depth-two squares 5 and 0 together at (.265625, .265625) with respective gains −1 and 2⁻²⁵. The center sample at 32² F32 is zero. Connect an empty Switch to one child slot of a final quadrant and the sample becomes 2⁻²⁵. Exchanging the gains reverses both results. Connecting the first leaf, the last leaf, any one of the four root subtrees or all leaves gives the same change. Disconnecting that edge restores the original result.
