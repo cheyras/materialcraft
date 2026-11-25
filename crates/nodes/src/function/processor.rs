@@ -30,6 +30,11 @@ fn pixel(value: Value, gray: bool) -> Result<[f32; 4], String> {
 }
 
 pub(crate) fn pixel_processor(context: &CookContext) -> CookResult {
+    pixel_processor_with_dependencies(context).map(|(image, _)| vec![image])
+}
+
+/// Cook the image and report published inputs read by the compiled pixel function.
+pub fn pixel_processor_with_dependencies(context: &CookContext) -> Result<(Image, bool), String> {
     let graph = context.function("function").ok_or("missing pixel function")?;
     let gray = !context.b("color_mode");
     let kind = if gray { Kind::Gray } else { Kind::Color };
@@ -57,5 +62,6 @@ pub(crate) fn pixel_processor(context: &CookContext) -> CookResult {
 
         Ok(())
     })?;
-    Ok(vec![Image::from_data(width, height, kind, data, &Limits::default()).map_err(|e| e.to_string())?])
+    let image = Image::from_data(width, height, kind, data, &Limits::default()).map_err(|e| e.to_string())?;
+    Ok((image, program.reads_graph_parameter(frame.variables)))
 }

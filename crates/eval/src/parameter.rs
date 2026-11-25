@@ -52,11 +52,19 @@ pub(crate) fn resolve_parameters(
     let mut dynamic = std::collections::BTreeSet::new();
     let mut dynamic_blend_opacity = false;
     let mut bound_image_property = false;
-    let image_property = |name: &str| {
-        matches!(
-            (node.def.as_str(), name),
-            ("uniform", "color") | ("blur", "intensity") | ("fx_map", "opacity" | "roughness" | "background" | "render_region" | "tiling_region")
-        )
+    let mut bound_mip_level = false;
+    let mut record_drawing_input = |name: &str| match (node.def.as_str(), name) {
+        ("blend", "opacity") => dynamic_blend_opacity = true,
+        ("transformation", "mip_level") => bound_mip_level = true,
+        ("transformation", "matte") if base.tiling != [true; 2] => bound_image_property = true,
+        ("uniform", "color")
+        | ("blur" | "directional_blur" | "warp", "intensity")
+        | ("directional_blur", "angle")
+        | ("transformation", "offset" | "matrix")
+        | ("grayscale_conversion", "weights" | "matte")
+        | ("levels", "in_low" | "in_mid" | "in_high" | "out_low" | "out_high")
+        | ("fx_map", "opacity" | "roughness" | "background" | "render_region" | "tiling_region") => bound_image_property = true,
+        _ => {}
     };
     let mut uniform_color = None;
     for (parameter, exposed) in &node.bindings {
@@ -69,11 +77,8 @@ pub(crate) fn resolve_parameters(
         if let (Some(value), Some(current)) = (variables.get(exposed), parameters.get(parameter))
             && let Some(coerced) = current.coerce_json(&serde_json::to_value(value).unwrap_or_default())
         {
-            if node.def == "blend" && parameter == "opacity" {
-                dynamic_blend_opacity = !literal_inputs.contains(exposed);
-            }
-            if image_property(parameter) && !node.functions.contains_key(parameter) {
-                bound_image_property |= !literal_inputs.contains(exposed);
+            if !literal_inputs.contains(exposed) && !node.functions.contains_key(parameter) {
+                record_drawing_input(parameter);
             }
             parameters.insert(parameter.clone(), coerced);
         }
@@ -94,11 +99,8 @@ pub(crate) fn resolve_parameters(
         };
         let (value, literal) = compile_with_literal_inputs(function, base.seed, literal_inputs)
             .and_then(|program| {
-                if node.def == "blend" && parameter == "opacity" {
-                    dynamic_blend_opacity = program.reads_graph_parameter(variables);
-                }
-                if image_property(parameter) {
-                    bound_image_property |= program.reads_graph_parameter(variables);
+                if program.reads_graph_parameter(variables) {
+                    record_drawing_input(parameter);
                 }
                 crate::parameter_function::evaluate(&program, expected, variables.to_mut(), base.size, mode, Some(current))
             })
@@ -139,6 +141,8 @@ pub(crate) fn resolve_parameters(
     if let Some(opacity) = gray_pattern_opacity {
         parameters.insert("opacity".into(), opacity);
     }
+    // A computed mip mode can appear after the level in the property list.
+    bound_image_property |= bound_mip_level && parameters.get("mip_mode").and_then(Value::as_i32) == Some(1);
 
     let fixed = if node.def == "graph_instance" {
         parameters.iter().filter(|(name, value)| supports_literal_argument(value) && !dynamic.contains(*name)).map(|(name, _)| name.clone()).collect()

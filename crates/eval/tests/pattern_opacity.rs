@@ -107,6 +107,72 @@ fn connected_image_properties_reach_writable_quadrants() {
 }
 
 #[test]
+fn filter_controls_and_pixel_programs_reach_a_writable_pattern() {
+    let (mut package, stamp) = first_local_probe();
+    let mut options = Options::new(&|_| None);
+    options.only = Some(vec![stamp]);
+    let cache = Mutex::new(Cache::default());
+    for (filter, property, input) in [
+        ("transformation", "offset", Value::Float2([0.0; 2])),
+        ("grayscale_conversion", "weights", Value::Float4([1.0, 0.0, 0.0, 0.0])),
+        ("directional_blur", "angle", Value::Float(0.25)),
+        ("levels", "in_low", Value::Float4([0.0; 4])),
+        ("warp", "intensity", Value::Float(0.0)),
+        ("pixel_processor", "function", Value::Float(0.5)),
+    ] {
+        let graph = &mut package.graphs[0];
+        let source = graph.add_node(filter, [0.0; 2]);
+        let node = graph.node_mut(source).unwrap();
+        let program = FunctionGraph::input("driver", ValueType::of(&input).unwrap());
+        if filter == "pixel_processor" {
+            node.params.insert("color_mode".into(), Value::Bool(false));
+            node.params.insert(property.into(), Value::Function(Box::new(program)));
+        } else {
+            node.functions.insert(property.into(), program);
+        }
+        graph.disconnect(stamp, "pattern0");
+        graph.connect(source, "output", stamp, "pattern0").unwrap();
+        options.overrides.insert("driver".into(), input);
+        for (fixed, expected) in [(true, 0.375), (false, 0.625), (true, 0.375)] {
+            options.literal_inputs = if fixed { vec!["driver".into()] } else { Vec::new() };
+            let result = cook(&package, 0, &options, &cache);
+            assert_eq!(result.nodes[&source].error, None, "{filter}");
+            assert_eq!(result.image(stamp, 0).unwrap().get_gray(8, 8, false), expected, "{filter}, fixed {fixed}");
+        }
+    }
+}
+
+#[test]
+fn transform_matte_and_mip_level_follow_the_resolved_sampling_modes() {
+    let (mut package, stamp) = first_local_probe();
+    let graph = &mut package.graphs[0];
+    let transform = graph.add_node("transformation", [0.0; 2]);
+    graph.connect(transform, "output", stamp, "pattern0").unwrap();
+    let mut options = Options::new(&|_| None);
+    options.overrides.insert("ink".into(), Value::Float4([0.0; 4]));
+    options.overrides.insert("level".into(), Value::Int(0));
+    let cache = Mutex::new(Cache::default());
+    for (property, driver) in [("matte", "ink"), ("mip_level", "level")] {
+        let node = package.graphs[0].node_mut(transform).unwrap();
+        node.bindings.clear();
+        node.bindings.insert(property.into(), driver.into());
+        node.functions.insert("mip_mode".into(), FunctionGraph::input("mode", ValueType::Integer));
+        for axes in [[true, true], [false, true], [true, false], [false, false]] {
+            let base = &mut package.graphs[0].node_mut(transform).unwrap().base;
+            base.tiling_mode = materialcraft_core::ParameterInheritance::Absolute;
+            base.tiling = axes;
+            for mode in [0, 1, 0] {
+                options.overrides.insert("mode".into(), Value::Int(mode));
+                let active = if property == "matte" { axes != [true; 2] } else { mode == 1 };
+                let cooked = cook(&package, 0, &options, &cache);
+                assert_eq!(cooked.nodes[&transform].error, None);
+                assert_eq!(cooked.image(stamp, 0).unwrap().get_gray(8, 8, false), if active { 0.625 } else { 0.375 }, "{property}, {axes:?}, {mode}");
+            }
+        }
+    }
+}
+
+#[test]
 fn gray_pattern_opacity_keeps_signed_and_undefined_contributions_until_blending() {
     let mut graph = Graph::new("Signed stamp opacity");
     graph.size = [4; 2];

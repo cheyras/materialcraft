@@ -340,11 +340,16 @@ pub(crate) fn cook_node(
         {
             Ok(vec![output])
         } else {
-            let result = if node.def == "fx_map" {
-                materialcraft_nodes::pattern::cook_with_image_dependencies(&context, &base_level_only, bound_image).map(|(image, reads_input)| {
-                    // A cached pattern also supplies its drawing inputs to the next image on the wire.
-                    if reads_input != bound_image {
-                        output_bases = Some(Arc::from([crate::ResolvedBaseParameters { bound_image: reads_input, ..base }]));
+            let result = if matches!(node.def.as_str(), "fx_map" | "pixel_processor") {
+                let drawing = if node.def == "fx_map" {
+                    materialcraft_nodes::pattern::cook_with_image_dependencies(&context, &base_level_only, bound_image)
+                } else {
+                    materialcraft_nodes::function::pixel_processor_with_dependencies(&context)
+                };
+                drawing.map(|(image, reads_input)| {
+                    // A cached image carries dependencies read by its drawing program along with its pixels.
+                    if reads_input && !bound_image {
+                        output_bases = Some(Arc::from([crate::ResolvedBaseParameters { bound_image: true, ..base }]));
                     }
                     vec![image]
                 })

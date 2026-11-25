@@ -59,6 +59,29 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-25 root comparisons
 
+### Published filter properties upstream of a quadrant draw
+
+Connect each of six filters to the unused pattern image socket of the [four-square first-read probe](#connected-image-properties-and-the-first-quadrant-draw). Supply a fixed white Uniform where the filter takes an image. Use a per-pixel function returning .5, a Transform 2D offset of (0,0), grayscale weights (1,0,0,0), a Directional Blur angle of .25, a Levels input low of zero or Warp intensity zero. Make two graphs per filter. In one, compute the value entirely from constants. In the other, add zero times the published scalar to each component. The fixed graph draws .375 in all four quadrants. A published drawing input changes the first quadrant to .625 even when the filter returns identical pixels. The evaluator carries the property read through the image output and its cache entry. The Pixel Processor reports the reads of the same compiled function that produces its pixels. [Parameter evaluation](../crates/eval/src/parameter.rs) · [Pixel function](../crates/nodes/src/function/processor.rs) · [Cache and sampling-mode regressions](../crates/eval/tests/pattern_opacity.rs)
+
+Render the twelve graphs at 16 × 32 F32, 32 × 16 U8, 32² F16 and 16² U16 with seeds 41671, 41684, 41697 and 41710 respectively. Use the published default .8125 in F32 and F16 and change it to .3125 in U8 and U16. Save each graph normally in MaterialCraft, reopen the SBS in both applications and compare again. The original and reopened reference bits agree across all 48 settings.
+
+| Storage | Previous exact pixels | Previous max | Current original exact pixels | Current reopened exact pixels | Max on both |
+|---|---:|---:|---:|---:|---:|
+| F32 | 5,376/6,144 | .25 | 6,144/6,144 | 6,144/6,144 | 0 |
+| U8 | 5,376/6,144 | 63 codes | 6,144/6,144 | 6,144/6,144 | 0 |
+| F16 | 10,752/12,288 | .25 | 12,288/12,288 | 12,288/12,288 | 0 |
+| U16 | 2,688/3,072 | 16,383 codes | 3,072/3,072 | 3,072/3,072 | 0 |
+
+At 16² and 32 × 16 F32, use seeds 41301 and 41309. Repeat with the Transform matrix, both Directional Blur controls, all five Levels controls and the grayscale matte with alpha flattening disabled and enabled. All these drawing properties produce .625 on the first square when published. Publishing a Transform filtering or mip mode, the grayscale alpha selector, the Levels intermediate clamp or the Warp filter gives .375. A per-pixel program that reads only the pixel position and returns .5 also gives .375. The twelve initial graphs match 9,216/9,216 pixels in these sizes. The ten selector and property comparisons match 7,680/7,680, and eight more numeric and sampling controls match 6,144/6,144, all with maximum error zero.
+
+For a published Transform matte, cross all four tiling choices with offsets (0,0), (.5,0), (0,.5) and (.5,.5). The first square is .375 with both axes tiled and .625 when either axis is untiled, including the identity transform. With a computed mip mode, use automatic and manual selection and a fixed or published mip level of zero. Only manual mode with the published level gives .625. These twenty graphs improve from 12,864/15,360 to 15,360/15,360 F32 pixels, maximum .25 to zero.
+
+In a separate instance check, pass the Uniform into a child graph containing the quadrant draw. Then put the Uniform in the child and draw in the parent. In each direction compare a published color, a fixed color and a disconnected image. The six graphs match 4,608/4,608 original and 4,608/4,608 reopened F32 pixels, with maximum error zero.
+
+Position Debug, Bevel Smooth Debug Position, Radial Blur Grayscale and Debug Hit UV retain 768/768, 4,096/4,096, 16,384/16,384 and 16,384/16,384 exact pixels respectively. Eight selected original settings for each Noise BNW Spots 1 version retain every MaterialCraft output bit. They match 24,856/25,600 and 25,546/25,600 reference pixels. Both have maxima of zero in U8 and F16 and one code in U16. Their F32 maxima are 2.38418579e−7 and 5.96046448e−8 respectively. Both roots remain open.
+
+Both new evaluator regressions returned .375 in place of .625 before the fix. All 508 release tests for the two changed crates, formatting, strict workspace Clippy, dependency layers and WebAssembly pass.
+
 ### The next full batch in an eight-level quadrant tree
 
 In a complete additive tree, start with the [six leading batches](#leading-copy-batches-in-complete-quadrant-trees) and the [5,460-copy batch in the last root quadrant](#a-full-copy-batch-in-the-last-root-quadrant). Number depth-two quadrants 0–15 and depth-three subtrees 0–63 in child-slot traversal order. When the seventh batch reaches either of the final two depth-five subtrees in subtree 49, the next full batch begins with quadrant 12, continues through subtrees 50 and 51, and takes the remaining copies from quadrant 4 and its descendants. Physical copies count even when they miss the image. The shared quadrant renderer applies this prefix to trees with a draw at every depth from two through eight and two full batches per depth-two pair. [Submission order and cuts](../crates/nodes/src/pattern/underfilled_quadrants.rs) · [Two-square regression](../crates/nodes/src/pattern/tests/underfilled_quadrants.rs)
