@@ -1987,6 +1987,17 @@ fn a_sibling_can_update_a_binding_declared_by_the_parent() {
     }
 }
 
+fn advance_tree_offset() -> Value {
+    let mut advance = FunctionGraph::default();
+    let index = advance.add("get_float1", &[], Some(Value::Text("tree_index".into())));
+    let one = advance.add_constant(Value::Float(1.0));
+    let next = advance.add("add", &[index, one], None);
+    let stored = advance.add("set", &[next], Some(Value::Text("tree_index".into())));
+    let origin = advance.add_constant(Value::Float2([0.0; 2]));
+    advance.output = Some(advance.add("sequence", &[stored, origin], None));
+    Value::Function(Box::new(advance))
+}
+
 fn set_then_return(name: &str, value: Value, result: Value) -> Value {
     let mut function = FunctionGraph::default();
     let value = function.add_constant(value);

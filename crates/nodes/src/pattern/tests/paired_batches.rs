@@ -11,7 +11,7 @@ pub(super) fn field_property(depth: u32, offset: [f32; 2], frame: bool, repeated
     let origin = graph.add_constant(Value::Float2(offset));
     let uv = graph.add("add", &[scaled, origin], None);
     let uv = if repeated {
-        let number = graph.add("get_float1", &[], Some(Value::Text("$number".into())));
+        let number = graph.add("get_float1", &[], Some(Value::Text("tree_index".into())));
         let quarter = graph.add_constant(Value::Float(0.25));
         let row = graph.add("mul", &[number, quarter], None);
         let zero = graph.add_constant(Value::Float(0.0));

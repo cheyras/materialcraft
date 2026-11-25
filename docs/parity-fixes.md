@@ -59,6 +59,23 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-25 root comparisons
 
+### Outer routes into the final three active quadrant levels
+
+Build the [directional generator’s three-level square fixture](#final-three-quadrant-levels-in-directional-noise-1) with four connected children at every subdivision through depth eight. Keep the draws on depths six through eight. For multiple passes, initialize a writable float to −1 in the outer Iterate count expression and increment it in the first Quadrant’s branch offset. Use the resulting pass index to address the procedural marker field. In the two-pass fixture, place the negative square at draw 148,776 and the positive square at draw 167,500, counting both passes from zero. The marker pixel reads zero. Before the correction, a Dot before the Iterate changed that pixel to 2⁻²⁵. [Normal cook regression](../crates/nodes/src/pattern/tests/terminal_quadrants.rs)
+
+Compare the direct route, a Dot, each selected Switch arm, a chain of three routes, and an ordinary save and reopen of the right-arm graph. Repeat for one, two and four passes. Also test a two-pass Switch with both arms connected, a route between the Iterate and its first Quadrant, and two further ordinary reopens. Use a white background, zero roughness and additive squares. Capture F32 at 128² with seed 255151, U16 at 128 × 64 with seed 255194, F16 at 64 × 128 with seed 255237, and U8 at 64² with seed 255280. The 24 configurations cover 19 originals and five saves. All raw reference frames match their direct counterpart. The renderer now counts the active trees when traversal reaches the first Quadrant, including routes before and after the outer Iterate. [Shared traversal](../crates/nodes/src/pattern/terminal_quadrants.rs)
+
+| Storage | Previous exact pixels | Current exact pixels | Previous maximum | Current maximum |
+|---|---:|---:|---:|---:|
+| U8 | 98,304/98,304 | 98,304/98,304 | 0 | 0 |
+| U16 | 196,608/196,608 | 196,608/196,608 | 0 | 0 |
+| F16 | 196,608/196,608 | 196,608/196,608 | 0 | 0 |
+| F32 | 393,000/393,216 | 393,216/393,216 | 2.98023224e−8 | 0 |
+
+The 19 original graphs gain 168 exact pixels and the five saves gain 48. Interior routes remain open. A Dot on the first child gave one reference frame with ten differing pixels out of 16,384, maximum 2⁻²⁵, compared with the direct route. Five fresh reads of that same file and five of its ordinary save matched the direct frame in full. The current renderer differs from that repeated frame at twelve pixels. The measured third- and eighth-level routes also differ at twelve F32 pixels each. All U8, U16 and F16 interior-route comparisons match.
+
+The complete Directional Noise 1 sweep retains all prior output bits across 60 original settings and 12 ordinary saves. The one- and eight-processor references give 734,118/734,464 and 734,140/734,464 respectively. The saves give 123,081/123,136. A separate ten-setting sample of the second version retains 100,039/103,168 on one processor and 100,434/103,168 on eight. Three saves retain 26,621/26,624. Both roots remain in progress. [Whole-graph maximum errors by storage format](#final-three-quadrant-levels-in-directional-noise-1)
+
 ### Copy batches from the final quadrant pair and the following group
 
 Build the [eight-level additive square tree](#full-copy-batches-spanning-successive-quadrant-trees) with two outer repetitions and an inactive branch extending to connected depth ten. Number quadrants at each depth from zero in child-slot order within each tree. The first tree contributes both depth-three subtrees 60 and 61, subtree 18’s own draw and its last two children, and all of subtree 34. With one copy per square these three pieces contribute 2,730, 683 and 1,365 copies. The second tree supplies the next 682 from subtrees 60 and 61, deferring the third child of 60. The resulting 5,460 copies fill one batch. Sixteen original copy distributions with two, three or four repetitions agree on 9,092/9,092 signed comparisons for this part of the order. [Shared quadrant renderer](../crates/nodes/src/pattern/underfilled_quadrants.rs)

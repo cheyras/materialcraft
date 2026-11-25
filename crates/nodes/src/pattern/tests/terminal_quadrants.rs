@@ -29,11 +29,11 @@ fn check_terminal_levels(expanded: bool) {
         (2, [(148776, 167500, false), (108044, 154830, false), (2356, 50934, true), (80910, 98000, false), (24344, 108669, true), (29011, 120962, false)]),
         (4, [(81374, 106292, false), (261307, 262710, false), (43010, 163056, true), (224189, 266224, false), (176006, 303409, true), (52157, 146973, false)]),
     ] {
-        check_terminal_case(count, expanded, 0, 257831 + 19 * count as u32, &markers);
+        check_terminal_case(count, expanded, 0, 257831 + 19 * count as u32, &markers, None);
     }
 }
 
-fn check_terminal_case(count: i32, expanded: bool, extra_limit: u32, seed: u32, markers: &[(u32, u32, bool)]) {
+fn check_terminal_case(count: i32, expanded: bool, extra_limit: u32, seed: u32, markers: &[(u32, u32, bool)], route: Option<PatternNodeKind>) {
     // In a white pixel a tiny positive value survives only when the negative square draws first.
     let tiny = f32::EPSILON * 0.25;
     let root = if count == 1 { PatternNodeKind::Quadrant } else { PatternNodeKind::Iterate };
@@ -41,8 +41,15 @@ fn check_terminal_case(count: i32, expanded: bool, extra_limit: u32, seed: u32, 
     let mut parent = graph.root.unwrap();
     if count > 1 {
         parent = graph.add(PatternNodeKind::Quadrant).unwrap();
-        graph.nodes[0].parameters.insert("numberadded".into(), Value::Int(count));
+        graph.nodes[0].parameters.insert("numberadded".into(), set_then_return("tree_index", Value::Float(-1.0), Value::Int(count)));
+        graph.nodes[(parent - 1) as usize].parameters.insert("branchoffset".into(), advance_tree_offset());
         graph.nodes[0].children[1] = Some(parent);
+    }
+    if let Some(kind) = route {
+        let child = graph.root;
+        let relay = graph.add(kind).unwrap();
+        graph.nodes[(relay - 1) as usize].children[0] = child;
+        graph.root = Some(relay);
     }
     for depth in 1..=8 {
         let child = graph.add(PatternNodeKind::Quadrant).unwrap();
@@ -109,6 +116,14 @@ fn check_terminal_case(count: i32, expanded: bool, extra_limit: u32, seed: u32, 
 }
 
 #[test]
+fn terminal_quadrants_preserve_draw_order_through_an_outer_route() {
+    let markers = [(148776, 167500, false), (2356, 50934, true), (29011, 120962, false)];
+    for route in [PatternNodeKind::Dot, PatternNodeKind::Switch] {
+        check_terminal_case(2, false, 0, 255151, &markers, Some(route));
+    }
+}
+
+#[test]
 fn three_terminal_levels_interleave_repeated_quadrant_trees() {
     check_terminal_levels(false);
 }
@@ -135,6 +150,6 @@ fn partly_wrapped_terminal_quadrants_fill_each_physical_batch() {
             [(179109, 248770, false), (207897, 148080, true), (6866, 144342, false), (327758, 324304, true), (109032, 131846, false), (180497, 179055, true)],
         ),
     ] {
-        check_terminal_case(count, false, limit, seed, &markers);
+        check_terminal_case(count, false, limit, seed, &markers, None);
     }
 }

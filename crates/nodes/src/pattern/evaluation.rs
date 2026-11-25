@@ -305,7 +305,7 @@ fn evaluate(context: &CookContext, base_level_only: &[bool], visit_limit: usize,
         if seven_level_runs.as_mut().is_some_and(|runs| !runs.visit(node, visit.depth, stamps.len())) {
             seven_level_runs = None;
         }
-        if terminal_quadrants.as_mut().is_some_and(|runs| !runs.visit(node, visit.depth, stamps.len(), Some(node.id) == graph.root)) {
+        if terminal_quadrants.as_mut().is_some_and(|runs| !runs.visit(node, visit.depth, stamps.len())) {
             terminal_quadrants = None;
         }
         if sparse_runs.as_ref().is_some_and(|runs| !runs.visit(node, visit.depth)) {
@@ -614,7 +614,7 @@ fn evaluate(context: &CookContext, base_level_only: &[bool], visit_limit: usize,
     let groups = groups.map(super::pattern_stamp::DrawRun::whole);
     let mixed_groups = mixed_depth_runs
         .and_then(|runs| runs.finish(&stamps))
-        .or_else(|| terminal_quadrants.and_then(|runs| runs.finish(&stamps, repeated_roots.unwrap_or(1))))
+        .or_else(|| terminal_quadrants.and_then(|runs| runs.finish(&stamps)))
         .or_else(|| sparse_runs.and_then(|runs| runs.finish(&stamps)))
         .or_else(|| underfilled.and_then(|runs| runs.finish(&stamps)))
         .or_else(|| repeated_six_level.and_then(|runs| runs.finish(&stamps, repeated_roots.unwrap_or_default())))

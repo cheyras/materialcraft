@@ -182,18 +182,29 @@ pub(super) struct TerminalQuadrants {
     starts: Vec<(usize, u32)>,
     positions: CopyPositions,
     quarter_start: u32,
+    trees: usize,
+    saw_iteration: bool,
     wrapped: bool,
     draws: usize,
     shape: Option<i32>,
 }
 
 impl TerminalQuadrants {
-    pub(super) fn visit(&mut self, node: &PatternNode, depth: u32, retained: usize, at_root: bool) -> bool {
+    pub(super) fn visit(&mut self, node: &PatternNode, depth: u32, retained: usize) -> bool {
         match node.kind {
-            PatternNodeKind::Iterate => at_root && node.children.first() == Some(&None),
-            PatternNodeKind::Switch => depth == 0 && node.children.contains(&None),
+            PatternNodeKind::Iterate => {
+                // A route can precede the outer iteration. A second iteration can interleave different trees.
+                let outer = depth == 0 && !self.saw_iteration && self.trees == 0;
+                self.saw_iteration = true;
+                outer && node.children.first() == Some(&None)
+            }
+            PatternNodeKind::Dot | PatternNodeKind::Switch => depth == 0,
             PatternNodeKind::Quadrant if depth == 8 => node.children.iter().all(Option::is_none),
             PatternNodeKind::Quadrant if depth < 8 && node.children.iter().flatten().count() == 4 => {
+                if depth == 0 {
+                    // An iteration switch can suppress a whole tree before its first quadrant.
+                    self.trees += 1;
+                }
                 if depth == 6 {
                     if self.starts.len() == 4 * 4096 {
                         return false;
@@ -233,14 +244,14 @@ impl TerminalQuadrants {
         true
     }
 
-    pub(super) fn finish(mut self, stamps: &[PatternStamp], repeats: usize) -> Option<Vec<DrawRun<'_>>> {
-        let (middle, tail) = match repeats {
+    pub(super) fn finish(mut self, stamps: &[PatternStamp]) -> Option<Vec<DrawRun<'_>>> {
+        let (middle, tail) = match self.trees {
             1 => (&[][..], SINGLE_TAIL),
             2 => (REPEATED, DOUBLE_TAIL),
             4 => (REPEATED, FOUR_TAIL),
             _ => return None,
         };
-        if self.starts.len() != repeats * 4096 || self.draws != self.starts.len() * 21 {
+        if self.starts.len() != self.trees * 4096 || self.draws != self.starts.len() * 21 {
             return None;
         }
         self.starts.push((stamps.len(), self.positions.total));

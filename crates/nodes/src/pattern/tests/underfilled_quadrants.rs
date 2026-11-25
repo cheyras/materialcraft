@@ -130,14 +130,7 @@ fn marked_tree_pixel(
     graph.nodes[(iterate - 1) as usize].children[1] = Some(root);
     if marker_iterations.is_some() || wrap_iteration.is_some() {
         graph.nodes[(iterate - 1) as usize].parameters.insert("numberadded".into(), set_then_return("tree_index", Value::Float(0.0), Value::Int(2)));
-        let mut advance = FunctionGraph::default();
-        let index = advance.add("get_float1", &[], Some(Value::Text("tree_index".into())));
-        let one = advance.add_constant(Value::Float(1.0));
-        let next = advance.add("add", &[index, one], None);
-        let stored = advance.add("set", &[next], Some(Value::Text("tree_index".into())));
-        let origin = advance.add_constant(Value::Float2([0.0; 2]));
-        advance.output = Some(advance.add("sequence", &[stored, origin], None));
-        graph.nodes[(root - 1) as usize].parameters.insert("branchoffset".into(), Value::Function(Box::new(advance)));
+        graph.nodes[(root - 1) as usize].parameters.insert("branchoffset".into(), advance_tree_offset());
     }
     let end = matches!(continuation, Continuation::EmptySwitch).then(|| graph.add(PatternNodeKind::Switch).unwrap());
     let plain = quadrant_tail(&mut graph, end, None);
