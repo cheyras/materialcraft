@@ -93,6 +93,57 @@ impl FollowingPair {
 }
 
 #[derive(Default)]
+struct LaterCollectingGroup {
+    spans: [CopyPositions; 3],
+    // Physical copy offsets at depths three through five in this group's two depth-two quadrants.
+    branch_starts: [Vec<u32>; 3],
+}
+
+impl LaterCollectingGroup {
+    fn visit(&mut self, depth: u32) {
+        if let Some(starts) = depth.checked_sub(3).and_then(|level| self.branch_starts.get_mut(level as usize)) {
+            starts.push(self.spans[2].total);
+        }
+    }
+
+    fn sibling_range(&self, level: usize, first: usize, end: usize) -> Option<Range<u32>> {
+        let starts = self.branch_starts.get(level)?;
+        Some(*starts.get(first)?..*starts.get(end)?)
+    }
+
+    fn deferred_siblings(&self, used: u32) -> Option<Range<u32>> {
+        let roots = &self.branch_starts[0];
+        // A cut on the depth-two draw has no pending depth-three siblings yet.
+        let mut branch = roots.partition_point(|&start| start < used).checked_sub(1)?;
+        for (level, starts) in self.branch_starts.iter().enumerate().skip(1) {
+            let first = branch * 4;
+            let children = starts.get(first..first + 4)?;
+            let visited = children.partition_point(|&start| start < used);
+            if visited == 0 {
+                // The parent's own draw filled the batch before any child started.
+                return self.sibling_range(level, first, first + 2);
+            }
+            branch = first + visited - 1;
+        }
+        for level in (0..self.branch_starts.len()).rev() {
+            let pending = 3 - branch % 4;
+            if pending >= 2 {
+                let first = branch + 1;
+                return self.sibling_range(level, first, first + pending.div_ceil(2));
+            }
+            if pending == 1 && level + 1 < self.branch_starts.len() {
+                // Keep the only remaining parent's draw, and defer its first two children.
+                let first = (branch + 1) * 4;
+                return self.sibling_range(level + 1, first, first + 2);
+            }
+            // A depth-five subtree finishes as a unit. Continue up its pending sibling stack.
+            branch /= 4;
+        }
+        None
+    }
+}
+
+#[derive(Default)]
 struct RepeatedPair {
     middle: CopyPositions,
     next: CopyPositions,
@@ -104,7 +155,7 @@ enum TrackedSpan {
     Middle(usize),
     Next(usize),
     LastQuadrantPair(usize),
-    NextCollecting(usize),
+    NextCollecting(usize, usize),
 }
 
 #[derive(Default)]
@@ -144,7 +195,7 @@ pub(super) struct UnderfilledQuadrants {
     repeated: [RepeatedPair; REPEATED_GROUPS.len()],
     last_quadrant_pair: [CopyPositions; 2],
     next_pair_gap: Range<u32>,
-    next_collecting: [CopyPositions; 3],
+    next_collecting: [LaterCollectingGroup; 3],
     tracked_span: Option<TrackedSpan>,
     graph_depth: u32,
     active_deep_draws: usize,
@@ -159,8 +210,11 @@ impl UnderfilledQuadrants {
         if self.graph_depth == 10 && group == LAST_QUADRANT_PAIR && (1..=2).contains(&self.visits[0]) {
             return Some(TrackedSpan::LastQuadrantPair(self.visits[0] - 1));
         }
-        if self.graph_depth == 10 && self.visits[0] == 2 && group == COLLECTING_GROUPS[0] {
-            return Some(TrackedSpan::NextCollecting(span));
+        if self.graph_depth == 10
+            && self.visits[0] == 2
+            && let Some(slot) = COLLECTING_GROUPS[..3].iter().position(|&candidate| candidate == group)
+        {
+            return Some(TrackedSpan::NextCollecting(slot, span));
         }
         if self.visits[0] == 1
             && let Some(slot) = COLLECTING_GROUPS.iter().position(|&g| g == group)
@@ -200,11 +254,8 @@ impl UnderfilledQuadrants {
                     _ => {}
                 }
             }
-            if depth <= 5
-                && let Some(TrackedSpan::Collecting(slot, 2)) = self.tracked_span
-            {
-                let group = &mut self.collecting[slot];
-                group.pair.visit(depth, *visits, group.spans[2].total);
+            if depth <= 5 {
+                self.visit_collecting_branch(depth);
             }
             return true;
         }
@@ -232,13 +283,21 @@ impl UnderfilledQuadrants {
         };
         self.group = group;
         self.tracked_span = self.tracked_span(group, span);
-        if depth == 3
-            && let Some(TrackedSpan::Collecting(slot, 2)) = self.tracked_span
-        {
-            let group = &mut self.collecting[slot];
-            group.pair.visit(depth, self.visits[3], group.spans[2].total);
+        if depth == 3 {
+            self.visit_collecting_branch(depth);
         }
         true
+    }
+
+    fn visit_collecting_branch(&mut self, depth: u32) {
+        match self.tracked_span {
+            Some(TrackedSpan::Collecting(slot, 2)) => {
+                let group = &mut self.collecting[slot];
+                group.pair.visit(depth, self.visits[depth as usize], group.spans[2].total);
+            }
+            Some(TrackedSpan::NextCollecting(slot, 2)) => self.next_collecting[slot].visit(depth),
+            _ => {}
+        }
     }
 
     pub(super) fn draw(&mut self, stamp: &PatternStamp, weights: &[f32], grid: Option<&SampleGrid>, index: usize, retained: bool) -> bool {
@@ -278,7 +337,7 @@ impl UnderfilledQuadrants {
                 TrackedSpan::Middle(slot) => &mut self.repeated[slot].middle,
                 TrackedSpan::Next(slot) => &mut self.repeated[slot].next,
                 TrackedSpan::LastQuadrantPair(tree) => &mut self.last_quadrant_pair[tree],
-                TrackedSpan::NextCollecting(index) => &mut self.next_collecting[index],
+                TrackedSpan::NextCollecting(slot, index) => &mut self.next_collecting[slot].spans[index],
             };
             if positions.record(count, retained).is_none() {
                 return false;
@@ -475,37 +534,72 @@ impl UnderfilledQuadrants {
         }
         Self::append_copy_window(&pieces, early, batches * COPIES_PER_BATCH - early, leading)?;
         if early == 0 && batches == 1 {
-            self.append_next_collecting_batch(leading)?;
+            self.append_next_collecting_batches(leading)?;
         }
         Some(())
     }
 
-    fn append_next_collecting_batch(&self, leading: &mut Vec<(DrawPosition, DrawPosition)>) -> Option<()> {
+    fn append_next_collecting_batches(&self, leading: &mut Vec<(DrawPosition, DrawPosition)>) -> Option<()> {
         let first = &self.collecting[0];
         let first_start = self.span_start(0, COLLECTING_GROUPS[0], 2)?;
-        let tail = &first.spans[2];
-        let pair = &first.pair;
-        let fourth = &pair.fourth_child_branches;
-        let skipped = pair.fourth_child.checked_sub(pair.third_child)?.checked_add(fourth[3].checked_sub(fourth[0])?)?;
-        let size = u32::try_from(first.initial_copies()).ok()?.checked_add(tail.total.checked_sub(skipped)?)?;
-        let remaining = size.checked_sub(2 * COPIES_PER_BATCH)?;
-        if remaining > tail.total.checked_sub(fourth[3])? {
-            return Some(());
-        }
-        let deferred = &pair.fourth_child_grandchildren;
-        let other = &self.collecting[2];
-        let [own, children, next_pair] = &self.next_collecting;
-        let pieces = [
-            (first_start, tail, tail.total - remaining..tail.total),
-            (self.span_start(0, COLLECTING_GROUPS[2], 2)?, &other.spans[2], other.pair.third_child..other.pair.fourth_child),
-            (first_start, tail, deferred[0]..deferred[1]),
-            (self.span_start(1, COLLECTING_GROUPS[0], 0)?, own, 0..own.total),
-            (self.span_start(1, COLLECTING_GROUPS[0], 1)?, children, 0..children.total),
-            (self.span_start(1, COLLECTING_GROUPS[0], 2)?, next_pair, 0..next_pair.total),
-        ];
-        let before_pair = pieces[..5].iter().try_fold(0u32, |sum, (_, _, range)| sum.checked_add(range.end.checked_sub(range.start)?))?;
-        if before_pair < COPIES_PER_BATCH {
-            // The first batch completes in the second tree's pair. Later draws can change order at this cut.
+        let branches = &first.pair.fourth_child_grandchildren;
+        for (slot, next) in self.next_collecting.iter().enumerate() {
+            let group = &self.collecting[slot];
+            let id = COLLECTING_GROUPS[slot];
+            let start = self.span_start(0, id, 2)?;
+            let tail = &group.spans[2];
+            let pair = &group.pair;
+            let fourth = &pair.fourth_child_branches;
+            let mut skipped = pair.fourth_child.checked_sub(pair.third_child)?;
+            let mut last = pair.fourth_child;
+            if slot == 0 {
+                skipped = skipped.checked_add(fourth[3].checked_sub(fourth[0])?)?;
+                last = fourth[3];
+            }
+            let size = u32::try_from(group.initial_copies()).ok()?.checked_add(tail.total.checked_sub(skipped)?)?;
+            let remaining = size.checked_sub(2 * COPIES_PER_BATCH)?;
+            if remaining > tail.total.checked_sub(last)? {
+                return Some(());
+            }
+
+            let extra = match slot {
+                0 => {
+                    let other = &self.collecting[2];
+                    (self.span_start(0, COLLECTING_GROUPS[2], 2)?, &other.spans[2], other.pair.third_child..other.pair.fourth_child)
+                }
+                2 => {
+                    let children = &first.pair.third_child_branches;
+                    (first_start, &first.spans[2], children[0]..children[2])
+                }
+                _ => (first_start, &first.spans[2], 0..0),
+            };
+            let [own, children, pair] = &next.spans;
+            let pair_start = self.span_start(1, id, 2)?;
+            let pieces = [
+                (start, tail, tail.total - remaining..tail.total),
+                extra,
+                (first_start, &first.spans[2], branches[slot]..branches[slot + 1]),
+                (self.span_start(1, id, 0)?, own, 0..own.total),
+                (self.span_start(1, id, 1)?, children, 0..children.total),
+                (pair_start, pair, 0..pair.total),
+            ];
+            let carried = pieces[..5].iter().try_fold(0u32, |sum, (_, _, range)| sum.checked_add(range.end.checked_sub(range.start)?))?;
+            if carried >= COPIES_PER_BATCH {
+                // Filling before the second tree's pair can change the order of the competing groups.
+                return Some(());
+            }
+            Self::append_copy_window(&pieces, 0, COPIES_PER_BATCH, leading)?;
+            let used = COPIES_PER_BATCH - carried;
+            let Some(gap) = next.deferred_siblings(used) else { return Some(()) };
+            if gap.start < used || gap.end > pair.total {
+                return Some(());
+            }
+            let rest = pair.total.checked_sub(used)?.checked_sub(gap.end.checked_sub(gap.start)?)?;
+            if rest / COPIES_PER_BATCH != 1 {
+                // A third full batch or a partly filled second submission can interleave with the next group.
+                return Some(());
+            }
+            let pieces = [(pair_start, pair, used..gap.start), (pair_start, pair, gap.end..pair.total)];
             Self::append_copy_window(&pieces, 0, COPIES_PER_BATCH, leading)?;
         }
         Some(())

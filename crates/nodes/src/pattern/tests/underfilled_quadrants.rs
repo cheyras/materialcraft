@@ -96,8 +96,8 @@ fn corner_offset(pass: Option<i32>) -> FunctionGraph {
     offset
 }
 
-fn quadrant_tail(graph: &mut PatternGraph, mut next: Option<u32>, mut leaf_offset: Option<FunctionGraph>) -> Option<u32> {
-    for depth in (4..=8).rev() {
+fn quadrant_tail(graph: &mut PatternGraph, first_depth: usize, mut next: Option<u32>, mut leaf_offset: Option<FunctionGraph>) -> Option<u32> {
+    for depth in (first_depth..=8).rev() {
         let id = graph.add(PatternNodeKind::Quadrant).unwrap();
         let node = &mut graph.nodes[(id - 1) as usize];
         node.parameters = additive_square(2.0_f32.powi(-76), [0.0; 2], [0.0; 2]);
@@ -133,10 +133,11 @@ fn marked_tree_pixel(
         graph.nodes[(root - 1) as usize].parameters.insert("branchoffset".into(), advance_tree_offset());
     }
     let end = matches!(continuation, Continuation::EmptySwitch).then(|| graph.add(PatternNodeKind::Switch).unwrap());
-    let plain = quadrant_tail(&mut graph, end, None);
-    let wrapped = if wrapped_subtrees.is_empty() { plain } else { quadrant_tail(&mut graph, end, Some(corner_offset(wrap_iteration))) };
+    let marked_depth = negative.0.max(positive.0).max(3);
+    let plain = quadrant_tail(&mut graph, marked_depth + 1, end, None);
+    let wrapped = if wrapped_subtrees.is_empty() { plain } else { quadrant_tail(&mut graph, marked_depth + 1, end, Some(corner_offset(wrap_iteration))) };
     let mut parents = vec![(root, [0_usize; 2])];
-    for depth in 1..=3 {
+    for depth in 1..=marked_depth {
         let mut children = Vec::new();
         for (parent, [x, y]) in parents {
             for slot in 0..4 {
@@ -165,7 +166,7 @@ fn marked_tree_pixel(
                         node.parameters.insert("opacity".into(), Value::Function(Box::new(select)));
                     }
                 }
-                if depth == 3 {
+                if depth == marked_depth {
                     node.children.fill(if wrapped_subtrees.contains(&ordinal) { wrapped } else { plain });
                 }
                 children.push((id, cell));
@@ -262,6 +263,22 @@ fn a_first_tree_batch_keeps_its_place_before_carried_quadrants() {
 fn the_next_collecting_quadrant_reaches_the_second_tree() {
     let pixel = marked_tree_pixel((3, 50), (3, 7), Continuation::InactiveBranch(10), &[], Some([2, 1]), None);
     assert_eq!(pixel.to_bits(), 2.0_f32.powi(-25).to_bits());
+}
+
+#[test]
+fn a_full_copy_batch_defers_siblings_at_the_current_quadrant() {
+    let pixel = |wrapped: &[usize]| marked_tree_pixel((5, 270), (5, 268), Continuation::InactiveBranch(10), wrapped, Some([2, 2]), Some(1));
+    assert_eq!(pixel(&[]).to_bits(), 2.0_f32.powi(-25).to_bits());
+    // Moving 64 leaves to a tile corner adds 192 copies before the same two markers.
+    assert_eq!(pixel(&[32]).to_bits(), 0);
+}
+
+#[test]
+fn later_full_batches_reach_subsequent_collecting_quadrants() {
+    for (negative, positive, passes) in [((3, 17), (3, 7), [2, 1]), ((3, 35), (3, 33), [2, 2]), ((3, 58), (3, 1), [2, 2])] {
+        let pixel = marked_tree_pixel(negative, positive, Continuation::InactiveBranch(10), &[], Some(passes), None);
+        assert_eq!(pixel.to_bits(), 2.0_f32.powi(-25).to_bits());
+    }
 }
 
 #[test]
