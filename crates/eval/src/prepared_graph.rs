@@ -46,6 +46,7 @@ impl<'a> PreparedGraph<'a> {
             base.size = self.parent_base.size;
             base.size_underflow = self.parent_base.size_underflow;
             base.dynamic_size = self.parent_base.dynamic_size;
+            base.bound_size = self.parent_base.bound_size;
         }
 
         Some(base)

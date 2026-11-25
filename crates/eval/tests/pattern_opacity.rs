@@ -2,8 +2,7 @@ use materialcraft_core::{FunctionGraph, Graph, OutputFormat, Package, PatternGra
 use materialcraft_eval::{Cache, Options, cook};
 use std::sync::Mutex;
 
-#[test]
-fn bound_pattern_property_changes_the_first_local_read_at_equal_opacity() {
+fn first_local_probe() -> (Package, materialcraft_core::NodeId) {
     let mut graph = Graph::new("First quadrant read");
     graph.size = [4; 2];
     graph.format = OutputFormat::F32;
@@ -26,6 +25,12 @@ fn bound_pattern_property_changes_the_first_local_read_at_equal_opacity() {
 
     let mut package = Package::new("Quadrant parameter origin");
     package.graphs.push(graph);
+    (package, stamp)
+}
+
+#[test]
+fn bound_pattern_property_changes_the_first_local_read_at_equal_opacity() {
+    let (mut package, stamp) = first_local_probe();
     let mut options = Options::new(&|_| None);
     options.overrides.insert("gain".into(), Value::Float(1.0));
     let cache = Mutex::new(Cache::default());
@@ -57,6 +62,47 @@ fn bound_pattern_property_changes_the_first_local_read_at_equal_opacity() {
         let result = cook(&package, 0, &options, &cache);
         assert_eq!(result.nodes[&stamp].error, None);
         assert_eq!(result.image(stamp, 0).unwrap().get_gray(0, 0, false), expected, "{mode:?}");
+    }
+}
+
+#[test]
+fn connected_image_properties_reach_writable_quadrants() {
+    let (mut package, stamp) = first_local_probe();
+    let graph = &mut package.graphs[0];
+    let uniform = graph.add_node("uniform", [0.0; 2]);
+    let source = graph.node_mut(uniform).unwrap();
+    source.params.insert("color_mode".into(), Value::Bool(false));
+    source.functions.insert("color".into(), FunctionGraph::input("swatch", ValueType::Float4));
+    let blur = graph.add_node("blur", [0.0; 2]);
+    graph.node_mut(blur).unwrap().params.insert("intensity".into(), Value::Float(0.0));
+    graph.connect(uniform, "output", blur, "input").unwrap();
+    let drawing = graph.add_node("fx_map", [0.0; 2]);
+    let mut square = PatternGraph::with_root(PatternNodeKind::Quadrant);
+    square.nodes[0].parameters.insert("patterntype".into(), Value::Int(2));
+    square.nodes[0].parameters.insert("opacity".into(), Value::Function(Box::new(FunctionGraph::input("swatch", ValueType::Float4))));
+    let stage = graph.node_mut(drawing).unwrap();
+    stage.params.insert("color_mode".into(), Value::Bool(false));
+    stage.params.insert("pattern".into(), Value::PatternGraph(Box::new(square)));
+    let mut options = Options::new(&|_| None);
+    options.overrides.insert("swatch".into(), Value::Float4([1.0; 4]));
+    let cache = Mutex::new(Cache::default());
+    for port in ["pattern0", "background"] {
+        for source in [uniform, blur, drawing] {
+            for (connected, fixed) in [(false, false), (true, true), (true, false), (true, true)] {
+                let graph = &mut package.graphs[0];
+                graph.disconnect(stamp, port);
+                if connected {
+                    graph.connect(source, "output", stamp, port).unwrap();
+                }
+                options.literal_inputs = if fixed { vec!["swatch".into()] } else { Vec::new() };
+                let result = cook(&package, 0, &options, &cache);
+                assert_eq!(result.nodes[&stamp].error, None);
+                let background = if connected && port == "background" { 1.0 } else { 0.0 };
+                let first = if connected && !fixed { 0.625 } else { 0.375 };
+                assert_eq!(result.image(stamp, 0).unwrap().get_gray(8, 8, false), background + first, "{port}, {source:?}, {connected}, {fixed}");
+            }
+        }
+        package.graphs[0].disconnect(stamp, port);
     }
 }
 

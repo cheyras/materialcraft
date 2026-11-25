@@ -115,7 +115,13 @@ pub(crate) fn cook_node(
         }
         let source = options.input_bases.get(&identifier(node))?;
         // A bridge has its own working dimensions and precision. Its sampling properties follow the wire.
-        Some(crate::ResolvedBaseParameters { pixel_size: source.pixel_size, pixel_ratio: source.pixel_ratio, tiling: source.tiling, ..prepared.parent_base })
+        Some(crate::ResolvedBaseParameters {
+            pixel_size: source.pixel_size,
+            pixel_ratio: source.pixel_ratio,
+            tiling: source.tiling,
+            bound_image: source.bound_image,
+            ..prepared.parent_base
+        })
     });
     let (mut base, base_values, base_error) =
         match crate::resolved_base_parameters::evaluate(&node.base, input_base, prepared.parent_base, &mut variables, &fixed) {
@@ -172,12 +178,22 @@ pub(crate) fn cook_node(
     }
 
     let seed = base.seed;
-    let ResolvedParameters { values: mut parameters, instance_literals, dynamic_blend_opacity, bound_pattern_property } =
+    let ResolvedParameters { values: mut parameters, instance_literals, dynamic_blend_opacity, bound_image_property } =
         match resolve_parameters(package, node, definition, &mut variables, base, &fixed) {
             Ok(parameters) => parameters,
             Err(error) => return fail(error, 0),
         };
-    let bound_pattern_property = bound_pattern_property || (node.def == "fx_map" && (base.bound_seed || base.bound_size));
+    let bound_image = if node.disabled {
+        base.bound_image
+    } else {
+        base.bound_size
+            || bound_image_property
+            || dynamic_blend_opacity
+            || (node.def == "fx_map" && base.bound_seed)
+            || input_base.is_some_and(|source| source.bound_image)
+            || incoming.iter().flatten().any(|(_, source)| source.bound_image)
+    };
+    let base = crate::ResolvedBaseParameters { bound_image, ..base };
     if matches!(node.def.as_str(), "blur" | "emboss") {
         variables.to_mut().insert("$pixelsize".into(), Value::Float2(base.pixel_size));
     }
@@ -215,7 +231,7 @@ pub(crate) fn cook_node(
     let key = hash_of(&(
         &node.def,
         serde_json::to_string(&parameters).unwrap_or_default(),
-        (dynamic_blend_opacity, bound_pattern_property),
+        (dynamic_blend_opacity, bound_image),
         (
             w,
             h,
@@ -325,7 +341,13 @@ pub(crate) fn cook_node(
             Ok(vec![output])
         } else {
             let result = if node.def == "fx_map" {
-                materialcraft_nodes::pattern::cook_with_bound_properties(&context, &base_level_only, bound_pattern_property)
+                materialcraft_nodes::pattern::cook_with_image_dependencies(&context, &base_level_only, bound_image).map(|(image, reads_input)| {
+                    // A cached pattern also supplies its drawing inputs to the next image on the wire.
+                    if reads_input != bound_image {
+                        output_bases = Some(Arc::from([crate::ResolvedBaseParameters { bound_image: reads_input, ..base }]));
+                    }
+                    vec![image]
+                })
             } else if node.def == "text"
                 && !context.text("fontdata").is_empty()
                 && let Some(font) = package.resource(context.text("fontdata"))

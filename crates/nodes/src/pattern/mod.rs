@@ -19,7 +19,7 @@ mod variables;
 
 pub use catalog::{definition, definitions};
 pub(crate) use evaluation::cook;
-pub use evaluation::{cook_with_base_level_inputs, cook_with_bound_properties};
+pub use evaluation::{cook_with_base_level_inputs, cook_with_bound_properties, cook_with_image_dependencies};
 
 #[cfg(test)]
 mod tests;

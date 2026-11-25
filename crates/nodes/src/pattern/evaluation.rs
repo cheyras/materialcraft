@@ -184,7 +184,16 @@ pub fn cook_with_bound_properties(context: &CookContext, base_level_only: &[bool
     cook_with_visit_limit(context, base_level_only, MAX_VISITS, bound_property)
 }
 
+/// Cook the image and report live drawing inputs for a downstream pattern.
+pub fn cook_with_image_dependencies(context: &CookContext, base_level_only: &[bool], bound_property: bool) -> Result<(craft_texture::Image, bool), String> {
+    evaluate(context, base_level_only, MAX_VISITS, bound_property)
+}
+
 pub(super) fn cook_with_visit_limit(context: &CookContext, base_level_only: &[bool], visit_limit: usize, bound_property: bool) -> CookResult {
+    evaluate(context, base_level_only, visit_limit, bound_property).map(|(image, _)| vec![image])
+}
+
+fn evaluate(context: &CookContext, base_level_only: &[bool], visit_limit: usize, bound_property: bool) -> Result<(craft_texture::Image, bool), String> {
     let Some(Value::PatternGraph(graph)) = context.params.get("pattern") else {
         return Err("missing pattern graph".into());
     };
@@ -238,7 +247,8 @@ pub(super) fn cook_with_visit_limit(context: &CookContext, base_level_only: &[bo
 
     let mut variables = PatternVariables::new(context.vars.graph_values());
     let has_locals = functions.values().any(|(_, names)| !names.is_empty());
-    variables.bound_draw = has_locals && (bound_property || has_bound_draw(graph.root, &nodes, &functions, context, &variables.modes));
+    variables.bound_draw =
+        bound_property || (context.vars.keys().any(|name| !name.starts_with('$')) && has_bound_draw(graph.root, &nodes, &functions, context, &variables.modes));
     let separate_child_variables = opacity_depth == 6 && has_locals && graph.root.is_some_and(|root| has_uniform_quadrant_leaves(root, opacity_depth, &nodes));
     let mut max_depth = 0;
     let mut state = EvaluationState::default();
@@ -608,5 +618,7 @@ pub(super) fn cook_with_visit_limit(context: &CookContext, base_level_only: &[bo
         .or_else(|| underfilled.and_then(|runs| runs.finish(&stamps)))
         .or_else(|| repeated_six_level.and_then(|runs| runs.finish(&stamps, repeated_roots.unwrap_or_default())))
         .or_else(|| repeated_roots.and_then(|repeats| super::repeated_quadrants::runs(context, &stamps, repeats, max_depth)));
-    Ok(vec![raster::render(context, mixed_groups.as_deref().unwrap_or(&groups), opacities, nonfinite_gray_opacity, base_level_only, runtime_image_selector)?])
+    let image =
+        raster::render(context, mixed_groups.as_deref().unwrap_or(&groups), opacities, nonfinite_gray_opacity, base_level_only, runtime_image_selector)?;
+    Ok((image, variables.bound_draw))
 }

@@ -15,6 +15,9 @@ pub struct ResolvedBaseParameters {
     /// This node's seed expression reads a live graph input.
     #[serde(skip)]
     pub bound_seed: bool,
+    /// A drawing property on this image or a connected source reads a live graph input.
+    #[serde(skip)]
+    pub bound_image: bool,
     /// Negative requested exponents on axes whose allocated texture is one texel.
     #[serde(skip)]
     pub size_underflow: [i32; 2],
@@ -40,6 +43,7 @@ impl ResolvedBaseParameters {
             dynamic_size: graph.absolute_output_size.is_none() && parent.is_some_and(|base| base.dynamic_size),
             bound_size: graph.output_size_setting().0 != materialcraft_core::SizeMode::Absolute && parent.is_some_and(|base| base.bound_size),
             bound_seed: false,
+            bound_image: false,
             size_underflow,
             seed: resolve_seed(graph.seed_mode, graph.seed, parent.map_or(0, |base| base.seed)),
             format: match graph.format {
@@ -119,6 +123,7 @@ impl ResolvedBaseParameters {
             dynamic_size: size_mode.resolve(false, input.map(|base| base.dynamic_size), parent.dynamic_size),
             bound_size: size_mode.resolve(false, input.map(|base| base.bound_size), parent.bound_size),
             bound_seed: false,
+            bound_image: false,
             seed: resolve_seed(base.seed_mode, base.seed, parent.seed),
             format: BaseParameter::Format.inheritance(base).resolve(base.format, input.map(|base| base.format), parent.format),
             tiling: base.tiling_mode.resolve(base.tiling, input.map(|base| base.tiling), parent.tiling),
