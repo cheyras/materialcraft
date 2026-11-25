@@ -57,6 +57,33 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 - **2026-11-13 - Unconnected output images:** Unconnected output bridges now produce transparent RGBA instead of grayscale. The importer separately retains each output's declared image type so saving an unconnected output preserves the graph interface. Both material templates match all 1,179,648 RGBA8 pixels across six recorded cases. All 2,560 direct grayscale/color declaration probe pixels also match, and both declared image types survive save/reload.
 
+## 2026-11-25 root comparisons
+
+### First reads of writable quadrant floats
+
+The first read of a writable scalar, float2 or float3 at a quadrant depth can produce undefined components when a drawing property reads a live graph input. The next visit at that depth sees the previous assignment. To distinguish these cases, connect four child slots to one square. In the square’s luminosity function, assign .375 if the local equals itself and .625 otherwise. With a live parent branch offset the squares read .625, .375, .375, .375 in traversal order. Substituting a literal for the graph input gives four .375 squares in this comparison. [Pattern evaluator](../crates/nodes/src/pattern/evaluation.rs) · [Variable scope](../crates/nodes/src/pattern/variables.rs)
+
+Use the eleven [tint and blend configurations](#undefined-components-in-a-computed-quadrant-tint) with the writable assignment of the previous local plus .0625. Use the published default .8125 at 16² F32 with seed 40991 and 32 × 16 U16 with seed 41005. Change the published input to .3125 at 16² F16 with seed 40998 and 32 × 16 U8 with seed 41012. Count a pixel as exact when every stored channel has the same bits, including NaNs.
+
+| Storage | Previous exact pixels | Corrected exact pixels | Previous maximum finite error | Corrected maximum error |
+|---|---:|---:|---:|---:|
+| U8 | 1,536/5,632 | 5,632/5,632 | 96 codes | 0 |
+| U16 | 1,536/5,632 | 5,632/5,632 | 24,576 codes | 0 |
+| F16 | 768/2,816 | 2,816/2,816 | .25 | 0 |
+| F32 | 768/2,816 | 2,816/2,816 | .25 | 0 |
+
+The previous F16 and F32 results each had 768 differing nonfinite channels. All stored floating-point channels now match. Independently save each original in MaterialCraft and reopen it in the reference desktop. The original and reopened reference outputs agree on all 16,896 pixels. The five [nested caller configurations](#writable-first-reads-through-graph-instances) now match all 3,840 original and all 3,840 reopened F32 pixels, maximum zero in both sets. Changing only the origin of an opacity value of one also changes the first square when reusing the cook cache. [Cache regression](../crates/eval/tests/pattern_opacity.rs)
+
+For the component-width control, store the local plus a zero vector and start luminosity at .125. For each component unequal to itself, add 1/32, 2/32, 4/32 or 8/32 according to its position. Compare fixed opacity one with opacity one plus zero times a published input. The scalar, float2 and float3 cases match all 4,608 F32 pixels, maximum zero. The live float4 case still matches 0/768, maximum .21875. The fourth component can retain a finite value across reference cooks. The two integer controls match 0/1,536 with maximum .75. These initial values remain open.
+
+Connect a second square to a switch and drive its luminosity from a published input. The first square reads .625 even with the switch fixed to the other branch. Disconnecting the second square or setting its shape to zero gives .375. A published branch offset or seed still affects a shapeless quadrant. A published image index affects an image stamp with no texture connected. Image filtering and seed inheritance each leave the first square at .375. A graph-size function that returns (0,0) from a published scalar affects both relative size modes. With an absolute 16² size on the pattern node the first square reads .375. The six graph size and seed inheritance controls match 4,352/4,352 F32 pixels. [Connected-branch regression](../crates/nodes/src/pattern/tests.rs)
+
+Across ten scalar first-read expressions with fixed and live parents, 14,976/15,360 F32 pixels match, up from 14,016. The 384 remaining differences occur on the fixed-parent 32 × 16 captures, maximum .25. Thirty other binding and assignment variants improve from 12,288/23,040 to 19,200/23,040, maximum 1.5. A separate reference control with a live upstream Uniform color and literal properties on the pattern node also changes the first square. Disconnecting the Uniform or replacing its color with the same literal restores the four .375 readings. Propagation from the upstream image remains open.
+
+Seven original and four reopened settings of each Noise BNW Spots 1 version retain their previous MaterialCraft buffers bit for bit. Version one matches 20,618/20,992 original pixels on one processor and 20,455/20,992 on eight, with maximum one U16 code. Its ordinary saves match 2,799/2,816, maximum 5.96046448e−8. Version two matches 20,904/20,992 on both processor counts and 4,273/4,352 on saves, with respective maxima 1.19209290e−7 and 5.96046448e−8. Both whole roots remain in progress. [Original settings and previous buffers](#undefined-components-in-a-computed-quadrant-tint)
+
+Both new regressions failed on the preceding implementation. All 504 release tests for the node library and graph evaluator pass with the fix. Formatting, strict workspace Clippy, dependency layers and WebAssembly also pass.
+
 ## 2026-11-24 root comparisons
 
 ### Undefined components in a computed quadrant tint

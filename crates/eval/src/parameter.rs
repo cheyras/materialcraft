@@ -8,6 +8,7 @@ pub(crate) struct ResolvedParameters {
     pub values: BTreeMap<String, Value>,
     pub instance_literals: Vec<String>,
     pub dynamic_blend_opacity: bool,
+    pub bound_pattern_property: bool,
 }
 
 pub(crate) fn supports_literal_argument(value: &Value) -> bool {
@@ -50,6 +51,8 @@ pub(crate) fn resolve_parameters(
 
     let mut dynamic = std::collections::BTreeSet::new();
     let mut dynamic_blend_opacity = false;
+    let mut bound_pattern_property = false;
+    let pattern_property = |name: &str| node.def == "fx_map" && matches!(name, "opacity" | "roughness" | "background" | "render_region" | "tiling_region");
     let mut uniform_color = None;
     for (parameter, exposed) in &node.bindings {
         if node.def == "uniform" && parameter == "color" {
@@ -63,6 +66,9 @@ pub(crate) fn resolve_parameters(
         {
             if node.def == "blend" && parameter == "opacity" {
                 dynamic_blend_opacity = !literal_inputs.contains(exposed);
+            }
+            if pattern_property(parameter) && !node.functions.contains_key(parameter) {
+                bound_pattern_property |= !literal_inputs.contains(exposed);
             }
             parameters.insert(parameter.clone(), coerced);
         }
@@ -85,6 +91,9 @@ pub(crate) fn resolve_parameters(
             .and_then(|program| {
                 if node.def == "blend" && parameter == "opacity" {
                     dynamic_blend_opacity = program.reads_graph_parameter(variables);
+                }
+                if pattern_property(parameter) {
+                    bound_pattern_property |= program.reads_graph_parameter(variables);
                 }
                 crate::parameter_function::evaluate(&program, expected, variables.to_mut(), base.size, mode, Some(current))
             })
@@ -131,7 +140,7 @@ pub(crate) fn resolve_parameters(
     } else {
         Vec::new()
     };
-    Ok(ResolvedParameters { values: parameters, instance_literals: fixed, dynamic_blend_opacity })
+    Ok(ResolvedParameters { values: parameters, instance_literals: fixed, dynamic_blend_opacity, bound_pattern_property })
 }
 
 pub(crate) fn inspection_parameters(node: &Node, parameters: &mut BTreeMap<String, Value>) {

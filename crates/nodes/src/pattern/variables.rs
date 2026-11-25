@@ -33,6 +33,7 @@ pub(super) struct PatternVariables<'a> {
     published: &'a BTreeMap<String, Value>,
     pub(super) drawing: BTreeMap<String, Value>,
     pub(super) modes: BTreeMap<String, Value>,
+    pub(super) bound_draw: bool,
     locals: BTreeMap<String, LocalValues>,
     scopes: Vec<(usize, Vec<Declaration>)>,
 }
@@ -46,7 +47,7 @@ impl<'a> PatternVariables<'a> {
         for name in ["$depth", "$depthpow2", "$number"] {
             modes.insert(name.into(), Value::Float(0.0));
         }
-        Self { modes, drawing, published, locals: BTreeMap::new(), scopes: Vec::new() }
+        Self { modes, drawing, published, bound_draw: false, locals: BTreeMap::new(), scopes: Vec::new() }
     }
 
     pub(super) fn enter(&mut self, names: &BTreeMap<String, ValueType>, depth: u32, declared: &mut Vec<Declaration>) {
@@ -58,7 +59,13 @@ impl<'a> PatternVariables<'a> {
             // A child may read its parent's value. Declaring the name opens the
             // last value written at this quadrant depth, including across siblings.
             self.modes.remove(name);
-            let value = local.saved.remove(&depth).unwrap_or_else(|| kind.default_value());
+            let value = local.saved.remove(&depth).unwrap_or_else(|| match (self.bound_draw, kind) {
+                // A draw driven by a graph input starts these components undefined until the first write.
+                (true, ValueType::Float) => Value::Float(f32::NAN),
+                (true, ValueType::Float2) => Value::Float2([f32::NAN; 2]),
+                (true, ValueType::Float3) => Value::Float3([f32::NAN; 3]),
+                _ => kind.default_value(),
+            });
             let previous = self.drawing.insert(name.clone(), value);
             let outer = local.depth.replace(depth).zip(previous);
             declared.push(Declaration { name: name.clone(), outer });

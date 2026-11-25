@@ -3,6 +3,64 @@ use materialcraft_eval::{Cache, Options, cook};
 use std::sync::Mutex;
 
 #[test]
+fn bound_pattern_property_changes_the_first_local_read_at_equal_opacity() {
+    let mut graph = Graph::new("First quadrant read");
+    graph.size = [4; 2];
+    graph.format = OutputFormat::F32;
+    let stamp = graph.add_node("fx_map", [0.0; 2]);
+    let node = graph.node_mut(stamp).unwrap();
+    node.params.insert("color_mode".into(), Value::Bool(false));
+    node.params.insert("roughness".into(), Value::Float(0.0));
+    let mut pattern = PatternGraph::with_root(PatternNodeKind::Quadrant);
+    let fields = &mut pattern.nodes[0].parameters;
+    fields.insert("patterntype".into(), Value::Int(2));
+    let mut tint = FunctionGraph::input("local", ValueType::Float);
+    let read = tint.output.unwrap();
+    let equal = tint.add("eq", &[read, read], None);
+    let yes = tint.add_constant(Value::Float(0.375));
+    let no = tint.add_constant(Value::Float(0.625));
+    let choose = tint.add("ifelse", &[equal, yes, no], None);
+    tint.output = Some(tint.add("set", &[choose], Some(Value::Text("local".into()))));
+    fields.insert("opacity".into(), Value::Function(Box::new(tint)));
+    node.params.insert("pattern".into(), Value::PatternGraph(Box::new(pattern)));
+
+    let mut package = Package::new("Quadrant parameter origin");
+    package.graphs.push(graph);
+    let mut options = Options::new(&|_| None);
+    options.overrides.insert("gain".into(), Value::Float(1.0));
+    let cache = Mutex::new(Cache::default());
+    for direct in [true, false] {
+        let node = package.graphs[0].node_mut(stamp).unwrap();
+        if direct {
+            node.bindings.insert("opacity".into(), "gain".into());
+        } else {
+            node.bindings.clear();
+            node.functions.insert("opacity".into(), FunctionGraph::input("gain", ValueType::Float));
+        }
+        for fixed in [true, false, true] {
+            options.literal_inputs = if fixed { vec!["gain".into()] } else { Vec::new() };
+            let result = cook(&package, 0, &options, &cache);
+            assert_eq!(result.nodes[&stamp].error, None);
+            let expected = if fixed { 0.375 } else { 0.625 };
+            assert_eq!(result.image(stamp, 0).unwrap().get_gray(8, 8, false), expected, "direct {direct}, fixed {fixed}");
+        }
+    }
+
+    let graph = &mut package.graphs[0];
+    graph.node_mut(stamp).unwrap().functions.clear();
+    graph.output_size_function = Some(FunctionGraph::input("offset", ValueType::Integer2));
+    options.overrides.insert("offset".into(), Value::Int2([0; 2]));
+    for (mode, expected) in [(materialcraft_core::SizeMode::RelativeToParent, 0.625), (materialcraft_core::SizeMode::Absolute, 0.375)] {
+        let base = &mut package.graphs[0].node_mut(stamp).unwrap().base;
+        base.size_mode = mode;
+        base.size = if mode == materialcraft_core::SizeMode::Absolute { [4; 2] } else { [0; 2] };
+        let result = cook(&package, 0, &options, &cache);
+        assert_eq!(result.nodes[&stamp].error, None);
+        assert_eq!(result.image(stamp, 0).unwrap().get_gray(0, 0, false), expected, "{mode:?}");
+    }
+}
+
+#[test]
 fn gray_pattern_opacity_keeps_signed_and_undefined_contributions_until_blending() {
     let mut graph = Graph::new("Signed stamp opacity");
     graph.size = [4; 2];

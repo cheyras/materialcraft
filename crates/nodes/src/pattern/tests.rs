@@ -1829,7 +1829,7 @@ fn render_with_visit_limit(graph: &PatternGraph, limit: usize) -> crate::CookRes
         resource: &|_| None,
         vars: &BTreeMap::new(),
     };
-    super::evaluation::cook_with_visit_limit(&context, &[], limit)
+    super::evaluation::cook_with_visit_limit(&context, &[], limit, false)
 }
 
 #[test]
@@ -1994,6 +1994,37 @@ fn set_then_return(name: &str, value: Value, result: Value) -> Value {
     let result = function.add_constant(result);
     function.output = Some(function.add("sequence", &[set, result], None));
     Value::Function(Box::new(function))
+}
+
+#[test]
+fn first_writable_float_depends_on_connected_draw_properties() {
+    let mut graph = PatternGraph::with_root(PatternNodeKind::Quadrant);
+    let writer = graph.add(PatternNodeKind::Quadrant).unwrap();
+    let switch = graph.add(PatternNodeKind::Switch).unwrap();
+    let other = graph.add(PatternNodeKind::Quadrant).unwrap();
+    graph.nodes[0].children = vec![Some(writer), Some(writer), Some(writer), Some(switch)];
+    graph.nodes[2].children[0] = Some(writer);
+    square(&mut graph, 1);
+
+    let mut field = FunctionGraph::input("local", materialcraft_core::ValueType::Float);
+    let current = field.output.unwrap();
+    let defined = field.add("eq", &[current, current], None);
+    let yes = field.add_constant(Value::Float(0.375));
+    let no = field.add_constant(Value::Float(0.625));
+    let next = field.add("ifelse", &[defined, yes, no], None);
+    field.output = Some(field.add("set", &[next], Some(Value::Text("local".into()))));
+    graph.nodes[1].parameters.insert("opacity".into(), Value::Function(Box::new(field)));
+    let published = FunctionGraph::input("gain", materialcraft_core::ValueType::Float);
+    graph.nodes[3].parameters.insert("opacity".into(), Value::Function(Box::new(published)));
+    let bindings = BTreeMap::from([("gain".into(), Value::Float(0.8125))]);
+    for (connected, shape, first) in [(false, 2, 0.375), (true, 0, 0.375), (true, 2, 0.625)] {
+        graph.nodes[2].children[1] = connected.then_some(other);
+        graph.nodes[3].parameters.insert("patterntype".into(), Value::Int(shape));
+        let image = cook_with_variables(graph.clone(), &bindings, 41301).unwrap().remove(0);
+        for (x, y, expected) in [(4, 4, first), (12, 4, 0.375), (4, 12, 0.375), (12, 12, 0.375)] {
+            assert_eq!(image.get_gray(x, y, false), expected, "connected {connected}, shape {shape}, pixel ({x}, {y})");
+        }
+    }
 }
 
 #[test]

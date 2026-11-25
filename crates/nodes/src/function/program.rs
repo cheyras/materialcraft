@@ -58,10 +58,12 @@ impl Program {
 
     /// Whether the property reads a bound graph parameter, even if its final value is constant.
     pub fn reads_graph_parameter(&self, variables: &std::collections::BTreeMap<String, Value>) -> bool {
+        self.reads_bound_input(|name| variables.contains_key(name))
+    }
+
+    pub(crate) fn reads_bound_input(&self, bound: impl Fn(&str) -> bool) -> bool {
         self.instructions.iter().any(|op| {
-            !op.literal
-                && op.definition.id.starts_with("get_")
-                && matches!(&op.value, Some(Value::Text(name)) if !name.starts_with('$') && variables.contains_key(name))
+            !op.literal && op.definition.id.starts_with("get_") && matches!(&op.value, Some(Value::Text(name)) if !name.starts_with('$') && bound(name))
         })
     }
 

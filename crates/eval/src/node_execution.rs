@@ -172,11 +172,12 @@ pub(crate) fn cook_node(
     }
 
     let seed = base.seed;
-    let ResolvedParameters { values: mut parameters, instance_literals, dynamic_blend_opacity } =
+    let ResolvedParameters { values: mut parameters, instance_literals, dynamic_blend_opacity, bound_pattern_property } =
         match resolve_parameters(package, node, definition, &mut variables, base, &fixed) {
             Ok(parameters) => parameters,
             Err(error) => return fail(error, 0),
         };
+    let bound_pattern_property = bound_pattern_property || (node.def == "fx_map" && (base.bound_seed || base.bound_size));
     if matches!(node.def.as_str(), "blur" | "emboss") {
         variables.to_mut().insert("$pixelsize".into(), Value::Float2(base.pixel_size));
     }
@@ -214,7 +215,7 @@ pub(crate) fn cook_node(
     let key = hash_of(&(
         &node.def,
         serde_json::to_string(&parameters).unwrap_or_default(),
-        dynamic_blend_opacity,
+        (dynamic_blend_opacity, bound_pattern_property),
         (
             w,
             h,
@@ -223,7 +224,7 @@ pub(crate) fn cook_node(
             node.disabled,
             base.size,
             base.size_underflow,
-            base.dynamic_size,
+            (base.dynamic_size, base.bound_size),
             base.format,
             base.tiling,
             base.pixel_ratio,
@@ -324,7 +325,7 @@ pub(crate) fn cook_node(
             Ok(vec![output])
         } else {
             let result = if node.def == "fx_map" {
-                materialcraft_nodes::pattern::cook_with_base_level_inputs(&context, &base_level_only)
+                materialcraft_nodes::pattern::cook_with_bound_properties(&context, &base_level_only, bound_pattern_property)
             } else if node.def == "text"
                 && !context.text("fontdata").is_empty()
                 && let Some(font) = package.resource(context.text("fontdata"))

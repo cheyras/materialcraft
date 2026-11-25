@@ -9,6 +9,12 @@ pub struct ResolvedBaseParameters {
     /// This texture inherits or evaluates a size controlled by a runtime parameter.
     #[serde(skip)]
     pub dynamic_size: bool,
+    /// The resolved dimensions depend on a live graph input, including through size inheritance.
+    #[serde(skip)]
+    pub bound_size: bool,
+    /// This node's seed expression reads a live graph input.
+    #[serde(skip)]
+    pub bound_seed: bool,
     /// Negative requested exponents on axes whose allocated texture is one texel.
     #[serde(skip)]
     pub size_underflow: [i32; 2],
@@ -32,6 +38,8 @@ impl ResolvedBaseParameters {
         Self {
             size,
             dynamic_size: graph.absolute_output_size.is_none() && parent.is_some_and(|base| base.dynamic_size),
+            bound_size: graph.output_size_setting().0 != materialcraft_core::SizeMode::Absolute && parent.is_some_and(|base| base.bound_size),
+            bound_seed: false,
             size_underflow,
             seed: resolve_seed(graph.seed_mode, graph.seed, parent.map_or(0, |base| base.seed)),
             format: match graph.format {
@@ -50,12 +58,13 @@ impl ResolvedBaseParameters {
         function: &materialcraft_core::FunctionGraph,
         options: &crate::Options<'_>,
         variables: &BTreeMap<String, Value>,
-    ) -> Result<(Value, bool), String> {
+    ) -> Result<(Value, bool, bool), String> {
         let mut variables = variables.clone();
         self.variables(&mut variables);
         compile_with_literal_inputs(function, self.seed, &options.literal_inputs)
             .and_then(|program| {
                 let dynamic = !program.output_is_literal() && !program.depends_only_on_image_size();
+                let bound = program.reads_graph_parameter(&variables);
                 let (value, _) = crate::parameter_function::evaluate(
                     &program,
                     parameter.value_type(),
@@ -64,7 +73,7 @@ impl ResolvedBaseParameters {
                     crate::parameter_function::ParameterMode::for_base(parameter),
                     None,
                 )?;
-                Ok((value, dynamic))
+                Ok((value, dynamic, bound))
             })
             .map_err(|error| format!("graph {}: {error}", parameter.label().to_ascii_lowercase()))
     }
@@ -78,10 +87,11 @@ impl ResolvedBaseParameters {
             parent.unwrap_or_else(|| (graph.parent_size_px(), [0; 2]))
         };
         let context = Self { size, size_underflow, ..*self };
-        let (value, dynamic) = context.graph_function_value(BaseParameter::OutputSize, function, options, variables)?;
+        let (value, dynamic, bound) = context.graph_function_value(BaseParameter::OutputSize, function, options, variables)?;
         let Value::Int2(offset) = value else { return Err("graph output size requires an integer pair".into()) };
         (self.size, self.size_underflow) = graph.resolved_output_size(parent, Some(offset));
         self.dynamic_size |= dynamic;
+        self.bound_size |= bound;
         Ok(())
     }
 
@@ -90,7 +100,7 @@ impl ResolvedBaseParameters {
         let parent_seed = options.parent_base.map_or(0, |base| base.seed);
         // Graph seed functions see the allocated dimensions even when descendants retain a negative size exponent.
         let context = Self { seed: resolve_seed(graph.seed_mode, 0, parent_seed), size_underflow: [0; 2], ..*self };
-        let (value, _) = context.graph_function_value(BaseParameter::RandomSeed, function, options, variables)?;
+        let (value, _, _) = context.graph_function_value(BaseParameter::RandomSeed, function, options, variables)?;
         let Value::Int(offset) = value else { return Err("graph random seed requires an integer".into()) };
         self.seed = resolve_seed(graph.seed_mode, offset, parent_seed);
         Ok(())
@@ -107,6 +117,8 @@ impl ResolvedBaseParameters {
             size,
             size_underflow,
             dynamic_size: size_mode.resolve(false, input.map(|base| base.dynamic_size), parent.dynamic_size),
+            bound_size: size_mode.resolve(false, input.map(|base| base.bound_size), parent.bound_size),
+            bound_seed: false,
             seed: resolve_seed(base.seed_mode, base.seed, parent.seed),
             format: BaseParameter::Format.inheritance(base).resolve(base.format, input.map(|base| base.format), parent.format),
             tiling: base.tiling_mode.resolve(base.tiling, input.map(|base| base.tiling), parent.tiling),
@@ -161,6 +173,8 @@ pub(crate) fn evaluate(
     };
     let mut values = BTreeMap::new();
     let mut computed_size = false;
+    let mut bound_size = false;
+    let mut bound_seed = false;
     let mut resolved = ResolvedBaseParameters::resolve(&evaluated, input, parent);
 
     // Size and seed establish the context used by the remaining parameter functions
@@ -186,6 +200,9 @@ pub(crate) fn evaluate(
                 .and_then(|program| {
                     if parameter == BaseParameter::OutputSize {
                         computed_size = !program.output_is_literal() && !program.depends_only_on_image_size();
+                        bound_size = program.reads_graph_parameter(variables);
+                    } else if parameter == BaseParameter::RandomSeed {
+                        bound_seed = program.reads_graph_parameter(variables);
                     }
                     crate::parameter_function::evaluate(
                         &program,
@@ -206,5 +223,7 @@ pub(crate) fn evaluate(
     }
 
     resolved.dynamic_size |= computed_size;
+    resolved.bound_size |= bound_size;
+    resolved.bound_seed = bound_seed;
     Ok((resolved, values))
 }

@@ -1,9 +1,9 @@
-use materialcraft_core::{PatternNode, PatternNodeKind, Value};
+use materialcraft_core::{PatternNode, PatternNodeKind, Value, ValueType};
 use std::collections::{BTreeMap, BTreeSet};
 
 use super::mixed_depth_runs::MixedDepthRuns;
 use super::{catalog, footprint::SampleGrid, pattern_stamp::PatternStamp, pattern_visit::PatternVisit, raster, variables::PatternVariables};
-use crate::function::{EvaluationContext, EvaluationState, compile_with_literal_inputs};
+use crate::function::{EvaluationContext, EvaluationState, Program, compile_with_literal_inputs};
 use crate::random::FunctionRandom;
 use crate::{CookContext, CookResult};
 
@@ -23,7 +23,75 @@ enum QuadrantChildren {
     Other,
 }
 
-fn has_uniform_quadrant_leaves(root: u32, depth: u32, nodes: &BTreeMap<u32, (&PatternNode, bool, QuadrantChildren)>) -> bool {
+type PatternNodes<'a> = BTreeMap<u32, (&'a PatternNode, bool, QuadrantChildren)>;
+type PropertyPrograms<'a> = BTreeMap<(u32, &'a str), (Program, BTreeMap<String, ValueType>)>;
+
+fn quadrant_mode(kind: PatternNodeKind, name: &str) -> bool {
+    kind == PatternNodeKind::Quadrant && matches!(name, "patterntype" | "blendingmode" | "imagefiltering" | "imagepremul" | "randominherited")
+}
+
+fn image_pattern(pattern: i32) -> bool {
+    pattern == 1 || (256..256 + crate::MAX_IMAGE_INPUTS as i32).contains(&pattern)
+}
+
+fn uses_property(kind: PatternNodeKind, name: &str, pattern: i32) -> bool {
+    match name {
+        "randomseed" | "randominherited" | "patterntype" | "branchoffset" => true,
+        "imageindex" | "imagefiltering" | "imagepremul" => image_pattern(pattern),
+        _ => kind != PatternNodeKind::Quadrant || pattern != 0,
+    }
+}
+
+fn has_bound_draw(root: Option<u32>, nodes: &PatternNodes, programs: &PropertyPrograms, context: &CookContext, modes: &BTreeMap<String, Value>) -> bool {
+    // Both connected alternatives contribute, even when a switch or zero iteration skips one during traversal.
+    let mut pending: Vec<_> = root.into_iter().collect();
+    let mut seen = BTreeSet::new();
+    let mut state = EvaluationState::default();
+    while let Some(id) = pending.pop() {
+        if !seen.insert(id) {
+            continue;
+        }
+        let Some(&(node, _, _)) = nodes.get(&id) else { continue };
+        pending.extend(node.children.iter().flatten().copied());
+        let Some(definition) = catalog::definition(node.kind) else { continue };
+        let mut pattern = None;
+        for field in &definition.params {
+            if field.id == "randominherited"
+                || quadrant_mode(node.kind, field.id)
+                || !programs
+                    .get(&(id, field.id))
+                    .is_some_and(|(program, locals)| program.reads_bound_input(|name| !locals.contains_key(name) && context.vars.contains_key(name)))
+            {
+                continue;
+            }
+            if uses_property(node.kind, field.id, 0) {
+                return true;
+            }
+            let shape = pattern.get_or_insert_with(|| {
+                if let Some((program, _)) = programs.get(&(id, "patterntype")) {
+                    let evaluation = EvaluationContext {
+                        image_formats: context.input_formats.get(1..).unwrap_or(&[]),
+                        scope: crate::function::FunctionScope::FxMap,
+                        position: [0.0; 2],
+                        size: [context.w as f32, context.h as f32],
+                        images: context.inputs.get(1..).unwrap_or(&[]),
+                        tile: context.tile,
+                        variables: modes,
+                    };
+                    program.evaluate_with_random(&evaluation, &mut state, &mut FunctionRandom::image(context.seed)).ok().and_then(|v| v.as_i32()).unwrap_or(0)
+                } else {
+                    node.parameters.get("patterntype").and_then(Value::as_i32).unwrap_or(0)
+                }
+            });
+            if uses_property(node.kind, field.id, *shape) {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+fn has_uniform_quadrant_leaves(root: u32, depth: u32, nodes: &PatternNodes) -> bool {
     let mut level = BTreeSet::from([root]);
     for current in 0..=depth {
         let mut next = BTreeSet::new();
@@ -108,10 +176,15 @@ pub(crate) fn cook(context: &CookContext) -> CookResult {
 
 /// Cook a pattern with the supplied base-level-only flags in image port order.
 pub fn cook_with_base_level_inputs(context: &CookContext, base_level_only: &[bool]) -> CookResult {
-    cook_with_visit_limit(context, base_level_only, MAX_VISITS)
+    cook_with_bound_properties(context, base_level_only, false)
 }
 
-pub(super) fn cook_with_visit_limit(context: &CookContext, base_level_only: &[bool], visit_limit: usize) -> CookResult {
+/// A live input to a drawing property affects reads of a local preceding its first assignment.
+pub fn cook_with_bound_properties(context: &CookContext, base_level_only: &[bool], bound_property: bool) -> CookResult {
+    cook_with_visit_limit(context, base_level_only, MAX_VISITS, bound_property)
+}
+
+pub(super) fn cook_with_visit_limit(context: &CookContext, base_level_only: &[bool], visit_limit: usize, bound_property: bool) -> CookResult {
     let Some(Value::PatternGraph(graph)) = context.params.get("pattern") else {
         return Err("missing pattern graph".into());
     };
@@ -164,9 +237,9 @@ pub(super) fn cook_with_visit_limit(context: &CookContext, base_level_only: &[bo
     let mut branch_starts = [None; 4];
 
     let mut variables = PatternVariables::new(context.vars.graph_values());
-    let separate_child_variables = opacity_depth == 6
-        && functions.values().any(|(_, names)| !names.is_empty())
-        && graph.root.is_some_and(|root| has_uniform_quadrant_leaves(root, opacity_depth, &nodes));
+    let has_locals = functions.values().any(|(_, names)| !names.is_empty());
+    variables.bound_draw = has_locals && (bound_property || has_bound_draw(graph.root, &nodes, &functions, context, &variables.modes));
+    let separate_child_variables = opacity_depth == 6 && has_locals && graph.root.is_some_and(|root| has_uniform_quadrant_leaves(root, opacity_depth, &nodes));
     let mut max_depth = 0;
     let mut state = EvaluationState::default();
     let mut terminal_siblings: Option<(usize, bool)> = None;
@@ -250,8 +323,7 @@ pub(super) fn cook_with_visit_limit(context: &CookContext, base_level_only: &[bo
 
         let mut evaluate = |id: &str, random: &mut FunctionRandom| -> Result<Option<Value>, String> {
             let Some((program, names)) = functions.get(&(node.id, id)) else { return Ok(node.parameters.get(id).cloned()) };
-            let mode =
-                node.kind == PatternNodeKind::Quadrant && matches!(id, "patterntype" | "blendingmode" | "imagefiltering" | "imagepremul" | "randominherited");
+            let mode = quadrant_mode(node.kind, id);
             if !mode {
                 variables.enter(names, visit.depth, &mut declared);
             }
@@ -291,14 +363,9 @@ pub(super) fn cook_with_visit_limit(context: &CookContext, base_level_only: &[bo
         parameter_values.clear();
         let mut random = FunctionRandom::image(visit.seed);
         let mut pattern = if node.kind == PatternNodeKind::Quadrant { evaluate("patterntype", &mut random)?.and_then(|v| v.as_i32()).unwrap_or(0) } else { 0 };
-        let image_pattern = pattern == 1 || (256..256 + crate::MAX_IMAGE_INPUTS as i32).contains(&pattern);
+        let image_pattern = image_pattern(pattern);
         // An unused stamp property cannot publish a Set to a child. The branch offset still positions that child.
-        let active = |id: &str| match id {
-            "patterntype" | "randomseed" | "randominherited" => false,
-            "branchoffset" => true,
-            "imageindex" | "imagefiltering" | "imagepremul" => image_pattern,
-            _ => node.kind != PatternNodeKind::Quadrant || pattern != 0,
-        };
+        let active = |id: &str| !matches!(id, "patterntype" | "randomseed" | "randominherited") && uses_property(node.kind, id, pattern);
         for parameter in definition.params.iter().filter(|p| active(p.id)) {
             let mut stream = FunctionRandom::pattern(visit.seed, parameter.id);
             let value = evaluate(parameter.id, stream.as_mut().unwrap_or(&mut random))?.unwrap_or_else(|| parameter.default.clone());
