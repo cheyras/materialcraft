@@ -253,6 +253,25 @@ fn outer_iteration_retains_its_batches_through_a_routing_node() {
 }
 
 #[test]
+fn a_carried_middle_pair_precedes_the_remaining_first_tree_quadrant() {
+    let pixel = marked_tree_pixel((3, 60), (3, 2), Continuation::InactiveBranch(10), &[], Some([2, 1]), None);
+    assert_eq!(pixel.to_bits(), 2.0_f32.powi(-25).to_bits());
+}
+
+#[test]
+fn a_first_tree_batch_keeps_its_place_before_carried_quadrants() {
+    let pixel = |negative, positive, passes| marked_tree_pixel(negative, positive, Continuation::InactiveBranch(10), &[34], Some(passes), Some(1));
+    assert_eq!(pixel((3, 60), (2, 6), [1, 2]).to_bits(), 2.0_f32.powi(-25).to_bits());
+    assert_eq!(pixel((2, 6), (3, 2), [2, 1]).to_bits(), 2.0_f32.powi(-25).to_bits());
+}
+
+#[test]
+fn the_next_collecting_quadrant_reaches_the_second_tree() {
+    let pixel = marked_tree_pixel((3, 50), (3, 7), Continuation::InactiveBranch(10), &[], Some([2, 1]), None);
+    assert_eq!(pixel.to_bits(), 2.0_f32.powi(-25).to_bits());
+}
+
+#[test]
 fn filled_quadrant_batches_submit_the_middle_pair_before_the_upper_pair() {
     assert_eq!(filled_quadrant_pixel(10, 2, Continuation::None).to_bits(), 2.0_f32.powi(-25).to_bits());
 }
