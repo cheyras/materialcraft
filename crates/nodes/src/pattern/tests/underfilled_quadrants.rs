@@ -75,16 +75,34 @@ enum Continuation {
     InactiveBranch(u32),
 }
 
-fn quadrant_tail(graph: &mut PatternGraph, mut next: Option<u32>, wrapped: bool) -> Option<u32> {
+fn on_tree_pass(graph: &mut FunctionGraph, pass: i32) -> u32 {
+    let index = graph.add("get_float1", &[], Some(Value::Text("tree_index".into())));
+    let pass = graph.add_constant(Value::Float(pass as f32));
+    graph.add("eq", &[index, pass], None)
+}
+
+fn corner_offset(pass: Option<i32>) -> FunctionGraph {
+    let mut offset = FunctionGraph::default();
+    let origin = offset.add_constant(Value::Float2([0.0; 2]));
+    let center = offset.add("get_float2", &[], Some(Value::Text("$pos".into())));
+    let shift = offset.add("sub", &[origin, center], None);
+    offset.output = Some(if let Some(pass) = pass {
+        let active = on_tree_pass(&mut offset, pass);
+        offset.add("ifelse", &[active, shift, origin], None)
+    } else {
+        shift
+    });
+    offset
+}
+
+fn quadrant_tail(graph: &mut PatternGraph, mut next: Option<u32>, mut leaf_offset: Option<FunctionGraph>) -> Option<u32> {
     for depth in (4..=8).rev() {
         let id = graph.add(PatternNodeKind::Quadrant).unwrap();
         let node = &mut graph.nodes[(id - 1) as usize];
         node.parameters = additive_square(2.0_f32.powi(-76), [0.0; 2], [0.0; 2]);
-        if wrapped && depth == 8 {
-            let mut offset = FunctionGraph::default();
-            let corner = offset.add_constant(Value::Float2([0.0; 2]));
-            let center = offset.add("get_float2", &[], Some(Value::Text("$pos".into())));
-            offset.output = Some(offset.add("sub", &[corner, center], None));
+        if depth == 8
+            && let Some(offset) = leaf_offset.take()
+        {
             node.parameters.insert("frameoffset".into(), Value::Function(Box::new(offset)));
         }
         node.children.fill(next);
@@ -94,13 +112,35 @@ fn quadrant_tail(graph: &mut PatternGraph, mut next: Option<u32>, wrapped: bool)
 }
 
 fn filled_tree_pixel(negative: (usize, usize), positive: (usize, usize), continuation: Continuation, wrapped_subtrees: &[usize]) -> f32 {
+    marked_tree_pixel(negative, positive, continuation, wrapped_subtrees, None, None)
+}
+
+fn marked_tree_pixel(
+    negative: (usize, usize),
+    positive: (usize, usize),
+    continuation: Continuation,
+    wrapped_subtrees: &[usize],
+    marker_iterations: Option<[i32; 2]>,
+    wrap_iteration: Option<i32>,
+) -> f32 {
     let mut graph = PatternGraph::with_root(PatternNodeKind::Iterate);
     let iterate = graph.root.unwrap();
     let root = graph.add(PatternNodeKind::Quadrant).unwrap();
     graph.nodes[(iterate - 1) as usize].children[1] = Some(root);
+    if marker_iterations.is_some() || wrap_iteration.is_some() {
+        graph.nodes[(iterate - 1) as usize].parameters.insert("numberadded".into(), set_then_return("tree_index", Value::Float(0.0), Value::Int(2)));
+        let mut advance = FunctionGraph::default();
+        let index = advance.add("get_float1", &[], Some(Value::Text("tree_index".into())));
+        let one = advance.add_constant(Value::Float(1.0));
+        let next = advance.add("add", &[index, one], None);
+        let stored = advance.add("set", &[next], Some(Value::Text("tree_index".into())));
+        let origin = advance.add_constant(Value::Float2([0.0; 2]));
+        advance.output = Some(advance.add("sequence", &[stored, origin], None));
+        graph.nodes[(root - 1) as usize].parameters.insert("branchoffset".into(), Value::Function(Box::new(advance)));
+    }
     let end = matches!(continuation, Continuation::EmptySwitch).then(|| graph.add(PatternNodeKind::Switch).unwrap());
-    let plain = quadrant_tail(&mut graph, end, false);
-    let wrapped = if wrapped_subtrees.is_empty() { plain } else { quadrant_tail(&mut graph, end, true) };
+    let plain = quadrant_tail(&mut graph, end, None);
+    let wrapped = if wrapped_subtrees.is_empty() { plain } else { quadrant_tail(&mut graph, end, Some(corner_offset(wrap_iteration))) };
     let mut parents = vec![(root, [0_usize; 2])];
     for depth in 1..=3 {
         let mut children = Vec::new();
@@ -120,6 +160,16 @@ fn filled_tree_pixel(negative: (usize, usize), positive: (usize, usize), continu
                         (2.0_f32.powi(-76), [0.0; 2])
                     };
                     node.parameters = additive_square(gain, [0.0; 2], shift);
+                    if let Some(passes) = marker_iterations
+                        && (marker == negative || marker == positive)
+                    {
+                        let mut select = FunctionGraph::default();
+                        let active = on_tree_pass(&mut select, passes[usize::from(marker == positive)]);
+                        let mark = select.add_constant(Value::Float(gain));
+                        let ordinary = select.add_constant(Value::Float(2.0_f32.powi(-76)));
+                        select.output = Some(select.add("ifelse", &[active, mark, ordinary], None));
+                        node.parameters.insert("opacity".into(), Value::Function(Box::new(select)));
+                    }
                 }
                 if depth == 3 {
                     node.children.fill(if wrapped_subtrees.contains(&ordinal) { wrapped } else { plain });
@@ -160,6 +210,21 @@ fn successive_quadrant_batches_preserve_their_child_ranges() {
 fn wrapped_leaves_can_fill_a_quadrant_batch_before_a_leading_pair() {
     assert_eq!(filled_tree_pixel((2, 14), (2, 2), Continuation::EmptySwitch, &[]).to_bits(), 0);
     assert_eq!(filled_tree_pixel((2, 14), (2, 2), Continuation::EmptySwitch, &[58]).to_bits(), 2.0_f32.powi(-25).to_bits());
+}
+
+#[test]
+fn a_repeated_quadrant_pair_submits_draws_from_both_trees() {
+    for (negative, positive, passes) in [((3, 52), (3, 2), [1, 1]), ((2, 6), (3, 56), [2, 1]), ((2, 10), (3, 2), [2, 1])] {
+        let sample = marked_tree_pixel(negative, positive, Continuation::EmptySwitch, &[], Some(passes), None);
+        assert_eq!(sample.to_bits(), 2.0_f32.powi(-25).to_bits());
+    }
+}
+
+#[test]
+fn wrapped_copies_can_fill_a_third_batch_in_the_next_tree() {
+    let pixel = |subtrees: &[usize]| marked_tree_pixel((3, 30), (2, 10), Continuation::EmptySwitch, subtrees, Some([2, 2]), Some(2));
+    assert_eq!(pixel(&[25]).to_bits(), 2.0_f32.powi(-25).to_bits());
+    assert_eq!(pixel(&[]).to_bits(), 0);
 }
 
 #[test]

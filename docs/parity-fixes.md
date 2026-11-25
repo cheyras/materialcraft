@@ -59,6 +59,38 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-25 root comparisons
 
+### Full copy batches spanning successive quadrant trees
+
+Repeat the [eight-level additive tree](#physical-copy-batches-across-neighboring-quadrants) twice. Number quadrants at each depth from zero in child-slot order within each tree. When the first thirteen batches take the measured order, two streams continue into the second tree. Each starts with the copies left in a first-tree quadrant pair after its first 10,920 copies. The pieces that follow are listed in submission order. [Shared renderer](../crates/nodes/src/pattern/underfilled_quadrants.rs)
+
+| First-tree pair | Next first-tree subtrees at depth three | Next first-tree subtree at depth five | Second-tree pair |
+|---|---|---|---|
+| 6 and 7 | 52 and 53 | 309 | 6 and 7 |
+| 10 and 11 | 56 and 57 | 308 | 10 and 11 |
+
+With one physical copy per draw, each row carries 2 + 2,730 + 85 copies into the second tree. A second-tree pair supplies 10,922 more. With 2,640 extra copies near the start of second-tree subtree 25, the first stream reaches 16,379. One additional copy fills its third 5,460-copy batch. When the pieces from the first tree alone reach 5,460, competing streams can submit earlier. Adding 2,642 copies within first-tree subtree 56 keeps the carried count at 5,459. Adding one more changes 70 of 432 sampled orders in that field.
+
+Across twenty two-, three- and four-tree copy distributions, the reference agrees with the predicted order on all 9,138 tested pairs in both gain directions. Applying the same order in twelve denser cases where the carried pieces alone can fill a batch gives 361 wrong predictions out of 5,496. Five further fields vary the second-tree copies in subtree 25 or 30, crossing the third-batch boundary. All 2,160 tested pairs agree when the renderer counts the full batches.
+
+For a separate pixel comparison, use white as the initial pixel value, zero roughness, .875 squares and ordinary gain 2⁻⁷⁶. Set a float to zero in the outer Iterate's count expression, return two, and increment the float in the root quadrant's branch offset on each pass. On the second pass, place depth-three square 30 and depth-two square 10 at (.265625,.265625) with gains −1 and 2⁻²⁵. At 32² F32, seed 41384, the pixel at (8,8) reads zero. Move the 1,024 final squares of subtree 25 to the tile corner on the second pass only. Their 3,072 additional wrapped copies move square 30 ahead of square 10. The same pixel now reads 2⁻²⁵ in both the original reference graph and its ordinary MaterialCraft save. The intermediate renderer still returned zero. [Renderer regressions](../crates/nodes/src/pattern/tests/underfilled_quadrants.rs)
+
+For the second stream, mark second-pass depth-three square 46 against first-pass square 60 and wrap subtree 43 on the second pass. Repeat the first pair with the gains exchanged, both subtrees wrapped, and four tree repetitions. For the test with both subtrees wrapped, mark second-pass squares 30 and 46. Use the 32² F32 setting above, 16 × 32 U8 at seed 41484, 32 × 16 U16 at seed 41588 and 64 × 32 F16 at seed 41692, with the [published gain settings](#connected-graph-depth-and-the-ninth-quadrant-batch). The five wrapped configurations match all 20,480 original and all 20,480 reopened pixels. The two unwrapped controls match 8,181/8,192 on each side, maximum 3.97046694e−23. Testing cuts inside a two- or four-copy stamp gives the predicted result at all 112 edges and corners for the second batch and all 56 for the third, including both gain directions.
+
+An independent series marks first-pass depth-three pairs (52,2), (56,2) and (2,52), then first-pass square 52 against depth-five square 309 and square 56 against depth-five square 308. Mark second-pass depth-two square 6 against first-pass square 56 in two and four repetitions, and second-pass depth-two square 10 against first-pass square 2 in two repetitions. Render each at the four sizes in all four storage formats and reopen each ordinary save. The 128 settings improve from 130,649 to **131,017/131,072** on each side. U8, U16 and F16 each match 32,768/32,768. F32 matches 32,713/32,768, maximum 6.61744490e−23. The previous floating-point maximum was 2⁻²⁴.
+
+A second series applies both gains on every repetition. Divide the negative gain by the repetition count, including the swapped-gain setting. Use the first-pass pairs above without the pass restriction, add the depth-five pair (309,308) and repeat (52,2) with one, two and four trees. Across 128 settings, 131,028/131,072 original and 131,049/131,072 reopened pixels match. The respective maxima are 2⁻²⁴ and 2⁻²⁵. In the four-tree 64 × 32 F16 setting the first original and reopened reference captures differ on 21/2,048 pixels by 2⁻²⁴. Four further original captures and four further reopened captures agree on all 2,048 pixels with the first reopened capture.
+
+Across the 86 original Noise BNW Spots 1 settings, 27 gain exact pixels on one processor and 49 match in full. The total increases by 2,562 to 816,728/841,728. On eight processors, two settings gain, 24 lose and 38 match in full. The total falls by 1,366 to 777,542/841,728. The 19 ordinary saves gain 23 pixels to 196,158/196,352, with 15 matching in full. The third-batch correction preserves every MaterialCraft output bit in these 86 settings and 19 saves. [Earlier measurements and root settings](#physical-copy-batches-across-neighboring-quadrants)
+
+| Storage | One processor · exact pixels · maximum | Eight processors · exact pixels · maximum | Reopened · exact pixels · maximum |
+|---|---:|---:|---:|
+| U8 | 108,800/108,800 · 0 | 108,799/108,800 · 1 | 90,112/90,112 · 0 |
+| U16 | 328,388/328,448 · 1 | 328,251/328,448 · 1 | 93,692/93,696 · 1 |
+| F16 | 108,800/108,800 · 0 | 108,798/108,800 · .00048828125 | 6,400/6,400 · 0 |
+| F32 | 270,740/295,680 · 2.38418579e−7 | 231,694/295,680 · 3.57627869e−7 | 5,954/6,144 · 2.38418579e−7 |
+
+All four original and four reopened captures at 16 × 32 F32 and seed zero improve from 428 to 451/512, maximum 1.19209290e−7. At 64 × 32 with scale three, 1,683 of the 1,832 pixels identical across the four original references match, up from 1,675. Across the four reopened references, 1,575 of the 1,679 invariant pixels match, up from 1,567. The maximum is 1.19209290e−7 throughout. Two regressions reproduce the earlier incorrect draws. All 514 node and evaluator release tests passed, along with formatting, strict workspace Clippy, dependency layers and WebAssembly. [Repeated whole-root settings](#bounded-work-for-empty-terminal-quadrants)
+
 ### Physical copy batches across neighboring quadrants
 
 Use the [eight-level additive tree](#connected-graph-depth-and-the-ninth-quadrant-batch). Number the sixteen depth-two quadrants and the 64 depth-three subtrees from zero in child-slot order. With one copy per draw, a depth-two quadrant and its last two child subtrees supply 2,731 copies. Adding 2,728 copies inside subtree 58 leaves quadrant 14 waiting. Adding one more fills a batch of 5,460. It now draws before quadrants 2 and 3. The corresponding boundaries in subtrees 50 and 54 move their batches ahead of quadrants 6 and 10 respectively. A full batch from quadrant 15 and subtrees 62 and 63 precedes all three. Two simultaneously filled groups retain their relative order in the measured controls. [Shared copy ordering](../crates/nodes/src/pattern/underfilled_quadrants.rs)
