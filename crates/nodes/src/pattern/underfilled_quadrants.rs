@@ -23,6 +23,7 @@ const GROUPS: [&[(usize, usize)]; 8] = [
 // After the leading pairs fill their batches, the last root child collects a
 // batch from these three ranges in submission order. They are separate in traversal.
 const LAST_CHILD_GROUP: usize = 4;
+const FOLLOWING_GROUP: usize = 0;
 const RANGES_PER_CHILD: usize = 1 + 4 * 5;
 const RANGES_PER_TREE: usize = 4 * RANGES_PER_CHILD;
 
@@ -60,7 +61,10 @@ pub(super) struct UnderfilledQuadrants {
     first_copies: u64,
     pairs: Vec<QuadrantPair>,
     last_child_spans: [CopyPositions; GROUPS[LAST_CHILD_GROUP].len()],
-    last_child_span: Option<usize>,
+    following_spans: [CopyPositions; GROUPS[FOLLOWING_GROUP].len()],
+    tracked_span: Option<usize>,
+    // Copy offsets at the starts of the two most recent depth-five subtrees in the last span.
+    last_subtree_starts: [u32; 2],
     active_deep_draws: usize,
 }
 
@@ -77,6 +81,9 @@ impl UnderfilledQuadrants {
             return self.starts.len() == (*visits - 1) * RANGES_PER_TREE;
         }
         if depth > 3 {
+            if depth == 5 && self.group == LAST_CHILD_GROUP && self.tracked_span == Some(2) {
+                self.last_subtree_starts = [self.last_subtree_starts[1], self.last_child_spans[2].total];
+            }
             return true;
         }
         let child = self.starts.len() % RANGES_PER_TREE / RANGES_PER_CHILD;
@@ -102,7 +109,7 @@ impl UnderfilledQuadrants {
             return false;
         };
         self.group = group;
-        self.last_child_span = (group == LAST_CHILD_GROUP && self.visits[0] == 1).then_some(span);
+        self.tracked_span = (self.visits[0] == 1 && matches!(group, LAST_CHILD_GROUP | FOLLOWING_GROUP)).then_some(span);
         true
     }
 
@@ -137,14 +144,30 @@ impl UnderfilledQuadrants {
         }
         let Some(pair) = self.pairs.last_mut() else { return false };
         pair.record(count, index, retained);
-        if let Some(span) = self.last_child_span
-            && self.last_child_spans[span].record(count, retained).is_none()
-        {
-            return false;
+        if let Some(index) = self.tracked_span {
+            let spans = if self.group == LAST_CHILD_GROUP { &mut self.last_child_spans } else { &mut self.following_spans };
+            if spans[index].record(count, retained).is_none() {
+                return false;
+            }
         }
         self.active_deep_draws += 1;
         self.copies[self.group] = self.copies[self.group].saturating_add(count);
         true
+    }
+
+    fn append_batch(&self, group: usize, spans: &[CopyPositions], leading: &mut Vec<(DrawPosition, DrawPosition)>) -> Option<()> {
+        let mut remaining = COPIES_PER_BATCH;
+        for (&(first, _), span) in GROUPS[group].iter().zip(spans) {
+            let start = *self.starts.get(first + 1 + first / 20)?;
+            let count = remaining.min(span.total);
+            let end = span.at(count);
+            leading.push((DrawPosition { stamp: start, copy: 0 }, DrawPosition { stamp: start.checked_add(end.stamp)?, copy: end.copy }));
+            remaining -= count;
+            if remaining == 0 {
+                return Some(());
+            }
+        }
+        None
     }
 
     fn full_batches<'a>(&self, stamps: &'a [PatternStamp], trees: usize) -> Option<Vec<DrawRun<'a>>> {
@@ -162,18 +185,14 @@ impl UnderfilledQuadrants {
             let pair = self.pairs.get(group / 8)?;
             leading.push((position(pair.start), pair.cut?));
         }
-        let copies: u64 = self.last_child_spans.iter().map(|span| u64::from(span.total)).sum();
+        let [head, middle, tail] = &self.last_child_spans;
+        let before_tail = u64::from(head.total) + u64::from(middle.total);
+        let copies = before_tail + u64::from(tail.total);
         if copies / u64::from(COPIES_PER_BATCH) == 1 {
-            let mut remaining = COPIES_PER_BATCH;
-            for (&(first, _), span) in GROUPS[LAST_CHILD_GROUP].iter().zip(&self.last_child_spans) {
-                let start = *self.starts.get(first + 1 + first / 20)?;
-                let count = remaining.min(span.total);
-                let end = span.at(count);
-                leading.push((position(start), DrawPosition { stamp: start.checked_add(end.stamp)?, copy: end.copy }));
-                remaining -= count;
-                if remaining == 0 {
-                    break;
-                }
+            self.append_batch(LAST_CHILD_GROUP, &self.last_child_spans, &mut leading)?;
+            // The next group submits first when the previous batch reaches either of its final two depth-five subtrees.
+            if before_tail + u64::from(self.last_subtree_starts[0]) < u64::from(COPIES_PER_BATCH) {
+                self.append_batch(FOLLOWING_GROUP, &self.following_spans, &mut leading)?;
             }
         }
         leading.retain(|(start, end)| start < end);

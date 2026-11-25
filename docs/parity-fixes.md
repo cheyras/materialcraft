@@ -59,6 +59,25 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-25 root comparisons
 
+### The next full batch in an eight-level quadrant tree
+
+In a complete additive tree, start with the [six leading batches](#leading-copy-batches-in-complete-quadrant-trees) and the [5,460-copy batch in the last root quadrant](#a-full-copy-batch-in-the-last-root-quadrant). Number depth-two quadrants 0–15 and depth-three subtrees 0–63 in child-slot traversal order. When the seventh batch reaches either of the final two depth-five subtrees in subtree 49, the next full batch begins with quadrant 12, continues through subtrees 50 and 51, and takes the remaining copies from quadrant 4 and its descendants. Physical copies count even when they miss the image. The shared quadrant renderer applies this prefix to trees with a draw at every depth from two through eight and two full batches per depth-two pair. [Submission order and cuts](../crates/nodes/src/pattern/underfilled_quadrants.rs) · [Two-square regression](../crates/nodes/src/pattern/tests/underfilled_quadrants.rs)
+
+Start with one physical copy per square. Add one wrapped copy to each of the first 168 unmarked draws in subtree 62. All twelve selected pair orders persist. Adding the 169th moves the cut before the final two subtrees and reverses five orders. Repeating the experiment in subtree 48 gives the same 168/169 boundary. Adding 360 copies within the final 169 draws of subtree 49 preserves all twelve orders. Compare each pair by drawing two overlapping squares on white, with gains −1 and 2⁻²⁵, then exchanging the gains. Across 16 distributions that meet the cut condition, all 4,884 pair comparisons agree. These include one, two and four trees and three copy distributions taken from whole-root settings. In ten other distributions the same proposed order fails 548 of 3,186 comparisons.
+
+For an independent image, draw .875 squares at depths two through eight, with background one, roughness zero and ordinary gain 2⁻⁷⁶. Move the two depth-two squares at (12,0), (0,12) or (12,4) to normalized position (.265625,.265625). Use gains (−1,2⁻²⁵) at 32² F32 with seed 41384, (−.5,2⁻²⁵) at 16 × 32 U8 with seed 41484, (−1,2⁻²⁴) at 32 × 16 U16 with seed 41588, and (2⁻²⁵,−1) at 64 × 32 F16 with seed 41692. The twelve settings improve from 12,141/12,288 pixels to 12,288/12,288 on both originals and ordinary saves. The previous maximum error was 2⁻²⁵ in F32. All corrected maxima are zero. Across 256 earlier signed-square settings, including their reopens, exact counts improve from 261,948 to 262,088 of 262,144. The remaining maximum is 5.29395623e−23. All 1,007,616 pixels in 117 earlier procedural controls still match.
+
+| Noise BNW Spots 1 · F32 | One processor, previous → current | Current maximum | Eight processors, previous → current | Current maximum |
+|---|---:|---:|---:|---:|
+| 16 × 32, scale and roughness one, disorder and seed zero | 403 → 404 / 512 | 1.19209290e−7 | 363 → 360 / 512 | 1.19209290e−7 |
+| 16 × 32, exposed defaults, seed 194395 | 403 → 403 / 512 | 1.19209290e−7 | 363 → 360 / 512 | 1.19209290e−7 |
+| 32 × 64, scale one, disorder and roughness .1875, nonsquare expansion enabled, seed 194489 | 1,898 → 1,914 / 2,048 | 5.96046448e−8 | 1,825 → 1,823 / 2,048 | 5.96046448e−8 |
+| 64², scale two, disorder and roughness .53125, nonsquare expansion disabled, seed 194536 | 3,497 → 3,510 / 4,096 | 2.38418579e−7 | 3,312 → 3,316 / 4,096 | 1.19209290e−7 |
+
+Including 128² U16 at exposed defaults and the 16 × 32 seed-zero U8, U16 and F16 settings gives 24,145/25,088 exact original pixels on one processor, up from 24,115, and 23,763/25,088 on eight, down from 23,767. The maximum integer error is one U16 code. Four original and four reopened repeat captures of the seed-zero F32 setting each give 404/512. Four other saved settings retain 2,799/2,816 exact pixels, maximum 5.96046448e−8. The second version of the root retains every previous bit in the eight original and four saved settings. The order of subsequent batches and processor-dependent differences remain open.
+
+The two-square regression first returned zero in place of 2⁻²⁵. All 506 release tests for the node library and evaluator, formatting, strict workspace Clippy, dependency layers and WebAssembly pass.
+
 ### Connected image properties and the first quadrant draw
 
 Connect a white Uniform to the pattern socket of the [four-square writable-float graph](#first-reads-of-writable-quadrant-floats). Use square mode so the draw does not sample this socket. Give each component of the Uniform the value one plus zero times the published scalar. The first square contributes .625, and the other three contribute .375. Replacing the Uniform with literal white, computing white entirely from constants or disconnecting it gives four .375 contributions. A Uniform with a published output-size offset of zero reproduces the first result. The evaluator carries this dependency through connected image outputs and includes it in the cook cache. [Graph evaluator](../crates/eval/src/node_execution.rs) · [Cache regression](../crates/eval/tests/pattern_opacity.rs)

@@ -118,3 +118,8 @@ fn filled_quadrant_batches_submit_the_middle_pair_before_the_upper_pair() {
 fn a_full_batch_collects_separate_ranges_of_the_last_quadrant() {
     assert_eq!(filled_quadrant_pixel(15, 4).to_bits(), 2.0_f32.powi(-25).to_bits());
 }
+
+#[test]
+fn a_filled_batch_can_start_in_the_first_branch_of_the_last_quadrant() {
+    assert_eq!(filled_quadrant_pixel(12, 0).to_bits(), 2.0_f32.powi(-25).to_bits());
+}
