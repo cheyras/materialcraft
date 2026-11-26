@@ -100,7 +100,7 @@ pub(super) struct MixedDepthRuns {
     next_boundary: usize,
     parents: usize,
     extra_parents: usize,
-    saw_root: bool,
+    trees: usize,
     children_per_parent: usize,
     draws_per_parent: usize,
     deepest: u32,
@@ -125,16 +125,26 @@ impl MixedDepthRuns {
         if node.kind != PatternNodeKind::Quadrant {
             return true;
         }
-        // Empty outer repetitions emit no quadrants. A second actual tree has a different draw order.
+        // Count only repetitions that reach a quadrant. Two complete trees can
+        // share a physical batch across the outer iteration.
         if depth == 0 {
-            if self.saw_root {
+            if self.trees != 0
+                && (self.trees != 1
+                    || self.deepest != 10
+                    || self.extra_parents != 0
+                    || self.parents != DEPTH_SEVEN_PARENTS
+                    || self.draws != self.parents * self.draws_per_parent
+                    || !self.copies.as_ref().is_some_and(TileCopies::complete_inactive_tree))
+            {
                 return false;
             }
-            self.saw_root = true;
+            self.trees += 1;
         }
         if depth != 7 {
             return match depth {
-                5 if self.deepest == 10 => node.children.iter().all(Option::is_some) && self.copies.as_mut().is_some_and(TileCopies::begin_inactive_subtree),
+                5 if self.deepest == 10 => {
+                    node.children.iter().all(Option::is_some) && self.copies.as_mut().is_some_and(|c| c.begin_inactive_subtree(self.trees))
+                }
                 0..=6 => node.children.iter().flatten().count() == 4,
                 8 if self.deepest == 9 => node.children.iter().all(Option::is_some),
                 // Connected child routes can terminate without visiting another quadrant.
@@ -171,7 +181,7 @@ impl MixedDepthRuns {
     // A second visit to a drawing parent belongs to the same depth-five subtree.
     // An iteration at another level changes which subtrees can submit together.
     pub(super) fn repeat_parent(&mut self, depth: u32, repeats_left: u32) -> bool {
-        if self.deepest != 10 || depth != 7 || repeats_left != 1 || self.extra_parents == DEPTH_SEVEN_PARENTS {
+        if self.deepest != 10 || self.trees != 1 || depth != 7 || repeats_left != 1 || self.extra_parents == DEPTH_SEVEN_PARENTS {
             return false;
         }
         self.extra_parents += 1;
@@ -195,7 +205,8 @@ impl MixedDepthRuns {
     }
 
     pub(super) fn finish(mut self, stamps: &[PatternStamp]) -> Option<Vec<DrawRun<'_>>> {
-        if self.parents != DEPTH_SEVEN_PARENTS + self.extra_parents
+        if self.trees == 0
+            || self.parents != self.trees * DEPTH_SEVEN_PARENTS + self.extra_parents
             || self.draws != self.parents * self.draws_per_parent
             || self.starts.len() != self.layout.len()
         {

@@ -59,6 +59,53 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-26 root comparisons
 
+### Finishing a quadrant copy batch in the next tree
+
+Noise BNW Spots 1 v2 gained 58 exact F32 pixels across three 16 × 32 original settings on one processor. The same three ordinary SBS saves reopened on one processor gained the same 58. U8 and F16 matched all 1,536 pixels on all three routes. U16 matched 1,536/1,536 on one processor and on reopening, and 1,535/1,536 on eight, maximum one stored level. For the changed setting use scale 1, roughness 1, disorder, speed and anisotropy zero, angle −.375 and tile offset (0,0). The other two settings use the graph defaults.
+
+| Seed and settings | Original F32 on one processor | Reopened F32 on one processor | Fresh original F32 on eight processors | Current maximum, one / eight |
+|---|---:|---:|---:|---:|
+| 0, changed | 473 → 491/512 | 473 → 491/512 | 470 → 464/512 | 2⁻²⁴ / 2⁻²³ |
+| 194426, defaults | 463 → 487/512 | 463 → 487/512 | 472 → 461/512 | 2⁻²³ / 2⁻²³ |
+| 0, defaults | 484 → 500/512 | 484 → 500/512 | 475 → 472/512 | 2⁻²⁴ / 2⁻²³ |
+
+The shared renderer now continues a partially filled tile-copy batch across two complete iterations of a quadrant tree. Give the [original additive-square graph](#tile-copies-in-the-last-two-active-quadrant-levels) two outer iterations, with independent square positions in each. Keep the inactive descendant levels connected. Index the 81,920 visible draws in each tree in traversal order, with the second tree starting at 81,920. A depth-three quadrant contains 1,280 draws. In the first tree, groups 62–63, then 48–49, then the last depth-five child of a transferred sibling supply the outer pair. Its outstanding copies come from group 62 of the next tree. The renderer counts physical copies at each subtree boundary. [Shared renderer](../crates/nodes/src/pattern/tile_runs/inactive_children/repeated.rs) · [Boundary regression](../crates/nodes/src/pattern/tile_runs/inactive_children/tests.rs)
+
+Start with one copy per draw. Move e draws of group 62 in the first tree to the horizontal edge at indices 79,360 + (173j + 37) mod 2,560, for j from 0 to e − 1. At e = 0, 100 or 259 the first tree leaves 260, 160 or one of 5,460 copies outstanding. Draw 23,599 precedes 161,280 in both gain directions. At 259, draw 161,280 precedes 67,250 and draw 161,281 follows 67,261. At 260 the batch finishes entirely in the first tree. Both 260 and 261 reverse the comparison between 161,280 and 67,240. These are raw F32 samples of overlapping −1 and 2⁻²⁵ squares on white. All 711,708 adjacent and cross-boundary comparisons of the first eleven batches agreed in both gain directions across eight fields. The twelfth batch agreed on 124,952/124,952 independently selected relations across twelve fields, including the one-copy boundary.
+
+For the full-image control, mark each row's disjoint pairs at consecutive texels beginning at (6,5). Keep unmarked draws active. Render both gain directions. In the edge field move squares at 1,280g + (211j + 17) mod 2,560 to the edge in groups g = 24, 40, 50 and 62. Use (330, 520, 80, 17) extra copies in the first tree and (430, 630, 170, 93) in the second. The last two fields use the copy counts of the first two 16 × 32 settings above. The group and marker indices are independent of the graph identifier.
+
+| Field | First two pairs | Additional pairs |
+|---|---|---|
+| One copy per draw | (161539,67250), (161540,67261) | (23599,161280), (79360,61440) |
+| 100 extra | (161439,67250), (161440,67261) | (23599,161280), (79360,61440) |
+| 259 extra | (161280,67250), (161281,67261) | (79360,61440) |
+| 260 extra | (23599,67250), (161280,67261) | (79360,61440) |
+| 261 extra | (23598,67250), (161280,67261) | (79360,61440) |
+| Edge field | (161513,67250), (161514,67261) | (23999,161280), (79360,61440) |
+| Changed setting | (161518,67250), (161519,67261) | (23599,161280), (79360,61440) |
+| Default seed 194426 | (161485,67250), (161486,67261) | (23599,161280), (79360,61440) |
+
+| Storage, dimensions and seed | Exact original pixels | Exact reopened pixels | Maximum, original / reopened |
+|---|---:|---:|---:|
+| U8, 64 × 128, 620741 | 131,072/131,072 | 131,072/131,072 | 0 / 0 |
+| U16, 128 × 64, 620759 | 131,072/131,072 | 131,072/131,072 | 0 / 0 |
+| F16, 256 × 128, 620771 | 524,288/524,288 | 524,288/524,288 | 0 / 0 |
+| F32, 128², 620729 | 262,140/262,144 | 262,144/262,144 | 2⁻²⁵ / 0 |
+
+The 64 original frames give 1,048,572/1,048,576, up from 1,048,552. All 1,048,576 reopened pixels match. The four differing original pixels are in the two fields derived from the 16 × 32 settings. Switch the seed, restore 620729 and reacquire those four F32 frames three times on each route. All 65,536 pixels match on each repeat. The established 87-setting v2 panel now gives 839,460/842,752 on one processor and 830,536/842,752 on eight. The 19 established ordinary saves give 137,715/139,008. Exact whole-frame counts remain 62/87, 58/87 and 13/19 respectively. The three fresh ordinary saves in the table extend the saved coverage. Later batches and eight-processor differences remain open.
+
+For the first Spots 1 graph use scale 1. At 32 × 16 set seed 161954, disorder .34375 and roughness .46484375. At 64 × 32 set seed 162172, disorder .5625 and roughness .6015625. Repeat four times on one and eight processors, including the archived originals, and reopen the ordinary saves three times on one. The same 501/512 and 1,994/2,048 F32 pixels agree on every one-processor original and reopen, maximum 2⁻²⁴. At 32 × 16 the four eight-processor captures agree with each other at 356/512 positions, and MaterialCraft matches 322 of those. At 64 × 32 they agree at 1,255/2,048 positions, and MaterialCraft matches 1,095. Maximum eight-processor errors across the repeats are 2⁻²³ and 3 × 2⁻²⁴ respectively.
+
+| Established v2 panel | One processor, exact pixels · maximum | Eight processors, exact pixels · maximum | Ordinary saves, exact pixels · maximum |
+|---|---:|---:|---:|
+| U8 | 141,568/141,568 · 0 | 141,568/141,568 · 0 | 32,768/32,768 · 0 |
+| U16 | 295,674/295,680 · 1 | 295,650/295,680 · 1 | 12,031/12,032 · 1 |
+| F16 | 108,800/108,800 · 0 | 108,797/108,800 · 2⁻¹¹ | 1,024/1,024 · 0 |
+| F32 | 293,418/296,704 · 2⁻²³ | 284,521/296,704 · 2⁻²³ | 91,892/93,184 · 2⁻²³ |
+
+Of the 211 established original and saved frames across both roots, precisely the three v2 originals in the first table changed their MaterialCraft output bits. All 549 release tests for the node and evaluation crates passed. The new boundary regression failed on the preceding revision. Formatting, strict workspace Clippy, dependency layering and WebAssembly passed. The inventory remains 480/546.
+
 ### Returning the cut child of a completed outer quadrant
 
 At 16 × 32 and seed 614041, Noise BNW Spots 1 v2 now matches all 512 raw F32 pixels on one processor and after an ordinary SBS save reopened on one. The previous release matched 500/512 on both routes. The eight-processor capture moved from 473 to 469/512, with maximum error 2⁻²⁴ on both revisions. Use scale 1, roughness .875, disorder .1875, speed .5, anisotropy .25, non-square expansion off and tile offset (−.1875, .0625). The three independent sizes at these settings give the following results. [Preceding measurements](#filling-a-quadrant-batch-from-two-transferred-children)

@@ -138,7 +138,7 @@ fn depth_five(
     ])
 }
 
-fn split_at_copies(ranges: &[Range<u32>], mut count: u32) -> Option<[Vec<Range<u32>>; 2]> {
+pub(super) fn split_at_copies(ranges: &[Range<u32>], mut count: u32) -> Option<[Vec<Range<u32>>; 2]> {
     let mut head = Vec::new();
     let mut tail = Vec::new();
     for range in ranges {

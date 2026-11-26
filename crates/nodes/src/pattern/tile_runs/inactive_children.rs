@@ -3,6 +3,7 @@ use std::ops::Range;
 
 mod completion;
 mod outer_transfer;
+mod repeated;
 #[cfg(test)]
 mod tests;
 mod wide_transfer;
@@ -10,6 +11,7 @@ mod wide_transfer;
 // A depth-three quadrant contains sixteen depth-five subtrees. A boundary can
 // split a tiled stamp, so convert subtree boundaries to physical copies before filling a batch.
 const SUBTREES: usize = 16;
+pub(super) const SUBTREES_PER_TREE: usize = 64 * SUBTREES;
 
 fn boundary(ends: &[u32], subtree: usize) -> Option<u32> {
     if subtree == 0 { Some(0) } else { ends.get(subtree - 1).copied() }
@@ -141,17 +143,13 @@ fn full_outer_pair(ends: &[u32]) -> Option<[Range<u32>; 2]> {
     Some([own, incoming.start..incoming.start + room])
 }
 
-fn following_batches(ends: &[u32], receivers: &[ReceivingPair], leading: &[Range<u32>], outer_tail: Option<&Range<u32>>) -> Option<Vec<Range<u32>>> {
-    let [first, middle, last] = receivers else { return None };
-    if first.split_width == SUBTREES {
-        return wide_transfer::ranges(ends, receivers, leading, outer_tail?);
-    }
+struct CompletedHalves {
+    pairs: [[Range<u32>; 2]; 2],
+    third: Range<u32>,
+}
+
+fn fill_halves(ends: &[u32], first: &ReceivingPair, full: &mut Vec<Range<u32>>) -> Option<CompletedHalves> {
     let handoff = first.handoff.as_ref()?;
-    let middle_siblings = copies(ends, middle.pending.clone())?;
-    let last_siblings = copies(ends, last.pending.clone())?;
-    if first.tail.start < handoff.end || middle.tail.start < middle_siblings.end || last.tail.start < last_siblings.end {
-        return None;
-    }
     let third = copies(ends, 8 * SUBTREES..16 * SUBTREES)?;
     let remaining = (third.end - third.start).checked_sub(COPIES_PER_BATCH)?;
     // Filling the third half with the transferred siblings changes the continuation.
@@ -162,11 +160,25 @@ fn following_batches(ends: &[u32], receivers: &[ReceivingPair], leading: &[Range
     // Passing a depth-four sibling from the first receiver puts the other half first.
     let [lower, upper] = &halves;
     let order = if first.split_width == 4 { [upper, lower] } else { [lower, upper] };
-    let mut full = leading.to_vec();
     full.extend(order.into_iter().flatten().cloned());
+    Some(CompletedHalves { pairs: halves, third: third.start + COPIES_PER_BATCH..third.end })
+}
+
+fn following_batches(ends: &[u32], receivers: &[ReceivingPair], leading: &[Range<u32>], outer_tail: Option<&Range<u32>>) -> Option<Vec<Range<u32>>> {
+    let [first, middle, last] = receivers else { return None };
+    if first.split_width == SUBTREES {
+        return wide_transfer::ranges(ends, receivers, leading, outer_tail?);
+    }
+    let middle_siblings = copies(ends, middle.pending.clone())?;
+    let last_siblings = copies(ends, last.pending.clone())?;
+    if first.tail.start < first.handoff.as_ref()?.end || middle.tail.start < middle_siblings.end || last.tail.start < last_siblings.end {
+        return None;
+    }
+    let mut full = leading.to_vec();
+    let halves = fill_halves(ends, first, &mut full)?;
     let tails = [first.tail.clone(), middle_siblings, last.tail.clone()];
     if outer_tail.is_none()
-        && let Some(completed) = completion::ranges(ends, receivers, &halves, third.start + COPIES_PER_BATCH..third.end, &full, &tails)
+        && let Some(completed) = completion::ranges(ends, receivers, &halves.pairs, halves.third, &full, &tails)
     {
         return Some(completed);
     }
@@ -174,18 +186,35 @@ fn following_batches(ends: &[u32], receivers: &[ReceivingPair], leading: &[Range
     Some(full)
 }
 
+fn receive_pairs(ends: &[u32], runs: &mut Vec<Range<u32>>) -> Vec<ReceivingPair> {
+    // The final root quadrant sends one pair to each receiving half.
+    let mut receivers = Vec::with_capacity(3);
+    for (partner, main) in [(50, 16), (58, 0), (54, 32)] {
+        let Some(pair) = receiving_pair(ends, partner, main, main == 16) else { break };
+        runs.extend_from_slice(&pair.runs);
+        receivers.push(pair);
+    }
+    receivers
+}
+
 pub(super) fn ranges(ends: &[u32]) -> Option<Vec<Range<u32>>> {
-    if ends.len() != 64 * SUBTREES {
+    let first = ends.get(..SUBTREES_PER_TREE)?;
+    let repeated = ends.len() == 2 * SUBTREES_PER_TREE;
+    if !repeated && ends.len() != SUBTREES_PER_TREE {
         return None;
     }
     let mut runs = Vec::new();
     for group in LEADING_SUBTREES {
-        let half = copies(ends, group * SUBTREES..(group + 8) * SUBTREES)?;
+        let half = copies(first, group * SUBTREES..(group + 8) * SUBTREES)?;
         let batches = (half.end - half.start) / COPIES_PER_BATCH;
         if !(1..=2).contains(&batches) {
             return None;
         }
         runs.push(half.start..half.start + batches * COPIES_PER_BATCH);
+    }
+    if repeated {
+        repeated::submit(ends, first, &mut runs)?;
+        return with_remaining(ends, runs);
     }
     // The last two depth-three subtrees continue into the first two of the same
     // root quadrant. A complete batch submits before work reaches the receivers.
@@ -199,18 +228,15 @@ pub(super) fn ranges(ends: &[u32]) -> Option<Vec<Range<u32>>> {
     if let Some(following) = outer_tail.as_ref().and_then(|tail| outer_transfer::ranges(ends, &runs, tail)) {
         runs = following;
     } else {
-        // The final root quadrant sends one pair of depth-three subtrees to each
-        // receiving half. Each receiver can submit two complete batches.
-        let mut receivers = Vec::with_capacity(3);
-        for (partner, main) in [(50, 16), (58, 0), (54, 32)] {
-            let Some(pair) = receiving_pair(ends, partner, main, main == 16) else { break };
-            runs.extend_from_slice(&pair.runs);
-            receivers.push(pair);
-        }
+        let receivers = receive_pairs(ends, &mut runs);
         if let Some(following) = following_batches(ends, &receivers, &runs, outer_tail.as_ref()) {
             runs = following;
         }
     }
+    with_remaining(ends, runs)
+}
+
+fn with_remaining(ends: &[u32], mut runs: Vec<Range<u32>>) -> Option<Vec<Range<u32>>> {
     // Preserve every remaining physical copy in traversal order.
     let mut submitted = runs.clone();
     submitted.sort_unstable_by_key(|range| range.start);

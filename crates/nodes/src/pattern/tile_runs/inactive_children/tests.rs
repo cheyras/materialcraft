@@ -14,10 +14,14 @@ fn ranks_with_edges(first: usize, stride: usize, edge_draws: usize) -> Vec<usize
 }
 
 fn ranks_for_copies(count: impl Fn(usize) -> u32) -> Vec<usize> {
+    ranks_for_draws(81_920, count)
+}
+
+fn ranks_for_draws(draws: usize, count: impl Fn(usize) -> u32) -> Vec<usize> {
     let mut starts = Vec::new();
     let mut ends = Vec::new();
     let mut copies = 0_u32;
-    for draw in 0_usize..81_920 {
+    for draw in 0..draws {
         starts.push(copies);
         copies += count(draw);
         if (draw + 1).is_multiple_of(80) {
@@ -230,5 +234,23 @@ fn the_cut_outer_child_resumes_between_two_transferred_siblings() {
         for (left, right) in pairs {
             assert!(ranks[left] < ranks[right], "field {field}, draws {left}, {right}");
         }
+    }
+}
+
+#[test]
+fn a_repeated_tree_fills_the_batch_left_by_the_outer_pair() {
+    for extra in [0, 100, 259] {
+        let mut copies = vec![1; 163_840];
+        for i in 0..extra {
+            copies[62 * 1280 + (173 * i + 37) % 2560] = 2;
+        }
+        let ranks = ranks_for_draws(copies.len(), |draw| copies[draw]);
+        // The first tree supplies its outer pair and the last transferred child.
+        // The next tree supplies exactly the copies still missing from the batch.
+        let next_outer = 81_920 + 62 * 1280;
+        let cut = next_outer + 260 - extra;
+        assert!(ranks[23_599] < ranks[next_outer]);
+        assert!(ranks[cut - 1] < ranks[67_250]);
+        assert!(ranks[cut] > ranks[67_261]);
     }
 }

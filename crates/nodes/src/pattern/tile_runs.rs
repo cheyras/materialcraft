@@ -73,8 +73,12 @@ impl TileCopies {
         self.positions.record(count, retained)
     }
 
-    pub(super) fn begin_inactive_subtree(&mut self) -> bool {
-        if self.subtree_ends.len() == 4_usize.pow(5) {
+    pub(super) fn complete_inactive_tree(&self) -> bool {
+        self.subtree_ends.len() == inactive_children::SUBTREES_PER_TREE
+    }
+
+    pub(super) fn begin_inactive_subtree(&mut self, trees: usize) -> bool {
+        if self.subtree_ends.len() >= trees * inactive_children::SUBTREES_PER_TREE {
             return false;
         }
         self.subtree_ends.push(self.positions.total);
