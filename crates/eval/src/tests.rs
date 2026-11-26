@@ -1184,6 +1184,91 @@ fn half_pattern_backgrounds_store_integer_inputs_on_different_size_paths() {
 }
 
 #[test]
+fn untiled_pattern_backgrounds_sample_directly_on_the_same_size_path() {
+    use materialcraft_core::{BaseParameter, FunctionGraph, OutputFormat, ParameterInheritance, PatternGraph, PatternNodeKind, SizeMode};
+
+    let mut graph = Graph::new("Resized pattern background");
+    graph.size = [4, 5];
+    graph.format = OutputFormat::U8;
+    let input = graph.add_node("input_grayscale", [0.0; 2]);
+    let background = graph.add_node("fx_map", [0.0; 2]);
+    let draw = graph.add_node("fx_map", [0.0; 2]);
+    let levels = graph.add_node("levels", [0.0; 2]);
+    for id in [input, background, levels] {
+        let base = &mut graph.node_mut(id).unwrap().base;
+        base.size_mode = SizeMode::RelativeToParent;
+        base.size = [-1, -1];
+    }
+    for id in [background, draw] {
+        let mut pattern = PatternGraph::with_root(PatternNodeKind::Quadrant);
+        if id == draw {
+            let stamp = &mut pattern.nodes[0].parameters;
+            stamp.insert("patterntype".into(), Value::Int(2));
+            stamp.insert("opacity".into(), Value::Float4([0.10067749, 0.10067749, 0.10067749, 1.0]));
+        }
+        let node = graph.node_mut(id).unwrap();
+        node.params.insert("pattern".into(), Value::PatternGraph(Box::new(pattern)));
+        node.params.insert("color_mode".into(), Value::Bool(false));
+    }
+    graph.connect(input, "output", background, "background").unwrap();
+    graph.connect(background, "output", levels, "input").unwrap();
+    let mut package = Package::new("Pattern sample precision");
+    package.graphs.push(graph);
+    let mut options = Options::new(&no_res);
+    options.inputs.insert("input".into(), Image::gray(8, 16, |x, y| ((47 * x + 83 * y + 11 * x * y + 849807) % 256) as f32 / 255.0));
+    options.overrides.insert("gain".into(), Value::Float(0.375));
+    let cache = Mutex::new(Cache::default());
+
+    let fixed = FunctionGraph::constant(Value::Int2([0, 0]));
+    let exposed = unchanged_size_after_read("get_float1", "gain");
+    for (source, tiling, size, byte, half, corner) in [
+        (input, [false, false], &fixed, 128.0, 0.5317383, 169.0),
+        (background, [false, false], &fixed, 128.0, 0.5317383, 169.0),
+        (background, [true, false], &fixed, 129.0, 0.53125, 171.0),
+        (levels, [false, false], &fixed, 128.0, 0.5317383, 169.0),
+        (levels, [true, true], &fixed, 129.0, 0.53125, 171.0),
+        (background, [false, false], &exposed, 129.0, 0.53125, 171.0),
+    ] {
+        let graph = &mut package.graphs[0];
+        graph.connect(source, "output", draw, "background").unwrap();
+        let base = &mut graph.node_mut(source).unwrap().base;
+        base.tiling_mode = ParameterInheritance::Absolute;
+        base.tiling = tiling;
+        let base = &mut graph.node_mut(draw).unwrap().base;
+        base.tiling_mode = ParameterInheritance::Absolute;
+        base.tiling = [true, true];
+        base.size_mode = SizeMode::RelativeToParent;
+        base.functions.insert(BaseParameter::OutputSize, size.clone());
+        for (format, x, expected) in [(OutputFormat::U8, 2, byte / 255.0), (OutputFormat::F16, 4, half)] {
+            package.graphs[0].node_mut(draw).unwrap().base.format = format;
+            let result = cook(&package, 0, &options, &cache);
+            assert!(result.nodes.values().all(|node| node.error.is_none()));
+            let pixels = result.image(draw, 0).unwrap();
+            assert_eq!(pixels.get_gray(x, 2, false), expected, "{format:?}");
+            if format == OutputFormat::U8 {
+                assert_eq!(pixels.get_gray(0, 0, false), corner / 255.0);
+            }
+        }
+    }
+
+    // Enlarge only Y. Repeating X still permits a direct sample.
+    let graph = &mut package.graphs[0];
+    graph.connect(input, "output", draw, "background").unwrap();
+    graph.node_mut(input).unwrap().base.size = [0, -1];
+    let draw_base = &mut graph.node_mut(draw).unwrap().base;
+    draw_base.tiling = [false, false];
+    draw_base.format = OutputFormat::U8;
+    draw_base.functions.insert(BaseParameter::OutputSize, fixed);
+    options.inputs.insert("input".into(), Image::gray(16, 16, |x, y| ((47 * x + 83 * y + 11 * x * y + 849807) % 256) as f32 / 255.0));
+    for (source_tiling, byte) in [([true, false], 149.0), ([false, true], 150.0)] {
+        package.graphs[0].node_mut(input).unwrap().base.tiling = source_tiling;
+        let result = cook(&package, 0, &options, &cache);
+        assert!(result.nodes.values().all(|node| node.error.is_none()));
+        assert_eq!(result.image(draw, 0).unwrap().get_gray(2, 2, false), byte / 255.0);
+    }
+}
+
+#[test]
 fn connected_input_sizes_share_the_last_two_dimensional_filter_pass() {
     use materialcraft_core::{OutputFormat, SizeMode};
     let (mut parent, instance) = instancing("Parent", "Resize");

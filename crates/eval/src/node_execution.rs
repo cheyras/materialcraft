@@ -58,6 +58,7 @@ pub(crate) fn cook_node(
     let mut incoming = Vec::new();
     let mut input_keys = Vec::new();
     let mut base_level_only = [false; materialcraft_nodes::MAX_IMAGE_INPUTS + 1];
+    let mut background_source = None;
     let mut variables = std::borrow::Cow::Borrowed(graph_variables);
     let mut fixed = std::borrow::Cow::Borrowed(options.literal_inputs.as_slice());
     let mut input_error = None;
@@ -99,6 +100,13 @@ pub(crate) fn cook_node(
                 && let Some(level) = base_level_only.get_mut(incoming.len())
             {
                 *level = wired.map_or(matches!(output, Some(NodeOutput::BaseLevel(_))), |(_, _, base_level)| base_level);
+                if port.id == "background" {
+                    background_source = if wired.is_some() {
+                        connection.and_then(|edge| prepared.index.node(edge.from)).and_then(|bridge| options.input_bases.get(&identifier(bridge))).copied()
+                    } else {
+                        source.map(|(_, _, base)| base)
+                    };
+                }
             }
             let stored = source.and_then(|(output, _, base)| output.texture(base.format));
             let image = wired.map(|(image, format, _)| (image, format)).or(stored);
@@ -194,6 +202,7 @@ pub(crate) fn cook_node(
             || incoming.iter().flatten().any(|(_, source)| source.bound_image)
     };
     let base = crate::ResolvedBaseParameters { bound_image, ..base };
+    let background_tiling = background_source.filter(|source| source.dynamic_size == base.dynamic_size).map(|source| source.tiling);
     if matches!(node.def.as_str(), "blur" | "emboss") {
         variables.to_mut().insert("$pixelsize".into(), Value::Float2(base.pixel_size));
     }
@@ -231,7 +240,7 @@ pub(crate) fn cook_node(
     let key = hash_of(&(
         &node.def,
         serde_json::to_string(&parameters).unwrap_or_default(),
-        (dynamic_blend_opacity, bound_image),
+        (dynamic_blend_opacity, bound_image, background_tiling),
         (
             w,
             h,
@@ -309,6 +318,11 @@ pub(crate) fn cook_node(
             values
         })
     } else if let Some(definition) = definition {
+        if let (Some(tiling), Some(Some(image)), Some(&source)) = (background_tiling, inputs.first_mut(), input_formats.first())
+            && let Some(filtered) = materialcraft_nodes::pattern::direct_background_sample(image, (w, h), source, tiling)
+        {
+            *image = filtered;
+        }
         if base.format == OutputFormat::F16 && matches!(node.def.as_str(), "blend" | "fx_map") {
             // Blend inputs and pattern backgrounds cross a half-storage boundary when only one size is parameter-controlled.
             // Images stamped by a pattern keep their sampling precision.

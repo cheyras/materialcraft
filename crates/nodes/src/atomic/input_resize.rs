@@ -15,6 +15,20 @@ pub(crate) fn resized_input(context: &CookContext, port: usize, mode: InputResiz
     resized_texture(context, port, mode).map(|(image, _)| image)
 }
 
+/// A single filter pass can draw from clamped samples unless an enlarged axis repeats.
+/// A longer resize stores its intermediate textures before drawing.
+pub fn direct_background_sample(image: &Image, target: (u32, u32), source: OutputFormat, tiling: [bool; 2]) -> Option<Image> {
+    let size = (image.width(), image.height());
+    let enlarged_tiled_axis = (target.0 > size.0 && tiling[0]) || (target.1 > size.1 && tiling[1]);
+    if size == target || enlarged_tiled_axis || crate::texture_sampler::next_filter_size(size, target) != target {
+        return None;
+    }
+    let image = prepare_pattern_background(image.clone(), InputResize::PatternBackground, source, false);
+    let filtered = crate::texture_sampler::resize_input_level(&image, target.0, target.1, source, [false; 2]);
+    let enlarged = target.0 > size.0 || target.1 > size.1;
+    Some(prepare_pattern_background(filtered, InputResize::PatternBackground, source, enlarged))
+}
+
 pub(super) fn blur_input(context: &CookContext, intensity: f32) -> (Image, OutputFormat) {
     // A zero intensity copies through the destination format. Even a subpixel blur uses the working precision.
     let mode = if intensity == 0.0 { InputResize::Copy } else { InputResize::Filter };

@@ -18,6 +18,7 @@ mod tile_runs;
 mod underfilled_quadrants;
 mod variables;
 
+pub use crate::atomic::input_resize::direct_background_sample;
 pub use catalog::{definition, definitions};
 pub(crate) use evaluation::cook;
 pub use evaluation::{cook_with_base_level_inputs, cook_with_bound_properties, cook_with_image_dependencies};

@@ -59,6 +59,43 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-26 root comparisons
 
+### Filtering a resized pattern background on each axis
+
+An FX-Map can draw over a clamped, filtered background sample before that sample is rounded to the working texture format. This occurs for a single resize step when the source and receiver sizes are both fixed or both parameter-controlled. Check the connected source's tiling on each axis that grows. If any growing axis repeats, the background is first filtered and stored using the receiver's tiling. A reduction can take the direct path even if its axis repeats. A longer resize or a change between fixed and parameter-controlled sizing keeps the intermediate storage.
+
+Open Noise Dirt Gradient v2, turn off graph tiling and enable non-square expansion. Use 16 × 32, seed 649211 and disorder .3125, then 32 × 64, seed 649229 and disorder .78125. Keep the other exposed values at their defaults. Set the final FX-Map's stored format as shown. Save normally outside the library, reopen in both applications, and compare the raw grayscale outputs. Each cell gives exact pixels / pixels compared and maximum absolute error. Integer errors are in storage levels.
+
+| Size · storage | Earlier on one processor | Corrected on one | Corrected on eight | Ordinary save on one |
+|---|---:|---:|---:|---:|
+| 16 × 32 · U8 | 425/512 · 1 | 512/512 · 0 | 512/512 · 0 | 512/512 · 0 |
+| 16 × 32 · U16 | 512/512 · 0 | 512/512 · 0 | 512/512 · 0 | 512/512 · 0 |
+| 16 × 32 · F16 | 366/512 · 0.00048828125 | 512/512 · 0 | 512/512 · 0 | 512/512 · 0 |
+| 16 × 32 · F32 | 400/512 · 1.78813934e-07 | 400/512 · 1.78813934e-07 | 423/512 · 1.1920929e-07 | 399/512 · 1.78813934e-07 |
+| 32 × 64 · U8 | 1,613/2,048 · 1 | 2,048/2,048 · 0 | 2,048/2,048 · 0 | 2,048/2,048 · 0 |
+| 32 × 64 · U16 | 2,047/2,048 · 1 | 2,047/2,048 · 1 | 2,048/2,048 · 0 | 2,047/2,048 · 1 |
+| 32 × 64 · F16 | 1,506/2,048 · 0.00048828125 | 2,048/2,048 · 0 | 2,047/2,048 · 0.00048828125 | 2,048/2,048 · 0 |
+| 32 × 64 · F32 | 1,560/2,048 · 2.38418579e-07 | 1,560/2,048 · 2.38418579e-07 | 1,680/2,048 · 2.38418579e-07 | 1,556/2,048 · 2.98023224e-07 |
+
+The U8 and F16 originals each match 2,560/2,560 pixels on one processor, up from 2,038 and 1,872. Both formats also match all 2,560 pixels after saving. The previous run matched one of eight complete originals on one processor. The corrected scores are 5/8 · 9,639/10,240 on one processor, 5/8 · 9,782/10,240 on eight, and 5/8 · 9,634/10,240 for ordinary saves. Every reopened local buffer reproduces its original. On the 32 × 64 original, one U16 pixel differs by one level on one processor and one F16 pixel differs by 0.00048828125 on eight. Both F32 sizes still differ.
+
+Repeat the F32 read twice more on one processor and twice more on eight, reversing the geometry order on eight. Across seven captures per geometry, including the ordinary save, the reference returns the same word at 332 of 512 locations in the smaller rectangle and 1,316 of 2,048 in the larger. MaterialCraft matches 331 and 1,295 of those invariant words. At 21 and 101 locations its word differs from every captured value. The largest distance to the nearest observed value is 5.96046448e−08 and 1.19209290e−07, respectively.
+
+For a small independent probe, fill a grayscale U8 image with (47x + 83y + 11xy + seed) modulo 256. Connect it as the background of a gray FX-Map. Use one additive square, size (1,1), zero offset and rotation, unit opacity multiplier and a literal gray swatch .100677490234375 with alpha one. Use destinations 16 × 32 and 32 × 16 with seeds 849807 and 849829. Set the source and receiving sizes relative to their parent. A parameter-controlled comparison reads a .375 graph float before returning the same integer size offset.
+
+- At 16 × 32 with an 8 × 16 background, turn wrapping on for the receiver. An untiled source gives U8 byte 128 at (2,2) and F16 .53173828125 at (4,2). A two-axis repeating source gives 129 and .53125. The upper-left byte is 169 with the untiled source and 171 when both repeat. Direct input bridges, Levels and pattern outputs follow the connected texture's tiling.
+- With a 16 × 16 background and wrapping off for the receiver, repeat X alone and then Y alone. The two U8 bytes at (2,2) are 149 and 150. Only Y grows. Repeat for the transposed resize, a reduction on either or both axes, simultaneous enlargement and reduction, and sources four times larger or smaller. For each source/receiver mask pair, compare both the draw and its source read.
+- Repeat the grayscale field using seeds 723101 and 723119 and swatch .1005859375. For color, add 29 times the channel index before taking the byte remainder. Also test converted U16, F16 and F32 sources, a non-neutral Levels filter with output high .84375, blur intensity 2, and move either FX-Map into a graph instance. Compare the source and the drawn output independently before and after an ordinary save.
+
+| Independent comparisons in U8, U16, F16 and F32 | Settings | Drawn pixels · maximum | Connected source pixels · maximum |
+|---|---:|---:|---:|
+| Size expressions, procedural sources, filters and graph instances | 368 | 188,416/188,416 · 0 | 178,176/178,176 · 0 |
+| Source and receiver tiling, formats and resize directions | 352 | 180,224/180,224 · 0 | 168,704/168,704 · 0 |
+| Additional one-axis and mixed-axis geometries | 88 | 45,056/45,056 · 0 | 57,344/57,344 · 0 |
+
+The ordinary saves reproduce each entry in this table in both applications. At 16 × 32, seed 194488 and default parameters in tiled Noise BNW Spots 3 v2, the first FX-Map produces 32/32 exact bytes and the middle FX-Map 128/128. In a stage-only copy, turn off tiling on both nodes. Its U8 output improved from 102 to 128/128, and F16 from 80 to 128/128. The complete tiled U16 graph retains 511/512 on one processor, maximum one level, and 512/512 on eight.
+
+The previously verified Bevel Smooth debug position graph and its normal saves each match 354,560/354,560 · 0 across all 38 [RGBA settings](#texture-sampling-in-pattern-functions). At 64 × 64 and seed 42, seven previously verified roots also retain all 114,688 pixels across U8, U16, F16 and F32 on originals and ordinary saves. They are Make It Tile Patch and its grayscale version, Paths Trace, the grayscale graph in `pattern_tile_generator.sbs`, the `debug_hit_uv` output in `rt_irradiance.sbs`, and the standalone Tile Generator and Tile Generator Color graphs. Use the [changed-parameter precision settings](sbs-root-nodes.md#complete-inventory) for each. The new normal-cook regression covers a shared cache, input bridges, Levels, connected patterns and changes to just one tiling axis. All 575 node and evaluator release tests passed, along with formatting, strict workspace Clippy, layers and WebAssembly.
+
 ### Ten recovered whole Noise Dirt 5 settings
 
 The shared pattern evaluator now produces images for 58 of the [60 original Noise Dirt 5 settings](#sixty-whole-settings-for-three-directional-and-dirt-noise-packages). The earlier comparison produced 48. Recook the twelve former execution errors on the normal release. Compare the stored grayscale words or floating-point values against the original one- and eight-processor reference captures. For each recovered setting also save the package normally, reopen it in both applications and compare against a fresh one-processor reference. Every local saved buffer reproduces its original raw hash.
