@@ -59,6 +59,42 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-26 root comparisons
 
+### Filling a quadrant batch from two transferred children
+
+Two more Noise BNW Spots 1 v2 settings match every raw F32 pixel on one processor and after an ordinary SBS save reopened in the reference app. Use scale 1, roughness .875, disorder .1875, speed .5, anisotropy .25, non-square expansion off and tile offset (−.1875, .0625). Counts compare the shared renderer before and after the change. [Previous measurements](#drawing-the-children-of-a-transferred-quadrant)
+
+| Size and seed | Original on one processor | Reopened on one processor | Original on eight processors | Maximum after, one / eight |
+|---|---:|---:|---:|---:|
+| 32 × 16, 614019 | 506 → 512/512 | 506 → 512/512 | 479 → 483/512 | 0 / 2⁻²⁴ |
+| 16 × 32, 614041 | 500/512 | 500/512 | 473/512 | 2⁻²⁴ / 2⁻²⁴ |
+| 32², 614063 | 1,019 → 1,024/1,024 | 1,019 → 1,024/1,024 | 949 → 950/1,024 | 0 / 2⁻²³ |
+
+U8, U16 and F16 each match 2,048/2,048 pixels on all three routes. Four earlier F32 settings match 2,304/2,304 on one processor and on reopening, and 2,146/2,304 on eight. At seed 614019 the third half needs 87 copies. The first child supplies 85 and the second supplies the remaining two. This changes which siblings return to each unfinished batch. At seed 614063 the last receiver returns two depth-five subtrees. The renderer applies both rules to the physical copy counts of the quadrant tree. [Renderer](../crates/nodes/src/pattern/tile_runs/inactive_children/wide_transfer.rs) · [Regression tests](../crates/nodes/src/pattern/tile_runs/inactive_children/tests.rs)
+
+To reproduce the boundary, use the [additive-square graph, numbering, edge placement and gains](#drawing-the-children-of-a-transferred-quadrant). In groups 24, 40, 8, 50, 58, 54 and 62, use extra copy counts (680, 680, e, 400, 400, h, 340). With h = 400 and e = 600 the first child supplies all 80 required copies. At e = 599 one copy comes from the second child. The draw at 25152 now precedes 23943, 24708 follows 74015, and 67104 precedes 24733. All three relations reverse at e = 600. At e = 520 the batch takes both children in full. Repeat with (e, h) = (620, 200), (620, 260) and (551, 300) to exercise the smaller subtrees in the last receiver. Swapping the two marker gains gave the same order for all 88 comparisons of the first boundary and all 3,780 comparisons across seven one- or two-subtree controls.
+
+For the full images use both gain directions at each of the six settings. Place the paired draws at successive texels starting at (6, 5) on the original 128² grid.
+
+| e, h | Five pairs of draw numbers |
+|---|---|
+| 600, 400 and 599, 400 | (25152,23943), (24708,74015), (67104,24733), (24645,73825), (24696,72318) |
+| 551, 400 and 520, 400 | (30719,2560), (51199,25120), (25199,9240), (79359,23680), (44799,24560) |
+| 620, 200 | (30719,2560), (51199,25040), (25119,9240), (79359,23680), (43759,24560) |
+| 551, 300 | (30719,2560), (51199,25120), (25199,9240), (79359,23680), (43759,24560) |
+
+| Storage, size and seed | Original exact pixels | Reopened exact pixels | Maximum, original / reopened |
+|---|---:|---:|---:|
+| U8, 64 × 128, 618479 | 98,304/98,304 | 98,304/98,304 | 0 / 0 |
+| U16, 128 × 64, 618503 | 98,304/98,304 | 98,304/98,304 | 0 / 0 |
+| F16, 256 × 128, 618521 | 393,216/393,216 | 393,216/393,216 | 0 / 0 |
+| F32, 128², 618461 | 196,605/196,608 | 196,608/196,608 | 2⁻²⁵ / 0 |
+
+The 48 original images improved from 786,385 to 786,429 of 786,432 exact pixels. All 48 ordinary reopens match 786,432/786,432, up from 786,382. The three differing original pixels occur together in the reversed-gain e = 520 control. Submit that graph again in three separate one-processor acquisitions, changing the seed before restoring 618461. Both gain directions match 16,384/16,384 in every repeat, on originals and saves. The earlier panel of 48 original and 48 reopened controls still matches 786,432/786,432 per route.
+
+For the second-child order, compare consecutive unwrapped draws in the two gain directions at 256² F32. Use e = 599 and 520, the 1,024 measured subtree counts at seed 614019, and independent fields i = 0 through 8 and 10. Define group counts and placement as in the [preceding field series](#drawing-the-children-of-a-transferred-quadrant), with counts 680 + 53i mod 281, 680 + 71i mod 271, 360 + 19i mod 125, 369 + 11i mod 118, 370 + 13i mod 120 and 340 + 29i mod 167 in groups 24, 40, 50, 58, 54 and 62. In group 8, place (599, 551, 526, 541, 569, 577, 525, 580, 579, 538) extra copies in field order at (991j + 37 + 4i) mod 10240. Include the additional draws in subtrees 312 through 315 for every tested i ≥ 6. All 1,013,019 comparisons across the thirteen fields agreed in both directions. For the smaller last receiver, use the measured subtree counts at seed 614063 and fields i = 5, 6, 7, 8, 9 and 11. Restore the earlier group 8 placement with extra counts (679, 590, 565, 610, 625, 640) in that order. In group 54 use counts (180, 205, 240, 275, 305, 340) with stride 211 and offset 17. These seven fields gave 543,902/543,908 matching comparisons in both directions. The other six changed order when the gains were exchanged in field 11. The 16 × 32 root setting and multi-processor differences remain open.
+
+The 86 original settings for Spots 1, 87 for Spots 1 v2 and 19 ordinary saves of each graph reproduce all 211 previous output digests. Both new regression tests failed on the preceding revision. All 546 release tests for the node and evaluation crates passed, along with formatting, strict workspace Clippy, dependency layering and WebAssembly. The root inventory remains 480/546.
+
 ### Drawing the children of a transferred quadrant
 
 Noise BNW Spots 1 v2 now matches 512/512 raw F32 pixels at 32 × 16 and seed 561067 on one processor, up from 497/512. The ordinary MaterialCraft save reopened in the reference app also matches 512/512. Four independent one-processor reference renders gave the same bits at every position. The archived eight-processor frame gives 460/512, up from 459/512, with a maximum error of 2⁻²³. Use scale 1, roughness .875, disorder .1875, speed .5, anisotropy .25, non-square expansion off and tile offset (−.1875, .0625).

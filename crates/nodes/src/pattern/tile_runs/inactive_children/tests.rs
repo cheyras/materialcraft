@@ -148,15 +148,47 @@ fn a_receiver_can_transfer_a_whole_sibling_and_parts_of_the_next() {
 fn the_third_half_fills_from_the_first_child_of_the_transferred_quarter() {
     // Change how many copies of that child fit, from all eighty down to one.
     for (extra, next) in [(600, 25200), (620, 25020), (679, 24961)] {
-        let mut copies = vec![1; 81_920];
-        for (group, width, amount) in [(24, 8, 680), (40, 8, 680), (8, 8, extra), (50, 2, 400), (58, 2, 400), (54, 2, 400), (62, 2, 340)] {
-            for i in 0..amount {
-                copies[group * 1280 + (211 * i + 17) % (width * 1280)] = 2;
-            }
-        }
-        let ranks = ranks_for_copies(|draw| copies[draw]);
+        let ranks = ranks_with_transfers(extra, 400);
         for (left, right) in [(30719, 2560), (51199, 25040), (25119, 9240), (69119, next)] {
             assert!(ranks[left] < ranks[right], "{extra} extra copies, draws {left}, {right}");
+        }
+    }
+}
+
+fn ranks_with_transfers(third_half: usize, last_partner: usize) -> Vec<usize> {
+    let mut copies = vec![1; 81_920];
+    for (group, width, amount) in [(24, 8, 680), (40, 8, 680), (8, 8, third_half), (50, 2, 400), (58, 2, 400), (54, 2, last_partner), (62, 2, 340)] {
+        for i in 0..amount {
+            copies[group * 1280 + (211 * i + 17) % (width * 1280)] = 2;
+        }
+    }
+    ranks_for_copies(|draw| copies[draw])
+}
+
+#[test]
+fn a_copy_from_the_second_child_changes_which_siblings_return_together() {
+    // Reducing the third half by one copy makes the batch use both donor children.
+    for (extra, before) in [(600, false), (599, true)] {
+        let ranks = ranks_with_transfers(extra, 400);
+        for (left, right, same_direction) in [(25152, 23943, true), (24708, 74015, false), (67104, 24733, true)] {
+            assert_eq!(ranks[left] < ranks[right], before == same_direction, "{extra} extra copies, draws {left}, {right}");
+        }
+    }
+    // The second child can also supply its last copy to the full batch.
+    let ranks = ranks_with_transfers(520, 400);
+    for (left, right) in [(51199, 25120), (25199, 9240), (25279, 24640)] {
+        assert!(ranks[left] < ranks[right], "draws {left}, {right}");
+    }
+}
+
+#[test]
+fn the_last_receiver_can_return_one_or_two_smaller_subtrees() {
+    for (third_half, partner, pairs) in
+        [(620, 200, [(43759, 24560), (78049, 43726)]), (620, 260, [(78147, 43698), (43603, 24797)]), (551, 300, [(43755, 24508), (49378, 43635)])]
+    {
+        let ranks = ranks_with_transfers(third_half, partner);
+        for (left, right) in pairs {
+            assert!(ranks[left] < ranks[right], "third half {third_half}, partner {partner}, draws {left}, {right}");
         }
     }
 }
