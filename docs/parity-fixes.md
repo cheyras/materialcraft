@@ -59,6 +59,34 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-26 root comparisons
 
+### Five individual image draws at one Dirt 1 pixel
+
+Use the [128 × 256 Dirt 1 setting](#individual-drawing-depths-at-a-dirt-1-rounding-boundary). Keep the 32² procedural source, the selected image, bilinear sampling, the original sizes, positions and seed. At each drawing depth keep the original computed grayscale tint when it equals the selected F32 tint below. Return zero for the other draws. Match coordinates from the top left. The child slots in each path run from the first quadrant of the first emitted tree and start at zero.
+
+| Local draw index | Depth | Child slots | Selected F32 tint | Contribution at (59,61) |
+|---:|---:|---|---:|---:|
+| 0 | 8 | `01031122` | 1.560014009 | 0.06977591664 |
+| 1 | 7 | `0110230` | 1.792800069 | 0.2156563848 |
+| 2 | 8 | `01132233` | 1.930725455 | 0.09658035636 |
+| 3 | 8 | `10000201` | 1.953956962 | 0.1880335808 |
+| 4 | 9 | `100002011` | 1.113133669 | 0.05112567171 |
+
+Each of the five selections has one nonzero pixel. Each matches 32,768/32,768 F32 pixels, maximum zero. Keeping all five gives 32,767/32,768, maximum 5.96046448e−08. Apply the signed multipliers in local draw-index order to the five selected tints. All multipliers are powers of two with sign. The last two settings independently check the order determined by the first three.
+
+| Setting | Multipliers in local order | MaterialCraft at (59,61) | One-processor reference | Exact F32 pixels | Maximum error |
+|---|---|---:|---:|---:|---:|
+| Measurement 1 | -0.015625, 0.0625, -0.5, -2, 8 | -0.00296369195 | -0.002963688225 | 32,767/32,768 | 3.7252903e-09 |
+| Measurement 2 | -1, -4, -0.03125, -0.03125, 16 | -0.123284936 | -0.1232849285 | 32,767/32,768 | 7.4505806e-09 |
+| Measurement 3 | -0.125, 0.5, -0.0625, -0.03125, -0.25 | 0.07441245764 | 0.07441245764 | 32,768/32,768 | 0 |
+| Independent check 1 | -0.5, -0.0625, -32, 8, -0.015625 | -1.635468125 | -1.635468006 | 32,767/32,768 | 1.1920929e-07 |
+| Independent check 2 | 4, 0.25, -16, -0.25, -2 | -1.361527562 | -1.361527681 | 32,767/32,768 | 1.1920929e-07 |
+
+Enumerating all 120 permutations with an F32 addition after every draw leaves indices 3 and 4 first, then 0, 1 and 2. The first pair can exchange places on a zero background. Both independent settings give the predicted reference result. The second independent setting also reproduces the reference value on eight processors and after a normal save on both processor counts.
+
+On the unsigned five-draw selection, compare U8, U16, F16 and F32 on one and eight processors for the original and its ordinary save. U8 and F16 each match 32,768/32,768 on all four comparisons, maximum zero. F32 gives 32,767/32,768 on all four, maximum 5.96046448e−08. U16 gives 32,767/32,768, maximum one, on both originals and the one-processor save. The eight-processor save matches all 32,768, maximum zero. Every local save reproduces the original local raw buffer.
+
+A trial replay used the existing order for a single analytic tree with depth-seven parents and two full drawing levels below them. That order reproduces all five measured draw positions after allowing the first pair to exchange places. For a separate check on the unmodified image, retain each of the sixteen first-two-slot combinations in turn to identify the origins of sampled contributions. Sample every invariant F32 mismatch from the seven reads and up to 384 locations from each of three other classes using sampling seed 2343. Of 1,204 sampled locations, 883 had a unique order under that replay. At the 361 with invariant reference values, 330/361 match in the current renderer and 359/361 in the trial. Among the remaining 522 the one-processor score rose from 279 to 476 and the eight-processor score fell from 309 to 183. The two remaining invariant differences and the behavior across other trees are open.
+
 ### Individual drawing depths at a Dirt 1 rounding boundary
 
 Revision `3f984f7` reproduced the [complete Dirt 1 and Dirt 2 comparison](#complete-render-coverage-for-the-two-fixed-image-dirt-graphs) on the same release binary. For each graph the 58 earlier originals and 11 earlier ordinary saves reproduced their local raw hashes. The two remaining originals and the remaining archived save were already measured on this binary. All 144 original and reopened results have the exact counts and maximum errors previously recorded.
