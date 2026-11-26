@@ -59,6 +59,49 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-26 root comparisons
 
+### Rectangular and additional seed coverage in Directional Noise 3
+
+Revision `7780885` produced 40 different original outputs in the 60-setting panel. Eight attempted F32 cases reached a guard. Twelve additional storage choices on six of those geometries were deferred. In the 40 completed cases, 407,151/407,808 pixels matched on one processor and 407,274/407,808 on eight. Fourteen and sixteen whole buffers respectively were exact. The counts include the [first 19 settings](#streaming-equal-ranked-analytic-stamps-through-one-output-image).
+
+| Original storage | Completed | One processor · maximum | Eight processors · maximum |
+|---|---:|---:|---:|
+| U8 | 6 | 81,152/81,152 · 0 | 81,151/81,152 · 1 |
+| U16 | 14 | 145,804/146,176 · 2 | 145,853/146,176 · 3 |
+| F16 | 7 | 83,187/83,200 · 0.00048828125 | 83,188/83,200 · 0.00048828125 |
+| F32 | 13 | 97,008/97,280 · 3.2350421e−05 | 97,082/97,280 · 3.2350421e−05 |
+
+For the remaining 41 comparisons, use the settings below and the grayscale output, with every omitted field at its default. Test F32 first on each geometry. A limit in the table was reached by MaterialCraft before pixel comparison. An integer maximum is a stored level. A dash in the parameter column uses unmodified defaults. Otherwise the tuple gives (scale, disorder, angle, angle random, non-square expansion).
+
+| Dimensions · seed | Parameters | Completed storage | F32 result on one · maximum | F32 result on eight · maximum | Storage deferred |
+|---|---|---|---:|---:|---|
+| 16 × 16 · 0 | — | U8, U16, F16, F32 | 256/256 · 0 | 256/256 · 0 | — |
+| 64 × 16 · 42 | (2, 0.03125, -0.21875, 0.03125, on) | — | Traversal limit | Traversal limit | U8, U16, F16 |
+| 16 × 64 · 411636 | (1, 0.875, 0.625, 0.875, off) | U16, F32 | 1,021/1,024 · 2.66432762e−05 | 1,023/1,024 · 2.48551369e−05 | — |
+| 64 × 64 · 411697 | (3, 0.34375, 0.09375, 0.34375, on) | — | Traversal limit | Traversal limit | U8, U16, F16 |
+| 128 × 64 · 411758 | (2, 0.96875, 0.71875, 0.96875, off) | U16, F32 | 8,163/8,192 · 2.59876251e−05 | 8,178/8,192 · 2.59876251e−05 | — |
+| 64 × 128 · 411819 | (1, 0.1875, -0.0625, 0.1875, on) | U8, U16, F16, F32 | 8,171/8,192 · 2.84612179e−05 | 8,170/8,192 · 2.70605087e−05 | — |
+| 128 × 128 · 411880 | (3, 0.65625, 0.40625, 0.65625, off) | — | Traversal limit | Traversal limit | U16 |
+| 256 × 256 · 0 | — | U8, F16, F32 | 65,371/65,536 · 3.2350421e−05 | 65,397/65,536 · 3.2350421e−05 | — |
+| 128 × 512 · 412002 | (2, 0.53125, 0.28125, 0.53125, off) | — | Tile-copy limit | Tile-copy limit | U16 |
+| 512 × 128 · 412063 | (1, 0.09375, -0.15625, 0.09375, on) | — | Tile-copy limit | Tile-copy limit | U16 |
+| 16 × 32 · 194984 | — | U16, F32 | 512/512 · 0 | 512/512 · 0 | — |
+| 64 × 32 · 195031 | (3, 0.34375, 0.09375, 0.34375, on) | — | Traversal limit | Traversal limit | U8, U16, F16 |
+| 32 × 64 · 195078 | (1, 0.1875, -0.0625, 0.1875, on) | U8, U16, F16, F32 | 2,042/2,048 · 2.55703926e−05 | 2,045/2,048 · 2.48551369e−05 | — |
+| 64 × 64 · 195125 | (2, 0.53125, 0.28125, 0.53125, off) | U16, F32 | 4,089/4,096 · 2.67624855e−05 | 4,091/4,096 · 2.54511833e−05 | — |
+
+Six members of the 12-setting ordinary-save panel had completed originals. Open their existing MaterialCraft saves directly in each application and read the one-processor reference. All six saved MaterialCraft buffers reproduced their original raw hashes.
+
+| Saved dimensions · seed | Storage | Exact pixels · maximum |
+|---|---|---:|
+| 128 × 128 · 0 | U16 | 16,342/16,384 · 2 |
+| 64 × 64 · 42 | U8 | 4,096/4,096 · 0 |
+| 32 × 32 · 103853 | F32 | 1,020/1,024 · 2.70307064e−05 |
+| 16 × 16 · 0 | U16 | 256/256 · 0 |
+| 64 × 128 · 411819 | U8 | 8,192/8,192 · 0 |
+| 32 × 64 · 195078 | U16 | 2,046/2,048 · 2 |
+
+The six saves matched 31,952/32,000 pixels in total. The [two additional U16 saves at seed zero](#streaming-equal-ranked-analytic-stamps-through-one-output-image) cover the 256² default and the changed 128² geometry.
+
 ### Streaming equal-ranked analytic stamps through one output image
 
 Directional Noise 3 now renders 17 of the first 19 established whole-graph settings. Revision `3d3aec1` rendered 15 of those 19. The two recovered settings both use seed zero and U16. For the changed setting, set scale to 2, disorder to .37, angle to .125 and angle random to .2. Leave every other exposed parameter at its default. Save each setting normally, reopen it directly in both applications and capture the one-processor reference again. Each saved file gave the same raw MaterialCraft output as its source. [Earlier whole-graph comparison](#reused-properties-across-adjacent-groups-of-terminal-quadrants)
