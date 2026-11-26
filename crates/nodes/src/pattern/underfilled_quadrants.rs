@@ -108,6 +108,7 @@ struct RepeatedPair {
     middle: CopyPositions,
     next: CopyPositions,
     later: CopyPositions,
+    third_tree: CopyPositions,
     branches: SiblingOffsets,
 }
 
@@ -117,6 +118,7 @@ enum TrackedSpan {
     Middle(usize),
     Next(usize),
     Later(usize),
+    ThirdTree(usize),
     LastQuadrantPair(usize),
     NextCollecting(usize, usize),
 }
@@ -189,6 +191,7 @@ impl UnderfilledQuadrants {
             (1, 1) => Some(TrackedSpan::Middle(pair)),
             (2, 0) => Some(TrackedSpan::Next(pair)),
             (2, 1) if self.graph_depth == 10 && pair < 2 => Some(TrackedSpan::Later(pair)),
+            (3, 0) if self.graph_depth == 10 && pair < 2 => Some(TrackedSpan::ThirdTree(pair)),
             _ => None,
         }
     }
@@ -312,6 +315,7 @@ impl UnderfilledQuadrants {
                 TrackedSpan::Middle(slot) => &mut self.repeated[slot].middle,
                 TrackedSpan::Next(slot) => &mut self.repeated[slot].next,
                 TrackedSpan::Later(slot) => &mut self.repeated[slot].later,
+                TrackedSpan::ThirdTree(slot) => &mut self.repeated[slot].third_tree,
                 TrackedSpan::LastQuadrantPair(tree) => &mut self.last_quadrant_pair[tree],
                 TrackedSpan::NextCollecting(slot, index) => &mut self.next_collecting[slot].spans[index],
             };

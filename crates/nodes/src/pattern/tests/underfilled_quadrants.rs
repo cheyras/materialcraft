@@ -141,15 +141,23 @@ fn marked_tree_pixel(
     let marked_depth = negative.0.max(positive.0).max(3);
     let plain = quadrant_tail(&mut graph, marked_depth + 1, end, None);
     let wrapped = if wrapped_subtrees.is_empty() { plain } else { quadrant_tail(&mut graph, marked_depth + 1, end, Some(corner_offset(wrap_iteration))) };
+    // Share the unmarked subtrees so a sixth-level marker fits in an ordinary pattern graph.
+    let unmarked = quadrant_tail(&mut graph, marked_depth, end, None);
+    let unmarked_wrapped =
+        if wrapped_subtrees.is_empty() { unmarked } else { quadrant_tail(&mut graph, marked_depth, end, Some(corner_offset(wrap_iteration))) };
     let mut parents = vec![(root, [0_usize; 2])];
     for depth in 1..=marked_depth {
         let mut children = Vec::new();
-        for (parent, [x, y]) in parents {
+        for (parent_index, (parent, [x, y])) in parents.into_iter().enumerate() {
             for slot in 0..4 {
+                let ordinal = parent_index * 4 + slot;
+                if depth == marked_depth && (depth, ordinal) != negative && (depth, ordinal) != positive {
+                    graph.nodes[(parent - 1) as usize].children[slot] = if wrapped_subtrees.contains(&ordinal) { unmarked_wrapped } else { unmarked };
+                    continue;
+                }
                 let id = graph.add(PatternNodeKind::Quadrant).unwrap();
                 graph.nodes[(parent - 1) as usize].children[slot] = Some(id);
                 let cell = [2 * x + slot % 2, 2 * y + slot / 2];
-                let ordinal = children.len();
                 let node = &mut graph.nodes[(id - 1) as usize];
                 if depth >= 2 {
                     let marker = (depth, ordinal);
@@ -340,6 +348,30 @@ fn subsequent_trees_keep_completed_quadrant_batches_ahead_of_unfinished_groups()
         assert_eq!(sample(896, 768), small, "{trees} trees");
         assert_eq!(sample(336, 80), small, "{trees} trees");
     }
+}
+
+#[test]
+fn third_tree_pairs_fill_with_copies_carried_from_the_second_tree() {
+    let small = 2.0_f32.powi(-25).to_bits();
+    for (negative, positive) in [(384, 80), (640, 80)] {
+        let sample = marked_tree_pixel((5, negative), (5, positive), Continuation::ActiveTrees(3), &[832, 896, 897], Some([3, 2]), Some(2));
+        assert_eq!(sample.to_bits(), small);
+    }
+}
+
+#[test]
+fn third_tree_pairs_keep_single_sibling_transfers_ahead_of_waiting_draws() {
+    let mut wrapped: Vec<_> = (3328..3331).chain(3584..3587).collect();
+    let small = 2.0_f32.powi(-25).to_bits();
+    for negative in [1536, 2560] {
+        let sample = marked_tree_pixel((6, negative), (6, 320), Continuation::ActiveTrees(4), &wrapped, Some([3, 2]), Some(2));
+        assert_eq!(sample.to_bits(), small);
+    }
+    let incoming = |wrapped: &[usize]| marked_tree_pixel((6, 2200), (6, 2560), Continuation::ActiveTrees(4), wrapped, Some([2, 3]), Some(2));
+    assert_eq!(incoming(&wrapped).to_bits(), small);
+    // Extra copies move the cut across one more depth-five child.
+    wrapped.extend(2112..2115);
+    assert!(incoming(&wrapped) < f32::from_bits(small) * 0.5);
 }
 
 #[test]

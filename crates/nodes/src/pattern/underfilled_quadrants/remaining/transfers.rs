@@ -121,14 +121,20 @@ impl UnderfilledQuadrants {
         upper.distribute_children(&upper_children, Upper, upper_routes, &mut groups);
         last.distribute_children(&last_children, Last, &last_routes, &mut groups);
         groups[Lower as usize].extend(incoming.deferred());
-        let mut submissions = Vec::new();
-        for group in groups {
-            let count = Self::piece_count(&group)?;
-            if count >= COPIES_PER_BATCH {
+        let mut counts = [0; 8];
+        for (group, count) in groups.iter().zip(&mut counts) {
+            *count = Self::piece_count(group)?;
+            if *count >= COPIES_PER_BATCH {
                 // A group that fills again can transfer more work before the remaining groups finish.
                 return None;
             }
-            Self::append_copy_window(&group, 0, count, &mut submissions)?;
+        }
+        if self.visits[0] > 2 {
+            return self.carry_into_third_tree(&groups[Lower as usize], &groups[Upper as usize]);
+        }
+        let mut submissions = Vec::new();
+        for (group, count) in groups.iter().zip(counts) {
+            Self::append_copy_window(group, 0, count, &mut submissions)?;
         }
         Some(submissions)
     }

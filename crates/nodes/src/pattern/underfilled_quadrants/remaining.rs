@@ -1,5 +1,6 @@
 use super::{COLLECTING_GROUPS, COPIES_PER_BATCH, CopyPositions, DrawPosition, Range, UnderfilledQuadrants};
 
+mod next_tree;
 mod transfers;
 
 pub(super) type Submission = (DrawPosition, DrawPosition);
@@ -208,17 +209,23 @@ impl UnderfilledQuadrants {
                     next.extend(upper_batch);
                     // When both pairs transfer one of their final two subtrees,
                     // the last child finishes before the receiver.
-                    if self.repeated[1].branches.unvisited_subtrees(upper.before.start) == 2 {
+                    let single_upper = self.repeated[1].branches.unvisited_subtrees(upper.before.start) == 2;
+                    if single_upper {
                         next.append(&mut last_batch);
                     }
                     Self::append_receiver_and_last(&first, true, last_batch, &mut next)?;
+                    if more_trees
+                        && single_upper
+                        && let Some(batches) = self.carry_single_transfers(first_group, second_group, &lower, &upper, &last)
+                    {
+                        next.extend(batches);
+                    }
                 }
                 3 | 4 if lower.deferred.iter().all(|sibling| !sibling.is_empty()) => {
                     Self::append_copy_window(&first, 0, COPIES_PER_BATCH, &mut next)?;
                     next.extend(upper_batch);
                     next.extend(last_batch);
-                    // The completed batches precede the next tree. Unfinished groups can receive its draws.
-                    if !more_trees && let Some(tail) = self.unfinished_receivers(collecting, [&lower, &upper, &last], pair_offsets[2], middle_used) {
+                    if let Some(tail) = self.unfinished_receivers(collecting, [&lower, &upper, &last], pair_offsets[2], middle_used) {
                         next.extend(tail);
                     }
                 }
