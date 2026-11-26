@@ -59,6 +59,67 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-25 root comparisons
 
+### Tile copies in the last two active quadrant levels
+
+Use the [independent additive-square graph](#final-pattern-draws-above-inactive-quadrants-in-spots-1-v2). Give every quadrant through depth six four children. Each of the 16,384 depth-seven parents and its four depth-eight children emits one square. Number those 81,920 draws in traversal order starting at zero. Set roughness to zero, use a white background and position each signed pair at one pixel center. With gains −1 and 2⁻²⁵, a result of 2⁻²⁵ means the negative square drew first. Exchange the gains for the second read. Keep all unmarked draws active.
+
+First terminate the tree at depth eight. Divide the draws into 64 equal depth-three quadrants. In each group, select four or twenty evenly spaced children from slots 2, 3 and 4 of the five-draw sequence. Center those squares at x = 0 for horizontal tiling, or at y = 0 for vertical tiling. Each adds one physical copy. For each density, horizontal, vertical and both-axis tiling gave 300/300 expected comparisons in both gain directions. The untiled single-copy field gave another 300/300. The measured F32 ordering error was zero at every marked pixel. The shared renderer now counts these copies when just one axis tiles. [Traversal and whole-graph regressions](../crates/nodes/src/pattern/tests/terminal_quadrants.rs)
+
+For the two-child control, keep only the first and third child connections. Use 400 disjoint pairs at 128² F32, seed 91771. In the wrapped settings, move the third draw of every 32nd parent to the selected edge. On the four-child format control, compare both gain directions at 128² F32, 64 × 128 U8, 128 × 64 U16 and 256 × 128 F16, at seeds 560071, 560081, 560107 and 560131 respectively. Save and reopen each graph in both applications.
+
+| Original procedure | Previous exact pixels | Current exact pixels | Current exact reopened pixels | Maximum current error |
+|---|---:|---:|---:|---:|
+| Two children, horizontal tiling, interior squares | 32,436/32,768 | 32,768/32,768 | 32,768/32,768 | 0 |
+| Two children, vertical tiling, edge squares | 32,438/32,768 | 32,768/32,768 | 32,768/32,768 | 0 |
+| Two children, horizontal tiling, edge squares | 32,430/32,768 | 32,768/32,768 | 32,768/32,768 | 0 |
+| Two children, both axes, edge squares | 32,768/32,768 | 32,768/32,768 | 32,768/32,768 | 0 |
+| Four children, horizontal tiling, four formats | 131,058/131,072 | 131,072/131,072 | 131,072/131,072 | 0 |
+| Four children above two inactive levels, same formats | 131,062/131,072 | 131,066/131,072 | 131,066/131,072 | 2⁻²⁵ |
+
+The previous reopened counts matched the previous original counts. Previous nonzero maxima were 2⁻²⁵. The six remaining differences in each four-format series with inactive descendants are F32 pixels. Its U8, U16 and F16 frames match throughout.
+
+With both inactive levels connected and one copy per draw, compare consecutive draws in a proposed order on two disjoint sets of pairs. Put pair number i at pixel (2 + i modulo 251, 2 + floor(i/251)) in a 256² F32 image at seed 612671. Four renders cover both sets and both gain directions. A 29-interval reconstruction missed three of 81,919 adjacent pairs. Independently resolving the split intervals and measuring the twelve new adjacencies gives 81,919/81,919 for the revised 38 intervals, maximum signed-readout error zero. To reproduce the measurement, expand each half-open parent interval below in ascending order and emit draws 5p through 5p+4 for each parent p. [Shared physical-copy calculation](../crates/nodes/src/pattern/tile_runs/inactive_children.rs)
+
+```text
+6144..7236    10240..11332  2048..3140    12800..13312  4096..4688    4720..4736
+4800..5864    14848..15360  0..592        624..1704     13824..14336  8192..8784
+8816..9896    7236..8192    13312..13448  11332..12288  14336..14472  5864..6144
+592..624      9896..10240   13456..13472  1704..2048    8784..8800    14480..14496
+15360..15872  4688..4704    8800..8816    15872..16384  12288..12800  4704..4720
+14472..14480  14512..14848  13448..13456  13488..13824  14496..14512  3140..4096
+4736..4800    13472..13488
+```
+
+For the first nine full batches, each of three half-quadrants submits 5,460 physical copies. The receiving half-quadrants each combine two incoming subtrees with their own draws. When a batch fills, the next siblings may continue later. A depth-five sibling transfer in the first receiver can also defer one or two depth-four subtrees, depending on how many siblings are pending. On a field with unevenly spaced edge and corner copies, treating both transfers alike missed 24/668 signed comparisons. Accounting for both pending depth-four siblings matched 670/670 fresh comparisons around the revised boundaries. The same 330 signed pairs also agreed with unit-window reference reads when both windows were translated by (.125, −.25), doubled about the center, or enlarged only vertically. The maximum error in those three comparisons was zero.
+
+For the uneven field, use a PCG64 generator initialized with seed 681779. In each consecutive 1,280-draw group g, take an unordered sample without replacement of 5 + ((23g) modulo 47) draws from slots 2 through 4. Use the generator's sample order. Place selections 0, 7, 14 and so on at (0,0) and the other selected squares at (0,.90625). Use (.875,.90625) for unmarked interior squares. Place signed markers only on single-copy draws. The test uses 128² F32 at seed 91771 and a 1024² procedural lookup field.
+
+The following whole-root F32 counts use Noise BNW Spots 1 v2. Leave unspecified parameters at their defaults. For the last three settings use scale 1 and disable non-square expansion. The four independent seeds supplement the existing 87-setting series.
+
+| Root size, seed and changed parameters | Earlier one processor | Current one processor | Seven processors | Verified eight processors | Ordinary save | Maximum across current captures |
+|---|---:|---:|---:|---:|---:|---:|
+| 16², seed 0, defaults | 232/256 | 251/256 | 233/256 | 236/256 | 251/256 | 2⁻²³ |
+| 16², seed 560971, defaults | 230/256 | 249/256 | 239/256 | 226/256 | 249/256 | 2⁻²⁴ |
+| 16 × 32, seed 560983, roughness 1, disorder 0, tile offset (.125, .25) | 468/512 | 503/512 | 503/512 | 456/512 | 503/512 | 2⁻²³ |
+| 32², seed 561019, roughness .625, disorder .25, speed .375, anisotropy 0 | 999/1,024 | 1,021/1,024 | 1,021/1,024 | 1,002/1,024 | 1,021/1,024 | 2⁻²⁴ |
+| 32 × 16, seed 561067, roughness .875, disorder .1875, speed .5, anisotropy .25, tile offset (−.1875, .0625) | 460/512 | 460/512 | 460/512 | 470/512 | 460/512 | 2⁻²³ |
+
+The capture log records seven eligible logical processors for the intermediate-stage and four independent-seed series previously labeled eight. Repeating those ten settings with an explicit eight-processor mask verified the fourth result column. At seed zero, the previous renderer matched 241/256 on the seven-processor capture and 237/256 on the fresh eight-processor capture. The two reference captures agree on 236/256 pixels, maximum 2⁻²⁴. The final setting draws 86,945 stamps and includes an additional active pass. It retains 52 differing pixels on one processor, seven processors and the ordinary save.
+
+The reference also varied across identical one-processor renders. On the single-copy field, compare four evenly spaced interior draws from each depth-five subtree in the first eight depth-three quadrants of each receiving half with distinct draws from depth-three quadrants 58, 54 and 62 respectively. This gives 1,536 pairs. Render both gain directions at 128² F32 with seed 91771, then repeat each exact input three times. Against the first frame, the three repeats in the original gain direction matched 15,934/16,384, 15,934/16,384 and 15,673/16,384 pixels, maximum 2⁻²⁵. All three reverse-gain repeats matched 16,384/16,384, maximum zero. Comparing the order inferred from both directions within each acquisition gave 1,086, 1,536, 1,536 and 1,211 agreements out of 1,536. No root status changed on these samples.
+
+Across the established 87 original settings, six gained exact one-processor pixels and 57 match in full. The default 256² F16 frame gained its last four pixels. At 128² and 256² F32 the default gained 1,167 and 4,757 pixels respectively. The 87-setting reference captures do record eight eligible processors. Three of those settings improved, three declined and 58 match in full. All 19 reopened frame digests retained their previous values, with 13 exact across applications. [Original sizes, seeds and parameters](#copy-batches-from-the-final-quadrant-pair-and-the-following-group)
+
+| Stored pixels | One processor · exact · maximum | Eight processors · exact · maximum | Ordinary save · exact · maximum |
+|---|---:|---:|---:|
+| U8 | 141,568/141,568 · 0 | 141,568/141,568 · 0 | 32,768/32,768 · 0 |
+| U16 | 295,662/295,680 · 1 | 295,656/295,680 · 1 | 12,031/12,032 · 1 |
+| F16 | 108,800/108,800 · 0 | 108,797/108,800 · 2⁻¹¹ | 1,024/1,024 · 0 |
+| F32 | 291,429/296,704 · 2⁻²³ | 285,124/296,704 · 2⁻²³ | 91,892/93,184 · 2⁻²³ |
+| All formats | 837,459/842,752 | 831,145/842,752 | 137,715/139,008 |
+
+The one-processor total gained 5,953 exact pixels and the eight-processor total lost 166. The first Spots 1 graph retained all 86 original and 19 reopened counts. Two previously complete graph bodies with depth-eight quadrants retained 8,192/8,192 pixels each at 32 × 64 F32 and 64 × 32 U8, U16 and F16. All 534 release tests for the node and evaluator crates passed, along with formatting, strict workspace Clippy, dependency layering and WebAssembly checks.
+
 ### Full copy batches received across repeated quadrant trees
 
 Use the [overlapping square fixture](#pending-quadrant-siblings-and-the-first-full-receiving-batch) with an outer iteration of two, three or four trees and an unselected depth-ten branch. Keep the white background, additive gains −1 and 2⁻²⁵, and ordinary square gain 2⁻⁷⁶. Number each level's quadrants from zero in traversal order within its tree. A sibling left by the first tree can fill a receiving group's next batch. When it fills in the last incoming child, the group submits immediately before its own carried pair. The three pairs begin at second-tree depth-two quadrants 6, 10 and 2. Fourteen independently generated copy fields, including 5,459, 5,460 and 5,461 copies and two or three receivers filling together, confirmed 3,832/3,832 ordering comparisons in both gain directions. Six separate fields confirmed 6,450/6,450 comparisons through the first thirteen batches after the earlier sibling transfer. [Shared quadrant traversal](../crates/nodes/src/pattern/underfilled_quadrants.rs)
@@ -86,9 +147,9 @@ Across the 86 Spots 1 settings, one-processor agreement increases from 824,258 t
 | F16 | 108,800/108,800 · 0 | 108,798/108,800 · 4.88281250e−4 | 6,400/6,400 · 0 |
 | F32 | 278,570/295,680 · 2.38418579e−7 | 230,990/295,680 · 3.57627869e−7 | 5,988/6,144 · 1.19209290e−7 |
 
-The independent square and rectangular F32 comparisons retain different scores on the one-processor, eight-processor and reopened captures.
+The independent square and rectangular F32 comparisons retain different scores on the one-processor, seven-processor and reopened captures.
 
-| Earlier whole-root F32 settings | One processor · exact pixels · maximum | Eight processors · exact pixels · maximum | Ordinary save · exact pixels · maximum |
+| Earlier whole-root F32 settings | One processor · exact pixels · maximum | Seven processors · exact pixels · maximum | Ordinary save · exact pixels · maximum |
 |---|---:|---:|---:|
 | Eight settings with changed seeds, sizes and disorder | 25,879/26,624 · 1.19209290e−7 | 19,433/26,624 · 2.38418579e−7 | 26,350/26,624 · 1.19209290e−7 |
 | Six additional rectangular settings | 20,989/21,504 · 1.78813934e−7 | 17,063/21,504 · 1.78813934e−7 | 21,187/21,504 · 1.19209290e−7 |
@@ -100,9 +161,9 @@ Of the 66 open root graph bodies, 64 contain a quadrant stage and seven have a s
 
 Render the second Noise BNW Spots 1 package in F32. Read the output of each of its two FX-Maps and the final output bridge in the same capture session. Repeat in the ordinary MaterialCraft save. For a background control, leave the upstream connection in place and set each authored pattern type to zero in the final FX-Map. Save and reopen this control with its function packages available through their usual relative paths.
 
-The upstream U8 image matches 1,216/1,216 pixels in the one-processor, eight-processor and reopened comparisons, maximum zero on each. After resizing, the background control matches 4,864/4,864 F32 pixels, maximum zero. Comparing separate reference reads of the final FX-Map and its output bridge gives 4,863/4,864 on one processor, 4,747/4,864 on eight and 4,846/4,864 after reopening. Their maximum F32 errors are 5.96046448e−8, 1.19209290e−7 and 5.96046448e−8 respectively. At 16² defaults those comparisons give 256/256, 236/256 and 256/256.
+The upstream U8 image matches 1,216/1,216 pixels in the one-processor, seven-processor and reopened comparisons, maximum zero on each. After resizing, the background control matches 4,864/4,864 F32 pixels, maximum zero. Comparing separate reference reads of the final FX-Map and its output bridge gives 4,863/4,864 on one processor, 4,747/4,864 on eight and 4,846/4,864 after reopening. Their maximum F32 errors are 5.96046448e−8, 1.19209290e−7 and 5.96046448e−8 respectively. At 16² defaults those comparisons give 256/256, 236/256 and 256/256.
 
-| Size, seed and exposed settings | Release vs. one processor | Release vs. eight processors | Release vs. ordinary save | Maximum F32 error across the three |
+| Size, seed and exposed settings | Release vs. one processor | Release vs. seven processors | Release vs. ordinary save | Maximum F32 error across the three |
 |---|---:|---:|---:|---:|
 | 16², 0, defaults | 232/256 | 241/256 | 232/256 | 1.19209290e−7 |
 | 16 × 32, 0, scale 1, roughness 1, disorder/speed/anisotropy 0, angle −.375, offset (0,0) | 473/512 | 468/512 | 473/512 | 1.19209290e−7 |
@@ -111,11 +172,13 @@ The upstream U8 image matches 1,216/1,216 pixels in the one-processor, eight-pro
 | 32², 113, scale 2, roughness .6, disorder .37, speed .6, anisotropy .3, angle .125, offset (.17,.29) | 1,014/1,024 | 1,015/1,024 | 1,015/1,024 | 5.96046448e−8 |
 | 32 × 64, 194520, scale 1, roughness/disorder/speed/anisotropy .1875, angle −.0625, offset (−.15625,.2421875), non-square expansion on | 2,048/2,048 | 2,048/2,048 | 2,048/2,048 | 0 |
 
-At 16² and seed zero the final tree draws 16,384 parents at depth seven and four children per parent at depth eight. They generate 83,159 physical tile copies. To observe their order, make an independent graph with a single outer iteration and switch, four children per quadrant, a single iteration on the way to depth seven, and unselected branches reaching depth ten. Use additive squares on white. Place unmarked squares inside the tile, on one edge or at the corner to preserve each draw's one, two or four copies. Give two single-copy squares gains −1 and 2⁻²⁵ and place them on the same pixel. Repeat with the gains exchanged. The two reads identify which square drew first.
+At 16² and seed zero the final tree draws 16,384 parents at depth seven and four children per parent at depth eight. The 80,689 interior, 1,227 edge and four corner draws generate 83,159 physical tile copies. To observe their order, make an independent graph with a single outer iteration and switch, four children per quadrant, a single iteration on the way to depth seven, and unselected branches reaching depth ten. Use additive squares on white. Enable tiling on both axes. Place unmarked squares inside the tile, on the left edge or at the lower-left corner for one, two or four copies. Give two single-copy squares gains −1 and 2⁻²⁵ and place them on the same pixel. Repeat with the gains exchanged. The two reads identify which square drew first.
 
-In the 16² root, 196 pixels have the same stored sum for every order of their contributors. The other 60 pixels involve 404 distinct single-copy pairs. Measure all 404 pairs on the independent graph in fourteen 128² F32 renders. Applying these comparisons to MaterialCraft's own background and individual draw contributions reproduces 256/256 original and 256/256 reopened pixels on one processor, maximum zero. The same replay matches 228/256 pixels on the eight-processor capture, maximum 1.19209290e−7. Removing the interior and outer routes and stopping the tree at depth eight reverses nine of the 38 relationships required by the original and reopened pixels. Keeping the inactive descendants alone preserves all 38 on this field.
+In the 16² root, 196 pixels have the same stored sum for every order of their contributors. The other 60 pixels involve 404 distinct single-copy pairs. Measure all 404 pairs on the independent graph in fourteen 128² F32 renders. Applying these comparisons to MaterialCraft's own background and individual draw contributions reproduces 256/256 original and 256/256 reopened pixels on one processor, maximum zero. The same replay matches 228/256 pixels on the seven-processor capture, maximum 1.19209290e−7. Removing the interior and outer routes and stopping the tree at depth eight reverses nine of the 38 relationships required by the original and reopened pixels. Keeping the inactive descendants alone preserves all 38 on this field.
 
-The release renderer still differs on the F32 settings above. The inventory remains 480/546. [Whole graph across 87 settings and 19 ordinary saves](#copy-batches-from-the-final-quadrant-pair-and-the-following-group)
+The first probe used horizontal tiling, giving the four corner draws two copies each. Repeating all fourteen renders with both axes enabled gives the same 404/404 signed comparisons and the same three raw-pixel replay scores.
+
+The renderer before the shared tile-copy correction differs on the F32 settings above. The inventory remains 480/546. [Whole graph across 87 settings and 19 ordinary saves](#copy-batches-from-the-final-quadrant-pair-and-the-following-group)
 
 ### Pending quadrant siblings and the first full receiving batch
 
@@ -131,9 +194,9 @@ Each graph below was rendered in U8, U16, F16 and F32. The previous and current 
 | Same markers with two, three or four passes | 4 | 16,380/16,384 | 16,380/16,384 | 2⁻²⁵ |
 | Earlier collecting batch, neighboring densities and reversed gains | 9 | 36,860/36,864 | 36,864/36,864 | 0 |
 
-Two additional complete Spots 1 originals and their ordinary saves now match on one processor. Set scale 1, disable non-square expansion, and use (width, height, seed, disorder, roughness) of (32,32,395435,.375,.875) and (64,32,395572,.8125,.4375). The exact counts increase from 968/1,024 and 1,991/2,048 to 1,024/1,024 and 2,048/2,048, maximum zero. Against the eight-processor captures the same frames fall from 706 to 697 and from 1,603 to 1,585 exact pixels. Their combined maximum is 1.78813934e−07.
+Two additional complete Spots 1 originals and their ordinary saves now match on one processor. Set scale 1, disable non-square expansion, and use (width, height, seed, disorder, roughness) of (32,32,395435,.375,.875) and (64,32,395572,.8125,.4375). The exact counts increase from 968/1,024 and 1,991/2,048 to 1,024/1,024 and 2,048/2,048, maximum zero. Against the seven-processor captures the same frames fall from 706 to 697 and from 1,603 to 1,585 exact pixels. Their combined maximum is 1.78813934e−07.
 
-For eight further F32 settings, keep scale 1 and non-square expansion off. Use seeds 920633 + 163 × i for i = 0 through 7, with (width, height, disorder, roughness) in order (16,16,.8125,.625), (16,32,.375,.9375), (32,16,.9375,.25), (32,32,.625,.375), (32,64,.8125,.125), (64,32,.25,.6875), (64,64,.5,.9375) and (64,16,1,.5). The one-processor originals match 11,520/11,520, maximum zero. The eight-processor originals match 8,609/11,520, maximum 2.38418579e−07. The reopens match 11,500/11,520, maximum 1.19209290e−07, with all 20 differences at seed 921448. The 86 original settings and 19 saves in the established panel retain all their earlier scores and per-format maxima. The inventory remains 480/546. [Full panel by storage format](#final-copy-batches-in-one-and-two-quadrant-trees)
+For eight further F32 settings, keep scale 1 and non-square expansion off. Use seeds 920633 + 163 × i for i = 0 through 7, with (width, height, disorder, roughness) in order (16,16,.8125,.625), (16,32,.375,.9375), (32,16,.9375,.25), (32,32,.625,.375), (32,64,.8125,.125), (64,32,.25,.6875), (64,64,.5,.9375) and (64,16,1,.5). The one-processor originals match 11,520/11,520, maximum zero. The seven-processor originals match 8,609/11,520, maximum 2.38418579e−07. The reopens match 11,500/11,520, maximum 1.19209290e−07, with all 20 differences at seed 921448. The 86 original settings and 19 saves in the established panel retain all their earlier scores and per-format maxima. The inventory remains 480/546. [Full panel by storage format](#final-copy-batches-in-one-and-two-quadrant-trees)
 
 ### Final copy batches in one and two quadrant trees
 
@@ -533,7 +596,7 @@ Together the four graphs match 65,438/65,536 original and 65,438/65,536 reopened
 | F16 | 108,799/108,800 · .0001220703125 | 108,799/108,800 · .00048828125 | 6,400/6,400 · 0 |
 | F32 | 253,651/295,680 · 2.38418579e−7 | 234,924/295,680 · 3.57627869e−7 | 5,920/6,144 · 2.38418579e−7 |
 
-The 86 one-processor settings gain 4,246 exact pixels, reaching 799,592/841,728. The eight-processor comparisons lose 1,247, reaching 780,781/841,728. The 19 ordinary saves gain 13, reaching 196,115/196,352. At 16 × 32 with scale and roughness one, disorder zero and seed zero, the whole F32 image improves from 393 to 403 of 512, maximum 1.19209290e−7, in four original and four reopened captures. The early levels match 512/512 in each. Under the 256² exposed defaults and seed zero, F32 improves from 51,179 to 53,802 of 65,536 on one processor and changes from 43,327 to 42,389 on the eight-processor capture. The one-processor 256² F16 original is now exact. One 2,048-pixel F32 setting loses two exact pixels on one processor. One U16 setting becomes exact on one processor and loses whole-frame agreement on eight. At 32 × 64, seed 456747, scale two, roughness one and disorder .84375, interleave four fresh renders with changed seeds. The new F32 result loses exactly two matches against each of the five one-processor frames, including two of the 1,709 invariant pixels. At 64 × 32, seed 162172, scale one, disorder .5625 and roughness .6015625, all five one-processor U16 frames match 2,048/2,048. The eight-processor captures give three distinct frames. All 2,045 invariant pixels agree, and each of the three varying pixels agrees with at least one capture. Subsequent submissions and processor-dependent differences remain open. [Earlier measurements and repeated captures](#leading-copy-batches-in-complete-quadrant-trees)
+The 86 one-processor settings gain 4,246 exact pixels, reaching 799,592/841,728. The eight-processor comparisons lose 1,247, reaching 780,781/841,728. The 19 ordinary saves gain 13, reaching 196,115/196,352. At 16 × 32 with scale and roughness one, disorder zero and seed zero, the whole F32 image improves from 393 to 403 of 512, maximum 1.19209290e−7, in four original and four reopened captures. The early levels match 512/512 in each. Under the 256² exposed defaults and seed zero, F32 improves from 51,179 to 53,802 of 65,536 on one processor and changes from 43,327 to 42,389 on the eight-processor capture. The one-processor 256² F16 original is now exact. One 2,048-pixel F32 setting loses two exact pixels on one processor. One U16 setting becomes exact on one processor and loses whole-frame agreement on eight. At 32 × 64, seed 456747, scale two, roughness one and disorder .84375, interleave four fresh renders with changed seeds. The new F32 result loses exactly two matches against each of the five one-processor frames, including two of the 1,709 invariant pixels. At 64 × 32, seed 162172, scale one, disorder .5625 and roughness .6015625, all five one-processor U16 frames match 2,048/2,048. One capture with eight eligible processors and four repeats with seven give three distinct frames. All 2,045 invariant pixels agree, and each of the three varying pixels agrees with at least one capture. Subsequent submissions and processor-dependent differences remain open. [Earlier measurements and repeated captures](#leading-copy-batches-in-complete-quadrant-trees)
 
 ### Leading copy batches in complete quadrant trees
 
@@ -559,7 +622,7 @@ All 131,072 typed comparisons match. Separately, compare signed marker pairs in 
 
 Across the 86 settings, exact counts change from 782,741 to 795,346 of 841,728 on one processor and from 788,160 to 782,028 on eight. Nineteen ordinary saves change from 196,084 to 196,102 of 196,352. On one processor two additional U16 settings are exact and all 27 previously differing F32 settings improve. At 16 × 32, scale one, roughness one, zero disorder and seed zero, all four original and four reopened F32 captures give 393/512, previously 370/512, maximum 1.19209290e−7. The early levels still match 512/512. At 256², exposed defaults and seed zero, five single-processor captures agree. F32 improves from 43,491 to 51,179 of 65,536, while F16 changes from 65,535 to 65,534 of 65,536. No previously exact single-processor setting loses whole-frame agreement.
 
-Four previously exact eight-processor settings have one differing pixel each in the recorded frames. Repeat the 16 × 32 scale-one U16 setting, the 64 × 128 U16 setting at seed 456840, and both 256² default floating-point formats four times, interleaving changed seeds. Including the recorded eight-processor result, the latter three settings each give five distinct frames. At the separate 16 × 32 U16 default in the second series, five measurements on each processor count reproduce their own result. MaterialCraft matches 512/512 on one and 511/512 on eight, maximum one. Later batches and processor-dependent ordering remain open. [Whole-root settings and prior counts](#first-level-draw-order-in-repeated-spot-quadrants) · [Independent pixel-order replay](#connected-inactive-descendants-and-dense-quadrant-draw-order)
+Four previously exact eight-processor settings have one differing pixel each in the recorded frames. Repeat the 16 × 32 scale-one U16 setting, the 64 × 128 U16 setting at seed 456840, and both 256² default floating-point formats four times with seven eligible processors, interleaving changed seeds. Including the recorded eight-processor result, the latter three settings each give five distinct frames. At the separate 16 × 32 U16 default in the second series, five measurements on each processor count reproduce their own result. MaterialCraft matches 512/512 on one and 511/512 on eight, maximum one. Later batches and processor-dependent ordering remain open. [Whole-root settings and prior counts](#first-level-draw-order-in-repeated-spot-quadrants) · [Independent pixel-order replay](#connected-inactive-descendants-and-dense-quadrant-draw-order)
 
 ### Dense settings recovered in the third spots graph
 

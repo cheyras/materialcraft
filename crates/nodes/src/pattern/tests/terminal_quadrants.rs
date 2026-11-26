@@ -168,3 +168,143 @@ fn partly_wrapped_terminal_quadrants_fill_each_physical_batch() {
         check_terminal_case(count, false, limit, seed, &markers, None);
     }
 }
+
+// A depth-seven parent followed by its four depth-eight children. Both coordinates address the procedural input in Morton order.
+fn final_pair_location(draw: u32) -> (u32, u32) {
+    let parent = draw / 5;
+    let child = draw % 5;
+    let axis = |shift: u32| (0..7).fold(0, |coordinate, bit| coordinate | (((parent >> (2 * bit + shift)) & 1) << bit));
+    let (x, y) = (axis(0), axis(1));
+    if child == 0 { (512 + x, y) } else { (2 * x + (child - 1) % 2, 2 * y + (child - 1) / 2) }
+}
+
+fn check_final_pair_markers(inactive_children: bool, wrapped: bool, origin: [f32; 2], markers: &[(u32, u32, bool)]) {
+    let mut graph = PatternGraph::with_root(PatternNodeKind::Quadrant);
+    let mut parent = graph.root.unwrap();
+    for depth in 1..=8 {
+        let child = graph.add(PatternNodeKind::Quadrant).unwrap();
+        graph.nodes[(parent - 1) as usize].children.fill(Some(child));
+        if depth >= 7 {
+            let offset = [if depth == 7 { 0.5 } else { 0.0 }, 0.0];
+            let mut parameters = additive_square(0.25, [0.0; 2], [0.0; 2]);
+            parameters.insert("patternsize".into(), Value::Float2([0.875 * (1 << depth) as f32 / 128.0; 2]));
+            parameters.insert("frameoffset".into(), field_property(depth, offset, true, false));
+            parameters.insert("opacity".into(), field_property(depth, offset, false, false));
+            graph.nodes[(child - 1) as usize].parameters = parameters;
+        }
+        parent = child;
+    }
+    if inactive_children {
+        let gate = graph.add(PatternNodeKind::Switch).unwrap();
+        let branch = graph.add(PatternNodeKind::Quadrant).unwrap();
+        let leaf = graph.add(PatternNodeKind::Quadrant).unwrap();
+        graph.nodes[(parent - 1) as usize].children.fill(Some(gate));
+        graph.nodes[(gate - 1) as usize].children[1] = Some(branch);
+        graph.nodes[(branch - 1) as usize].children[0] = Some(leaf);
+        assert_eq!(graph.validated_depth().unwrap(), 10);
+    }
+    let mut field = BTreeMap::new();
+    if wrapped {
+        // The second child of every 64th parent crosses the left edge.
+        for draw in (2..81_920).step_by(320) {
+            field.insert(final_pair_location(draw), [0.0, 0.90625, 0.25, 1.0]);
+        }
+    }
+    let tiny = f32::EPSILON * 0.25;
+    for (j, &(negative, positive, _)) in markers.iter().enumerate() {
+        let x = (8.5 + j as f32) / 128.0;
+        field.insert(final_pair_location(negative), [x, 12.5 / 128.0, -1.0, 1.0]);
+        field.insert(final_pair_location(positive), [x, 12.5 / 128.0, tiny, 1.0]);
+    }
+    let input = Image::generate(1024, 1024, Kind::Color, |x, y| {
+        let [cx, cy, gain, alpha] = field.get(&(x, y)).copied().unwrap_or([0.875, 0.90625, 0.25, 1.0]);
+        [cx + origin[0], cy + origin[1], gain, alpha]
+    });
+    let inputs = [None, Some(input)];
+    let window = Value::Float4([origin[0], origin[0] + 1.0, origin[1], origin[1] + 1.0]);
+    let variables = BTreeMap::from([("$tiling".into(), Value::Int(if inactive_children { 3 } else { 1 }))]);
+    let definition = find("fx_map").unwrap();
+    let params = resolve_params(
+        definition,
+        &BTreeMap::from([
+            ("pattern".into(), Value::PatternGraph(Box::new(graph))),
+            ("roughness".into(), Value::Float(0.0)),
+            ("color_mode".into(), Value::Bool(false)),
+            ("background".into(), Value::Color([1.0; 4])),
+            ("render_region".into(), window.clone()),
+            ("tiling_region".into(), window),
+        ]),
+    );
+    let context = CookContext {
+        w: 128,
+        h: 128,
+        seed: 560071,
+        format: OutputFormat::F32,
+        tile: true,
+        inputs: &inputs,
+        input_formats: &[OutputFormat::F32; 2],
+        params: &params,
+        resource: &|_| None,
+        vars: &variables,
+    };
+    let image = (definition.cook)(&context).unwrap().remove(0);
+    for (j, &(_, _, first)) in markers.iter().enumerate() {
+        assert_eq!(image.get_gray(8 + j as i64, 12, false), if first { tiny } else { 0.0 }, "marker {j}");
+    }
+}
+
+#[test]
+fn final_pair_batches_precede_the_next_subtree_above_inactive_children() {
+    check_final_pair_markers(
+        true,
+        false,
+        [0.0; 2],
+        &[
+            (36179, 51200, true),
+            (36180, 51209, false),
+            (30717, 30722, false),
+            (56659, 10240, true),
+            (56660, 10249, false),
+            (51197, 51203, false),
+            (15699, 64000, true),
+            (15700, 64009, false),
+            (10237, 10243, false),
+            (23599, 24029, false),
+            (74240, 79, true),
+            (3119, 69149, false),
+            (69120, 41039, true),
+            (40959, 44109, false),
+        ],
+    );
+    check_final_pair_markers(true, true, [0.0; 2], &[(64000, 20559, true), (23599, 24029, false), (76101, 7902, true), (69817, 48750, true)]);
+    check_final_pair_markers(true, false, [0.125, -0.25], &[(36180, 51209, false), (30717, 30722, false), (56659, 10240, true)]);
+}
+
+#[test]
+fn final_pair_batches_keep_the_four_child_order_with_one_tiling_axis() {
+    check_final_pair_markers(
+        false,
+        true,
+        [0.0; 2],
+        &[(43841, 15684, true), (2893, 41170, false), (7078, 57951, false), (27212, 9738, false), (28838, 38806, false), (46736, 72040, false)],
+    );
+    check_final_pair_markers(
+        false,
+        false,
+        [0.0; 2],
+        &[
+            (44397, 27843, true),
+            (27885, 71936, false),
+            (4416, 39465, false),
+            (36850, 15761, false),
+            (30513, 57392, true),
+            (47200, 36364, false),
+            (73365, 18745, false),
+            (1690, 24737, true),
+            (28478, 43002, false),
+            (70020, 5532, true),
+            (29835, 4097, true),
+            (7465, 38479, false),
+        ],
+    );
+}

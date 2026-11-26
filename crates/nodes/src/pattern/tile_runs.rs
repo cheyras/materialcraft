@@ -7,6 +7,7 @@ use crate::CookContext;
 use std::{borrow::Cow, ops::Range};
 
 mod four_children;
+mod inactive_children;
 mod paired_batches;
 mod sparse_quadrants;
 mod two_children;
@@ -19,6 +20,7 @@ use paired_batches::PairedBatches;
 pub(super) const UNIT_WINDOW: [f32; 4] = [0.0, 1.0, 0.0, 1.0];
 const DEPTH_THREE_PARENTS: usize = 256;
 const DEPTH_FOUR_PARENTS: usize = 64;
+const DEPTH_FIVE_PARENTS: usize = 16;
 const PAIRED_SUBTREE_PARENTS: usize = 2 * DEPTH_THREE_PARENTS;
 const FIRST_PAIR_END: usize = 48 * DEPTH_THREE_PARENTS + PAIRED_SUBTREE_PARENTS;
 // Paired interior squares change order when the preceding draws fill 5,460 tile copies.
@@ -41,7 +43,11 @@ impl TileCopies {
         if context.v4("render_region") != window || context.v4("tiling_region") != window {
             return None;
         }
-        let parents_per_subtree = if deepest == 9 { DEPTH_FOUR_PARENTS } else { DEPTH_THREE_PARENTS };
+        let parents_per_subtree = match deepest {
+            10 => DEPTH_FIVE_PARENTS,
+            9 => DEPTH_FOUR_PARENTS,
+            _ => DEPTH_THREE_PARENTS,
+        };
         Some(Self {
             window: Region::new(window).ok()?,
             axes: context.tiling_axes(),
@@ -88,6 +94,11 @@ impl TileCopies {
 
     pub(super) fn two_child_runs<'a>(&self, stamps: &'a [PatternStamp]) -> Option<Vec<DrawRun<'a>>> {
         let ranges = two_children::ranges(&self.subtree_ends)?;
+        ranges.into_iter().map(|r| DrawRun::between(stamps, self.positions.at(r.start), self.positions.at(r.end))).collect()
+    }
+
+    pub(super) fn inactive_child_runs<'a>(&self, stamps: &'a [PatternStamp]) -> Option<Vec<DrawRun<'a>>> {
+        let ranges = inactive_children::ranges(&self.subtree_ends)?;
         ranges.into_iter().map(|r| DrawRun::between(stamps, self.positions.at(r.start), self.positions.at(r.end))).collect()
     }
 

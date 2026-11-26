@@ -112,13 +112,9 @@ impl MixedDepthRuns {
             return None;
         }
         let axes = context.tiling_axes();
-        // Count the eight-level batches in the common window, including repeated copies along its edges.
-        let window = if deepest == 8 && axes == [true; 2] { context.v4("render_region") } else { UNIT_WINDOW };
-        let copies = match axes {
-            [false, false] => None,
-            axes if axes == [true; 2] || deepest == 9 => Some(TileCopies::new(context, deepest, window)?),
-            _ => return None,
-        };
+        // A common render and tiling window determines the repeated copies along its edges.
+        let window = if matches!(deepest, 8 | 10) && axes == [true; 2] { context.v4("render_region") } else { UNIT_WINDOW };
+        let copies = if axes != [false; 2] || deepest == 10 { Some(TileCopies::new(context, deepest, window)?) } else { None };
         Some(Self { copies, deepest, ..Self::default() })
     }
 
@@ -137,16 +133,20 @@ impl MixedDepthRuns {
             return match depth {
                 0..=6 => node.children.iter().flatten().count() == 4,
                 8 if self.deepest == 9 => node.children.iter().all(Option::is_some),
+                // Connected child routes can terminate without visiting another quadrant.
+                8 if self.deepest == 10 => true,
+                9.. if self.deepest == 10 => false,
                 depth if depth == self.deepest => node.children.iter().all(Option::is_none),
                 _ => false,
             };
         }
         let children = node.children.iter().flatten().count();
-        if self.layout.is_empty() {
+        if self.children_per_parent == 0 {
             (self.layout, self.draws_per_parent) = match (self.deepest, children) {
                 (8, 2) => (TWO_CHILDREN, 3),
                 (8, 4) => (FOUR_CHILDREN, 5),
                 (9, 4) => (FOUR_CHILDREN_AND_GRANDCHILDREN, 21),
+                (10, 4) => (&[][..], 5),
                 _ => return false,
             };
             self.children_per_parent = children;
@@ -155,7 +155,7 @@ impl MixedDepthRuns {
         if children != self.children_per_parent {
             return false;
         }
-        if self.parents == self.next_boundary {
+        if !self.layout.is_empty() && self.parents == self.next_boundary {
             let Some(&(end, _)) = self.layout.get(self.starts.len()) else { return false };
             self.starts.push(DrawPosition { stamp: retained, copy: 0 });
             self.next_boundary = end;
@@ -183,6 +183,9 @@ impl MixedDepthRuns {
     pub(super) fn finish(mut self, stamps: &[PatternStamp]) -> Option<Vec<DrawRun<'_>>> {
         if self.parents != 16384 || self.draws != self.parents * self.draws_per_parent || self.starts.len() != self.layout.len() {
             return None;
+        }
+        if self.deepest == 10 {
+            return self.copies?.inactive_child_runs(stamps);
         }
         self.starts.push(DrawPosition { stamp: stamps.len(), copy: 0 });
         let mut layout = Cow::Borrowed(self.layout);
