@@ -59,6 +59,25 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-26 root comparisons
 
+### Expanded image and save comparisons for Dirt 1 and Dirt 2
+
+Repeat the [Dirt 1 settings](#whole-renders-and-reopened-settings-for-two-dirt-noise-generators) and the [Dirt 2 settings](#whole-outputs-and-saved-settings-for-noise-dirt-2-and-noise-dirt-3) that previously stopped at an execution guard. Evaluate one F32 image first at each distinct geometry where available. If it returns pixels, run its other requested formats. Reopen the previously saved SBS at each recovered setting in the 12-case handoff series. The table combines unchanged historical measurements with 24 newly rendered originals and three existing ordinary saves per graph on revision `9e0d6fd`. The [additional freshly saved comparisons](#streaming-deep-quadrants-that-draw-the-same-connected-image) are recorded separately.
+
+| Root · comparison | Whole images exact / rendered | U8 exact / total · maximum | U16 exact / total · maximum | F16 exact / total · maximum | F32 exact / total · maximum |
+|---|---:|---:|---:|---:|---:|
+| Noise Dirt 1 · one processor | 29/58 | 99,840/99,840 · 0 | 334,828/334,848 · 1 | 101,888/101,888 · 0 | 234,749/240,896 · 1.1920929e−07 |
+| Noise Dirt 1 · eight processors | 32/58 | 99,840/99,840 · 0 | 334,833/334,848 · 1 | 101,888/101,888 · 0 | 235,960/240,896 · 1.1920929e−07 |
+| Noise Dirt 1 · ordinary save on one | 6/11 | 26,624/26,624 · 0 | 51,707/51,712 · 1 | — | 65,168/67,072 · 1.1920929e−07 |
+| Noise Dirt 2 · one processor | 48/58 | 99,840/99,840 · 0 | 334,840/334,848 · 2 | 101,887/101,888 · 6.10351562e−05 | 240,893/240,896 · 2.52053142e−05 |
+| Noise Dirt 2 · eight processors | 51/58 | 99,840/99,840 · 0 | 334,843/334,848 · 2 | 101,887/101,888 · 0.000122070312 | 240,893/240,896 · 2.52090394e−05 |
+| Noise Dirt 2 · ordinary save on one | 9/11 | 26,624/26,624 · 0 | 51,711/51,712 · 2 | — | 67,071/67,072 · 2.52053142e−05 |
+
+Both graphs have rendered 58/60 originals and 11/12 archived ordinary saves. At 128 × 32 set scale 3, disorder .046875 and non-square expansion on. Use seeds 433517 for Dirt 1 and 433543 for Dirt 2. F32 exhausts the evaluation allowance. Its U16 sibling is deferred. A disposable marker in place of the first drawing tree, preserving the outer iteration and switch, emits 36 times for each graph. Each original tree has 349,525 quadrants through depth nine, giving 12,582,900 visits, including 9,437,184 terminal image draws. The 256 × 128 and 512 × 128 controls emit nine and four trees, respectively. Both controls now render.
+
+For Noise Dirt 2, the two reference worker counts disagree at precisely 21 pixels across the 777,472 compared. Twelve MaterialCraft pixels differ from the one-processor captures and nine from eight processors. The sets are disjoint in every frame. This establishes agreement on every pixel where the two captures have an identical stored value.
+
+For Noise Dirt 1 at 128², seed 42 and default parameters, both archived U16 captures differed from MaterialCraft by one code at (35,89). Repeat the U16 and F32 outputs twice at one and eight processors, reversing the format order once on each processor count. Open the ordinary save and repeat on one processor. At that pixel the one-processor originals and save give .44903564453125 and 29,428. The fresh eight-processor originals and MaterialCraft give .4490356147289276 and 29,427. Each F32 value gives the corresponding U16 code using the existing output conversion. Across the seven U16 captures, 16,382/16,384 pixel locations are invariant, and MaterialCraft matches every invariant value. Each individual comparison is 16,383/16,384, maximum one. Both local original and saved frames have identical raw buffers.
+
 ### Streaming deep quadrants that draw the same connected image
 
 Noise Dirt 1 and Noise Dirt 2 can now render previously blocked whole graphs that draw an upstream grayscale pattern through a fixed image slot. Each 32 × 16 setting below traverses eight full quadtrees with ten quadrant levels, or 2,796,200 quadrant visits. Only depths seven through nine draw the connected image. All three use slot zero, bilinear filtering and additive blending. The same evaluator checks that the drawing quadrants have equal raster order before it submits successive groups. Each group uses the same F32 output and the same bounded cache of reduced source images.
