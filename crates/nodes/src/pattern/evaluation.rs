@@ -8,9 +8,9 @@ use crate::function::{EvaluationContext, EvaluationState, Program, compile_with_
 use crate::random::FunctionRandom;
 use crate::{CookContext, CookResult};
 
-// A 512-by-512 quadtree takes 349,525 visits. The two allowances bound retained
-// stamps and discarded draws. At most four terminal draws share a parent's visit,
-// and full property evaluations still have their original five-allowance ceiling.
+// A 512-by-512 quadtree takes 349,525 visits. Retained, discarded and streamed
+// draws have bounded allowances. At most four terminal draws share a parent's
+// visit, and full property evaluations keep their five-allowance ceiling.
 const MAX_VISITS: usize = 1_048_576;
 
 // Overlapping squares establish the order of the sixteen grandchildren in a regular seven-level tree.
@@ -309,7 +309,8 @@ fn evaluate(context: &CookContext, base_level_only: &[bool], visit_limit: usize,
     let mut remaining = visit_limit;
     let mut discard_allowance = visit_limit;
     let mut full_evaluations = visit_limit.saturating_mul(5);
-    let mut stream_allowance = visit_limit;
+    let mut cached_stream_allowance = visit_limit;
+    let mut evaluated_stamps = 0;
     let stream_chunk = (visit_limit / 4).clamp(1, 4_096);
     let mut uniform_order = None;
     let mut raster_work = raster::RasterWork::new();
@@ -556,6 +557,7 @@ fn evaluate(context: &CookContext, base_level_only: &[bool], visit_limit: usize,
                             discarded_draw = true;
                         }
                     } else {
+                        evaluated_stamps += usize::from(!reused);
                         stamps.push(stamp);
                     }
                 }
@@ -672,13 +674,16 @@ fn evaluate(context: &CookContext, base_level_only: &[bool], visit_limit: usize,
             && repeated_six_level.is_none()
             && *uniform_order.get_or_insert_with(|| uniform_deep_draws(graph.root, &nodes))
         {
-            let released = stamps.len().min(stream_allowance);
-            raster_work.credit_streamed_stamps(released);
+            // Full property evaluations already consume cook-wide work. A cached draw instead
+            // uses a bounded credit when its retained storage is released.
+            let cached_credit = (stamps.len() - evaluated_stamps).min(cached_stream_allowance);
+            raster_work.streaming = true;
             let group = [super::pattern_stamp::DrawRun::whole(&stamps)];
             let image = raster::render(context, &group, &opacities, nonfinite_gray_opacity, base_level_only, runtime_image_selector, &mut raster_work)?;
             raster_work.background = Some(image);
-            stream_allowance -= released;
-            remaining = remaining.saturating_add(released);
+            cached_stream_allowance -= cached_credit;
+            remaining = remaining.saturating_add(evaluated_stamps + cached_credit);
+            evaluated_stamps = 0;
             stamps.clear();
         }
         if children.len() + pending.len() + usize::from(repeated.is_some()) > remaining {

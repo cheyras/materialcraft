@@ -1809,6 +1809,10 @@ fn center_at_roughness(graph: PatternGraph, roughness: f32) -> f32 {
 }
 
 fn render_with_visit_limit(graph: &PatternGraph, limit: usize) -> crate::CookResult {
+    render_with_tiling_and_visit_limit(graph, false, limit)
+}
+
+fn render_with_tiling_and_visit_limit(graph: &PatternGraph, tile: bool, limit: usize) -> crate::CookResult {
     let params = resolve_params(
         find("fx_map").unwrap(),
         &BTreeMap::from([
@@ -1821,7 +1825,7 @@ fn render_with_visit_limit(graph: &PatternGraph, limit: usize) -> crate::CookRes
         w: 4,
         h: 4,
         seed: 19,
-        tile: false,
+        tile,
         inputs: &[],
         input_formats: &[],
         format: materialcraft_core::OutputFormat::F32,
@@ -1890,8 +1894,7 @@ fn terminal_quadrants_charge_the_first_discard_of_each_sibling_group() {
     assert!(render_with_visit_limit(&graph, 64).unwrap_err().contains("execution budget"));
 }
 
-#[test]
-fn streamed_analytic_draws_keep_the_accumulated_pixels_and_bounded_work() {
+fn nested_square_draws(inner_count: i32) -> PatternGraph {
     let mut graph = PatternGraph::with_root(PatternNodeKind::Quadrant);
     for _ in 0..6 {
         let parent = graph.nodes.len() - 1;
@@ -1905,17 +1908,42 @@ fn streamed_analytic_draws_keep_the_accumulated_pixels_and_bounded_work() {
     graph.nodes[7].children[1] = Some(inner);
     graph.nodes[8].children[1] = Some(square);
     graph.nodes[7].parameters.insert("numberadded".into(), Value::Int(4));
-    graph.nodes[8].parameters.insert("numberadded".into(), Value::Int(24));
+    graph.nodes[8].parameters.insert("numberadded".into(), Value::Int(inner_count));
     let leaf = &mut graph.nodes[9].parameters;
     leaf.insert("patterntype".into(), Value::Int(2));
     leaf.insert("patternsize".into(), Value::Float2([512.0; 2]));
     leaf.insert("opacity".into(), Value::Float(0.01));
+    graph
+}
+
+#[test]
+fn streamed_analytic_draws_keep_the_accumulated_pixels_and_bounded_work() {
+    let mut graph = nested_square_draws(24);
     let expected = (0..96).fold(0.0_f32, |background, _| background + 0.01_f32);
     assert_eq!(render_with_visit_limit(&graph, 256).unwrap()[0].data(), &[expected; 16]);
     assert_eq!(render_with_visit_limit(&graph, 64).unwrap()[0].data(), &[expected; 16]);
 
     graph.nodes[7].parameters.insert("numberadded".into(), Value::Int(12));
+    let expected = (0..288).fold(0.0_f32, |background, _| background + 0.01_f32);
+    assert_eq!(render_with_visit_limit(&graph, 64).unwrap()[0].data(), &[expected; 16]);
+
+    graph.nodes[7].parameters.insert("numberadded".into(), Value::Int(20));
     assert!(render_with_visit_limit(&graph, 64).unwrap_err().contains("execution budget"));
+}
+
+#[test]
+fn streamed_squares_charge_the_tile_copies_after_the_first() {
+    let mut graph = nested_square_draws(21);
+    // Each of the 84 draws covers 12,484 horizontal copies and a single row of tiles.
+    // The first copy was visited with its draw, leaving 1,048,572 extra copies to rasterize.
+    let leaf = &mut graph.nodes[9].parameters;
+    leaf.insert("frameoffset".into(), Value::Float2([0.0, 0.25]));
+    leaf.insert("patternsize".into(), Value::Float2([12_483.0 * 128.0, 32.0]));
+    let image = render_with_tiling_and_visit_limit(&graph, true, 64).unwrap().remove(0);
+    assert!(image.get_gray(1, 1, false) > 1.0);
+
+    graph.nodes[9].parameters.insert("patternsize".into(), Value::Float2([12_485.0 * 128.0, 32.0]));
+    assert!(render_with_tiling_and_visit_limit(&graph, true, 64).unwrap_err().contains("pattern repetition exceeds its budget"));
 }
 
 #[test]

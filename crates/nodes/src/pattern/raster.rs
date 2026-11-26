@@ -20,18 +20,14 @@ pub(super) const MIN_STAMP_SIZE: f32 = 1e-8;
 
 pub(super) struct RasterWork {
     pub background: Option<Image>,
+    pub streaming: bool,
     samples_left: u64,
     copies_left: u64,
 }
 
 impl RasterWork {
     pub fn new() -> Self {
-        Self { background: None, samples_left: MAX_SAMPLES, copies_left: MAX_STAMP_COPIES }
-    }
-
-    pub fn credit_streamed_stamps(&mut self, stamps: usize) {
-        // A released stamp covers one copy. Extra tile copies share the original cook-wide allowance.
-        self.copies_left = self.copies_left.saturating_add(stamps as u64);
+        Self { background: None, streaming: false, samples_left: MAX_SAMPLES, copies_left: MAX_STAMP_COPIES }
     }
 }
 
@@ -167,7 +163,10 @@ pub(super) fn render(
         if selected == 0 {
             continue;
         }
-        work.copies_left = work.copies_left.checked_sub(selected).ok_or("pattern repetition exceeds its budget")?;
+        // A streamed draw has already paid for its visit and is submitted exactly once.
+        // Additional tile copies debit the same allowance across every chunk.
+        let charged = if work.streaming { selected - 1 } else { selected };
+        work.copies_left = work.copies_left.checked_sub(charged).ok_or("pattern repetition exceeds its budget")?;
         let columns = repeats[0].centers();
         let mut copy = 0_u64;
         'rows: for y_center in repeats[1].centers() {

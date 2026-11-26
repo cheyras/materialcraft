@@ -59,6 +59,36 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-26 root comparisons
 
+### Accounting for a streamed draw and its tile copies
+
+Directional Noise 3 now renders both 128 × 512 at seed 412002 and 512 × 128 at seed 412063 in U16 and F32. Set scale, disorder, angle, angle random and non-square expansion to (2, .53125, .28125, .53125, off) and (1, .09375, −.15625, .09375, on) respectively. Keep other exposed parameters at their defaults. Save normally and open each resulting file directly in both applications. Each saved MaterialCraft output is bit-identical to its original.
+
+| Dimensions · storage | One processor · maximum | Eight processors · maximum | Ordinary save on one · maximum |
+|---|---:|---:|---:|
+| 128 × 512 · U16 | 65,368/65,536 · 3 | 65,363/65,536 · 3 | 65,371/65,536 · 2 |
+| 128 × 512 · F32 | 65,377/65,536 · 4.7326088e−05 | 65,386/65,536 · 4.7326088e−05 | 65,380/65,536 · 4.7326088e−05 |
+| 512 × 128 · U16 | 65,307/65,536 · 2 | 65,284/65,536 · 2 | 65,330/65,536 · 2 |
+| 512 × 128 · F32 | 65,306/65,536 · 3.0785799e−05 | 65,342/65,536 · 3.0785799e−05 | 65,338/65,536 · 3.0785799e−05 |
+
+Together with the [40 earlier renders](#rectangular-and-additional-seed-coverage-in-directional-noise-3), this gives measured outputs for 44 of 60 whole settings. Six F32 attempts reached the traversal limit in the earlier panel and ten sibling-format cases are still deferred.
+
+Both rectangular F32 settings exhausted the tile-copy allowance on revision `7780885`. A streamed stamp has already paid for its visit. Charging only its additional copies moved both failures to the traversal limit. Full stamp-property evaluations already consume a separate cook-wide allowance. Releasing their retained storage after rasterization now returns their traversal credit. Stamps whose evaluations came from the cache draw on a bounded allowance of their own. Pixel work, extra tile copies and full evaluations remain bounded across all chunks.
+
+For a small tile-count regression, use seven empty quadrants, then four iterations of 21 additive squares. At depth seven use size (12,483 × 128, 32), frame offset (0,.25), overall opacity one, tint .01, full tiling and a 4² image. Each of the 84 draws has 12,484 horizontal copies. The original copy charge rejected it. The shared raster now handles its 1,048,572 extra copies. Increasing the width to 12,485 × 128 still exceeds the 1,048,576 extra-copy allowance. In the separate square accumulation regression, 12 iterations of 24 full-coverage squares now match the 288 successive F32 additions at a traversal allowance of 64. Twenty iterations of 24 exceed the full-evaluation allowance.
+
+Repeat the [grayscale and RGBA chunk controls](#streaming-equal-ranked-analytic-stamps-through-one-output-image). Add two grayscale variants with first and second square sizes (1,536,64) and (512,96). Use horizontal tiling in unit render and tiling windows for the first. Enable both axes with render window (.125,.75,.25,.875) and tiling window (−.125,.875,−.25,.75) for the second. Across 80 original and ordinarily reopened buffers at two sizes and four stored formats, all 30,720 pixels matched the reference and the previous release, maximum zero.
+
+### Counting terminal draws in the two remaining clouds variants
+
+For Noise Clouds 1 v2 and Noise Clouds 2 v2, the 64 × 32 F32 panel setting still exceeds the traversal limit. Use scale 5, disorder .8125 and non-square expansion on with all other controls at their defaults and the seeds below. In a disposable diagnostic keep the original outer switch, quadrant seeds and depth-seven iteration. Each comparison below retains one of the four original first-level child slots, preserving its slot identifier. Replace each depth-seven drawing quadrant after the iterate with a childless marker. Count the emitted markers from the evaluation trace. The removed children only publish a frame offset. The iteration count reads the graph anisotropy input and its own random stream. This diagnostic counts MaterialCraft visits.
+
+| Graph · seed | Depth-seven marker counts by original slot | Connected terminal children per marker | Combined drawing visits at depths seven and eight |
+|---|---|---:|---:|
+| Noise Clouds 1 v2 · 103034 | 524,700, 524,330, 524,492, 524,584 | 4 | 10,490,530 |
+| Noise Clouds 2 v2 · 103056 | 609,358, 609,398, 609,706, 609,518 | 2 | 7,313,940 |
+
+The terminal tint writes the frame offset and reads the current iteration and its fade. The measured draw counts already exceed the 5,242,880 full property-evaluation allowance before the ancestor visits. Simply changing how retained stamps are charged cannot recover these settings.
+
 ### Rectangular and additional seed coverage in Directional Noise 3
 
 Revision `7780885` produced 40 different original outputs in the 60-setting panel. Eight attempted F32 cases reached a guard. Twelve additional storage choices on six of those geometries were deferred. In the 40 completed cases, 407,151/407,808 pixels matched on one processor and 407,274/407,808 on eight. Fourteen and sixteen whole buffers respectively were exact. The counts include the [first 19 settings](#streaming-equal-ranked-analytic-stamps-through-one-output-image).
