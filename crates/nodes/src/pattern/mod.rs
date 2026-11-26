@@ -12,6 +12,7 @@ mod region;
 mod repeated_quadrants;
 mod repeated_six_level;
 mod shape;
+mod stamp_cache;
 mod terminal_quadrants;
 mod tile_runs;
 mod underfilled_quadrants;

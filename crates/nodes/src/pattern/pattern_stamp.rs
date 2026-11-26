@@ -1,3 +1,4 @@
+#[derive(Clone)]
 pub(super) struct PatternStamp {
     pub center: [f32; 2],
     pub size: [f32; 2],

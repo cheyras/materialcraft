@@ -2,15 +2,15 @@ use materialcraft_core::{PatternNode, PatternNodeKind, Value, ValueType};
 use std::collections::{BTreeMap, BTreeSet};
 
 use super::mixed_depth_runs::MixedDepthRuns;
+use super::stamp_cache::{self, StampCache};
 use super::{catalog, footprint::SampleGrid, pattern_stamp::PatternStamp, pattern_visit::PatternVisit, raster, variables::PatternVariables};
 use crate::function::{EvaluationContext, EvaluationState, Program, compile_with_literal_inputs};
 use crate::random::FunctionRandom;
 use crate::{CookContext, CookResult};
 
-// A 512-by-512 quadtree takes 349,525 visits. This limit bounds retained stamps and
-// provides a second allowance for discarded draws. A terminal sibling group has at most
-// three additional discards, and needs two ordinary visits (its parent and first discard).
-// Thus at most five times this limit can execute, including the discarded stamps.
+// A 512-by-512 quadtree takes 349,525 visits. The two allowances bound retained
+// stamps and discarded draws. At most four terminal draws share a parent's visit,
+// and full property evaluations still have their original five-allowance ceiling.
 const MAX_VISITS: usize = 1_048_576;
 
 // Overlapping squares establish the order of the sixteen grandchildren in a regular seven-level tree.
@@ -25,6 +25,27 @@ enum QuadrantChildren {
 
 type PatternNodes<'a> = BTreeMap<u32, (&'a PatternNode, bool, QuadrantChildren)>;
 type PropertyPrograms<'a> = BTreeMap<(u32, &'a str), (Program, BTreeMap<String, ValueType>)>;
+
+fn reusable_leaf(node: &PatternNode, programs: &PropertyPrograms, assigned: &BTreeSet<&str>) -> bool {
+    let Some(shape @ 2..=18) = node.parameters.get("patterntype").and_then(Value::as_i32) else { return false };
+    let mut computed = false;
+    let Some(definition) = catalog::definition(node.kind) else { return false };
+    for name in definition.params.iter().map(|p| p.id).filter(|name| uses_property(node.kind, name, shape)) {
+        if let Some((program, _)) = programs.get(&(node.id, name)) {
+            if matches!(name, "patterntype" | "randomseed" | "randominherited") || !stamp_cache::reusable(program, assigned) {
+                return false;
+            }
+            computed = true;
+        }
+    }
+    computed
+}
+
+struct TerminalSiblings {
+    stack: usize,
+    discarded: bool,
+    reused: bool,
+}
 
 fn quadrant_mode(kind: PatternNodeKind, name: &str) -> bool {
     kind == PatternNodeKind::Quadrant && matches!(name, "patterntype" | "blendingmode" | "imagefiltering" | "imagepremul" | "randominherited")
@@ -231,6 +252,10 @@ fn evaluate(context: &CookContext, base_level_only: &[bool], visit_limit: usize,
         };
         nodes.insert(node.id, (node, literal_geometry, quadrant_children));
     }
+    let assigned = functions.values().flat_map(|(_, names)| names.keys().map(String::as_str)).collect();
+    let reusable_leaves: BTreeSet<_> =
+        graph.nodes.iter().filter(|n| terminal_nodes.contains(&n.id) && reusable_leaf(n, &functions, &assigned)).map(|n| n.id).collect();
+    let mut stamp_cache = StampCache::default();
 
     let image_slots: Vec<_> =
         context.inputs.iter().skip(1).take(crate::MAX_IMAGE_INPUTS).enumerate().filter_map(|(i, image)| image.as_ref().map(|_| i as i32)).collect();
@@ -252,9 +277,10 @@ fn evaluate(context: &CookContext, base_level_only: &[bool], visit_limit: usize,
     let separate_child_variables = opacity_depth == 6 && has_locals && graph.root.is_some_and(|root| has_uniform_quadrant_leaves(root, opacity_depth, &nodes));
     let mut max_depth = 0;
     let mut state = EvaluationState::default();
-    let mut terminal_siblings: Option<(usize, bool)> = None;
+    let mut terminal_siblings: Option<TerminalSiblings> = None;
     let mut remaining = visit_limit;
     let mut discard_allowance = visit_limit;
+    let mut full_evaluations = visit_limit.saturating_mul(5);
     let grayscale = !context.b("color_mode");
     let mut repeated_roots = None;
     let mut repeated_six_level: Option<super::repeated_six_level::RepeatedSixLevelRuns> = None;
@@ -279,9 +305,6 @@ fn evaluate(context: &CookContext, base_level_only: &[bool], visit_limit: usize,
             if let Some(slot) = root_siblings.and_then(|siblings| pending.len().checked_sub(siblings)).and_then(|slot| branch_starts.get_mut(slot)) {
                 *slot = Some(stamps.len());
             }
-        }
-        if terminal_siblings.is_some_and(|(start, _)| pending.len() < start) {
-            terminal_siblings = None;
         }
         variables.resume(pending.len());
         if separate_child_variables && visit.depth == 1 {
@@ -375,12 +398,18 @@ fn evaluate(context: &CookContext, base_level_only: &[bool], visit_limit: usize,
         let mut random = FunctionRandom::image(visit.seed);
         let mut pattern = if node.kind == PatternNodeKind::Quadrant { evaluate("patterntype", &mut random)?.and_then(|v| v.as_i32()).unwrap_or(0) } else { 0 };
         let image_pattern = image_pattern(pattern);
+        let cache_key = reusable_leaves.contains(&node.id).then_some(stamp_cache::Key { node: node.id, depth: visit.depth, seed: visit.seed });
+        let cached = cache_key.and_then(|key| stamp_cache.get(key));
+        let reused = cached.is_some();
         // An unused stamp property cannot publish a Set to a child. The branch offset still positions that child.
         let active = |id: &str| !matches!(id, "patterntype" | "randomseed" | "randominherited") && uses_property(node.kind, id, pattern);
-        for parameter in definition.params.iter().filter(|p| active(p.id)) {
-            let mut stream = FunctionRandom::pattern(visit.seed, parameter.id);
-            let value = evaluate(parameter.id, stream.as_mut().unwrap_or(&mut random))?.unwrap_or_else(|| parameter.default.clone());
-            parameter_values.push((parameter.id, value));
+        if !reused {
+            full_evaluations = full_evaluations.checked_sub(1).ok_or("pattern graph exceeded its execution budget")?;
+            for parameter in definition.params.iter().filter(|p| active(p.id)) {
+                let mut stream = FunctionRandom::pattern(visit.seed, parameter.id);
+                let value = evaluate(parameter.id, stream.as_mut().unwrap_or(&mut random))?.unwrap_or_else(|| parameter.default.clone());
+                parameter_values.push((parameter.id, value));
+            }
         }
 
         let field = |name: &str| parameter_values.iter().find_map(|(id, value)| (*id == name).then_some(value));
@@ -401,7 +430,7 @@ fn evaluate(context: &CookContext, base_level_only: &[bool], visit_limit: usize,
                     // A switch on the repeated branch may omit an entire quadrant tree.
                     *active += 1;
                 }
-                let offset = vector("branchoffset");
+                let offset = cached.as_ref().map_or_else(|| vector("branchoffset"), |properties| properties.branch_offset);
                 visit.center = [visit.center[0] + offset[0], visit.center[1] + offset[1]];
                 if image_pattern {
                     let requested = integer("imageindex");
@@ -418,36 +447,44 @@ fn evaluate(context: &CookContext, base_level_only: &[bool], visit_limit: usize,
                     pattern = slot.map_or(0, |i| i.saturating_add(256));
                 }
                 if pattern != 0 {
-                    let offset = vector("frameoffset");
-                    let tint = field("opacity").unwrap_or(&Value::Float4([1.0; 4]));
-                    let rgba = tint.as_vec4().ok_or("pattern color must be a float or float4")?;
-                    let computed_tint = functions.contains_key(&(node.id, "opacity"));
-                    if rgba.iter().any(|v| v.is_infinite() || (v.is_nan() && !computed_tint)) {
-                        return Err("pattern color must be finite".into());
-                    }
-                    let color = match tint {
-                        Value::Float(luminosity) => [1.0, 1.0, 1.0, *luminosity],
-                        _ if grayscale => {
-                            // A color expression supplies its alpha. A literal swatch supplies its mean RGB.
-                            let luminosity = if computed_tint { rgba[3] } else { (rgba[0] + rgba[1] + rgba[2]) / 3.0 };
-                            [1.0, 1.0, 1.0, luminosity]
+                    let mut stamp = if let Some(properties) = cached {
+                        properties.stamp
+                    } else {
+                        let tint = field("opacity").unwrap_or(&Value::Float4([1.0; 4]));
+                        let rgba = tint.as_vec4().ok_or("pattern color must be a float or float4")?;
+                        let computed_tint = functions.contains_key(&(node.id, "opacity"));
+                        if rgba.iter().any(|v| v.is_infinite() || (v.is_nan() && !computed_tint)) {
+                            return Err("pattern color must be finite".into());
                         }
-                        _ => rgba,
-                    };
+                        let color = match tint {
+                            Value::Float(luminosity) => [1.0, 1.0, 1.0, *luminosity],
+                            _ if grayscale => {
+                                // A color expression supplies its alpha. A literal swatch supplies its mean RGB.
+                                let luminosity = if computed_tint { rgba[3] } else { (rgba[0] + rgba[1] + rgba[2]) / 3.0 };
+                                [1.0, 1.0, 1.0, luminosity]
+                            }
+                            _ => rgba,
+                        };
 
-                    let stamp = PatternStamp {
-                        center: [visit.center[0] + offset[0], visit.center[1] + offset[1]],
-                        size: vector("patternsize").map(|size| size * visit.extent),
-                        rotation: scalar("patternrotation"),
-                        literal_geometry,
-                        color,
-                        depth: visit.depth,
-                        pattern,
-                        variation: scalar("patternsuppl"),
-                        blend: integer("blendingmode"),
-                        filtering: integer("imagefiltering"),
-                        premultiplied: field("imagepremul").and_then(Value::as_bool).unwrap_or(false),
+                        let stamp = PatternStamp {
+                            center: vector("frameoffset"),
+                            size: vector("patternsize").map(|size| size * visit.extent),
+                            rotation: scalar("patternrotation"),
+                            literal_geometry,
+                            color,
+                            depth: visit.depth,
+                            pattern,
+                            variation: scalar("patternsuppl"),
+                            blend: integer("blendingmode"),
+                            filtering: integer("imagefiltering"),
+                            premultiplied: field("imagepremul").and_then(Value::as_bool).unwrap_or(false),
+                        };
+                        if let Some(key) = cache_key {
+                            stamp_cache.insert(key, stamp_cache::Properties { branch_offset: offset, stamp: stamp.clone() });
+                        }
+                        stamp
                     };
+                    stamp.center = [visit.center[0] + stamp.center[0], visit.center[1] + stamp.center[1]];
                     // A draw that misses the sample grid still belongs to its grandchild's run.
                     if seven_level_runs.as_mut().is_some_and(|runs| !runs.draw(&stamp)) {
                         seven_level_runs = None;
@@ -479,8 +516,9 @@ fn evaluate(context: &CookContext, base_level_only: &[bool], visit_limit: usize,
                     if missed {
                         // These siblings have no children. Each has already evaluated its own
                         // properties and failed the sample-grid test in the original draw order.
-                        let later_discard = terminal_siblings.as_mut().is_some_and(|(_, seen)| std::mem::replace(seen, true));
-                        if later_discard {
+                        if let Some(siblings) = &mut terminal_siblings {
+                            siblings.discarded = true;
+                            siblings.reused |= reused;
                             remaining += 1;
                         } else {
                             discarded_draw = true;
@@ -491,7 +529,7 @@ fn evaluate(context: &CookContext, base_level_only: &[bool], visit_limit: usize,
                 }
 
                 if quadrant_children == QuadrantChildren::AllTerminal {
-                    terminal_siblings = Some((pending.len(), false));
+                    terminal_siblings = Some(TerminalSiblings { stack: pending.len(), discarded: false, reused: false });
                 }
                 if quadrant_children != QuadrantChildren::None {
                     let mut child_random = visit.seed;
@@ -570,6 +608,20 @@ fn evaluate(context: &CookContext, base_level_only: &[bool], visit_limit: usize,
         // A quadrant with no shape and no live children has finished evaluating its
         // properties. Charge it to the same bounded allowance as a discarded draw.
         let empty_quadrant = node.kind == PatternNodeKind::Quadrant && pattern == 0 && children.is_empty();
+        if quadrant_children == QuadrantChildren::None
+            && terminal_siblings.as_ref().is_some_and(|siblings| pending.len() == siblings.stack)
+            && let Some(siblings) = terminal_siblings.take()
+            && siblings.discarded
+            && !siblings.reused
+        {
+            // A parent covers its terminal misses when a repeated property evaluation
+            // was avoided. Otherwise charge the first discard once all siblings finish.
+            if discard_allowance > 0 {
+                discard_allowance -= 1;
+            } else {
+                remaining = remaining.checked_sub(1).ok_or("pattern graph exceeded its execution budget")?;
+            }
+        }
         if discard_allowance > 0 && (discarded_draw || empty_quadrant) {
             discard_allowance -= 1;
             remaining += 1;

@@ -1865,6 +1865,51 @@ fn terminal_quadrants_charge_the_first_discard_of_each_sibling_group() {
 }
 
 #[test]
+fn repeated_terminal_properties_leave_room_for_their_visible_siblings() {
+    let mut graph = PatternGraph::with_root(PatternNodeKind::Iterate);
+    let marker = graph.add(PatternNodeKind::Quadrant).unwrap();
+    let parent = graph.add(PatternNodeKind::Quadrant).unwrap();
+    let leaf = graph.add(PatternNodeKind::Quadrant).unwrap();
+    graph.nodes[0].children = vec![Some(marker), Some(parent)];
+    graph.nodes[0].parameters.insert("numberadded".into(), Value::Int(100));
+    square(&mut graph, 1);
+    graph.nodes[1].parameters.insert("opacity".into(), Value::Float(0.375));
+    graph.nodes[2].children.fill(Some(leaf));
+    for i in [2, 3] {
+        square(&mut graph, i);
+        graph.nodes[i].parameters.insert("patternsize".into(), Value::Float2([1.0 / 64.0; 2]));
+    }
+    let mut tint = FunctionGraph::default();
+    let scale = tint.add("const_float1", &[], Some(Value::Float(0.5)));
+    tint.output = Some(tint.add("rand", &[scale], None));
+    graph.nodes[3].parameters.insert("opacity".into(), Value::Function(Box::new(tint)));
+    graph.nodes[3].parameters.insert("randominherited".into(), Value::Bool(false));
+
+    let image = render_with_visit_limit(&graph, 64).unwrap().remove(0);
+    assert_eq!(image.data(), &[0.375; 16]);
+
+    let mut positioned = graph.clone();
+    let mut position = FunctionGraph::default();
+    position.output = Some(position.add("get_float2", &[], Some(Value::Text("$pos".into()))));
+    positioned.nodes[3].parameters.insert("frameoffset".into(), Value::Function(Box::new(position)));
+    assert!(render_with_visit_limit(&positioned, 64).unwrap_err().contains("execution budget"));
+
+    let mut writable = graph.clone();
+    let mut write = FunctionGraph::default();
+    let gain = write.add("const_float1", &[], Some(Value::Float(0.5)));
+    write.output = Some(write.add("set", &[gain], Some(Value::Text("gain".into()))));
+    writable.nodes[2].parameters.insert("opacity".into(), Value::Function(Box::new(write)));
+    let mut read = FunctionGraph::default();
+    read.output = Some(read.add("get_float1", &[], Some(Value::Text("gain".into()))));
+    writable.nodes[3].parameters.insert("opacity".into(), Value::Function(Box::new(read)));
+    assert!(render_with_visit_limit(&writable, 64).unwrap_err().contains("execution budget"));
+
+    // Reusing a tint does not make a visible stamp free.
+    graph.nodes[3].parameters.insert("patternsize".into(), Value::Float2([2.0; 2]));
+    assert!(render_with_visit_limit(&graph, 64).unwrap_err().contains("execution budget"));
+}
+
+#[test]
 fn empty_terminal_quadrants_share_the_discard_allowance() {
     let mut graph = PatternGraph::with_root(PatternNodeKind::Iterate);
     let marker = graph.add(PatternNodeKind::Quadrant).unwrap();

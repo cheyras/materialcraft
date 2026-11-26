@@ -59,6 +59,33 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-26 root comparisons
 
+### Reusing terminal quadrant properties in dense rectangular renders
+
+Noise BNW Spots 3 renders the eight rectangular settings that previously exhausted the pattern execution budget. Set non-square expansion on and leave the other exposed parameters at their defaults except for the values in the table. Compare the raw grayscale output in U8, U16, F16 and F32. Each row includes all four formats. [Earlier six recovered settings and eight failures](#dense-settings-recovered-in-the-third-spots-graph)
+
+| Dimensions | Scale | Disorder | Seed | One processor, exact / total | Eight processors, exact / total | Maximum error on eight |
+|---|---:|---:|---:|---:|---:|---|
+| 64 × 16 | 2 | .03125 | 42 | 4,096/4,096 | 4,095/4,096 | 1 U16 level |
+| 64 × 32 | 3 | .34375 | 194504 | 8,192/8,192 | 8,192/8,192 | 0 |
+
+Both ordinary saves that previously failed now match all 3,072 pixels on one processor, maximum zero. Use F16 at 64 × 16 and U8 at 64 × 32. A fresh 64 × 16 F32 reference capture of the original and a fresh capture of an ordinary MaterialCraft save also match both local renders on all 1,024 pixels. Their common range is .289851993 to .781987548.
+
+Rechecking the [complete established matrix](#whole-root-precision-and-saved-comparisons-for-the-three-neighboring-spot-graphs) gives 62/62 original settings rendered, up from 54/62, and 14/14 ordinary saves, up from 12/14. On one processor 34/62 originals match completely, on eight 32/62, and on reopening 8/14. The following counts include every setting in each route.
+
+| Route | U8 exact / total · max | U16 exact / total · max | F16 exact / total · max | F32 exact / total · max |
+|---|---:|---:|---:|---:|
+| Original, one processor | 88,832/88,832 · 0 | 301,713/301,824 · 1 | 88,831/88,832 · .000244140625 | 253,561/253,696 · .0000153183937 |
+| Original, eight processors | 88,832/88,832 · 0 | 301,750/301,824 · 1 | 88,831/88,832 · .000244140625 | 253,598/253,696 · .0000107288361 |
+| Ordinary save, one processor | 15,360/15,360 · 0 | 23,797/23,808 · 1 | 1,024/1,024 · 0 | 82,912/82,944 · .0000107288361 |
+
+At 64² F32, seed 42, scale 2, disorder .37 and the other exposed defaults, the two coarser pattern stages, Levels and their first Blend match all 9,472 stored samples in a single-processor capture. The deep pattern stage differs by one U16 level at two of 4,096 pixels. Alternating this setting with the 128² default for three more captures left 4,092 of its 4,096 deep-stage pixels invariant. MaterialCraft matched 4,091 of those. At (30,57) all four reference reads store 32,584 and MaterialCraft stores 32,585. At the 128² default it matches 16,373 of 16,380 invariant deep-stage pixels. Forcing the deep stage to F32 gives maximum errors of 1.19209290e−7 and 1.78813934e−7 respectively. These differences keep the root in progress.
+
+The deepest pattern visits 5,592,400 quadrants at 64 × 16 and 6,291,450 at 64 × 32. Siblings can reach the same terminal seed at different positions. The evaluator reuses an analytic stamp's evaluated properties when its node, seed and depth agree and every input it reads is fixed during the cook. It applies the branch and frame translations separately at the new position, then tests actual pixel coverage in draw order. A group of up to four terminal misses can share its parent's visit when it reuses a property evaluation. Visible stamps still consume individual visits. The retained-stamp limit is 1,048,576 and the ceiling on full property evaluations is 5,242,880. [Shared evaluator](../crates/nodes/src/pattern/evaluation.rs) · [Property eligibility and bounded cache](../crates/nodes/src/pattern/stamp_cache.rs)
+
+For the reduced graph, use a 4 × 4 output and an Iterate with a .375 square on its initial branch. Repeat a square of local size (1/64, 1/64) 100 times on the second branch. Connect its four child slots to another square of the same local size with seed inheritance disabled and a random tint scaled by .5. Under a 64-visit test allowance, the earlier release returned an execution-budget error. All 16 pixels now equal .375. Reading the quadrant position for the frame offset, reading a gain written by the parent, and enlarging the leaves to cover samples each still reaches the allowance. [Reduced graph and controls](../crates/nodes/src/pattern/tests.rs)
+
+At 512 × 128, seed 411944, scale 1, disorder .09375 and expansion on, four single-worker release runs in previous/current/current/previous order produced identical F32 buffers. The median whole-graph cook fell from 17.53 s to 14.01 s (20.1%). Use a fresh session per run and measure the cook before serializing its output.
+
 ### Receiving quadrant subtrees after the second pair fills
 
 Across 86 established Noise BNW Spots 1 settings, the shared renderer matches 825,314/841,728 pixels on one processor, up 175, and 776,619/841,728 on eight, down 79. Across 19 ordinary saves, 196,239/196,352 match, up 11. The seven changed original frames are listed below. Use scale 2, the stated disorder and roughness, and the graph defaults for its other parameters. At 64², disable non-square expansion. The arrows compare both releases to the same raw capture. [Preceding measurements](#carrying-unfinished-quadrant-draws-into-a-third-tree)
