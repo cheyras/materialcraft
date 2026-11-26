@@ -1995,6 +1995,54 @@ fn streamed_quadrant_children_reuse_fixed_image_properties() {
 }
 
 #[test]
+fn repeated_image_space_offsets_and_rotations_reuse_the_parent_draw() {
+    let mut graph = nested_square_draws(55);
+    graph.nodes[7].parameters.insert("numberadded".into(), Value::Int(2));
+    graph.nodes[8].parameters.insert("randominherited".into(), Value::Bool(false));
+    let leaf = graph.add(PatternNodeKind::Quadrant).unwrap();
+    graph.nodes[9].children.fill(Some(leaf));
+    graph.nodes[10].parameters = graph.nodes[9].parameters.clone();
+    for node in &mut graph.nodes[9..=10] {
+        let mut tint = FunctionGraph::default();
+        let one = tint.add_constant(Value::Float(1.0));
+        tint.output = Some(tint.add("rand", &[one], None));
+        node.parameters.insert("opacity".into(), Value::Function(Box::new(tint)));
+        node.parameters.insert("frameoffset".into(), Value::Function(Box::new(FunctionGraph::constant(Value::Float2([0.125, -0.25])))));
+        let mut angle = FunctionGraph::default();
+        let quarter = angle.add_constant(Value::Float(0.25));
+        angle.output = Some(angle.add("rand", &[quarter], None));
+        node.parameters.insert("patternrotation".into(), Value::Function(Box::new(angle)));
+    }
+    let expected = render_with_visit_limit(&graph, 1_024).unwrap().remove(0);
+    let limited = render_with_visit_limit(&graph, 64).unwrap().remove(0);
+    assert_eq!(limited.data(), expected.data());
+    assert!(limited.data().iter().any(|value| *value > 1.0));
+}
+
+#[test]
+fn cached_parents_that_miss_still_draw_their_terminal_children() {
+    let mut graph = nested_square_draws(41);
+    graph.nodes[8].parameters.insert("randominherited".into(), Value::Bool(false));
+    let leaf = graph.add(PatternNodeKind::Quadrant).unwrap();
+    graph.nodes[9].children.fill(Some(leaf));
+    graph.nodes[10].parameters = graph.nodes[9].parameters.clone();
+    // At this depth the parent falls between pixel centers. Its four children cover the image.
+    graph.nodes[9].parameters.insert("patternsize".into(), Value::Float2([0.015625; 2]));
+    for node in &mut graph.nodes[9..=10] {
+        let mut tint = FunctionGraph::default();
+        let one = tint.add_constant(Value::Float(1.0));
+        tint.output = Some(tint.add("rand", &[one], None));
+        node.parameters.insert("opacity".into(), Value::Function(Box::new(tint)));
+    }
+    let expected = render_with_visit_limit(&graph, 1_024).unwrap().remove(0);
+    assert!(expected.data().iter().all(|value| *value > 1.0));
+    assert_eq!(render_with_visit_limit(&graph, 64).unwrap()[0].data(), expected.data());
+
+    graph.nodes[7].parameters.insert("numberadded".into(), Value::Int(10));
+    assert!(render_with_visit_limit(&graph, 64).unwrap_err().contains("execution budget"));
+}
+
+#[test]
 fn repeated_terminal_misses_cover_uncached_misses_in_the_next_branch() {
     let mut graph = PatternGraph::with_root(PatternNodeKind::Iterate);
     let marker = graph.add(PatternNodeKind::Quadrant).unwrap();

@@ -59,6 +59,44 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-26 root comparisons
 
+### Drawing parents and terminal children in Directional Noise 3
+
+Directional Noise 3 now renders 52/60 distinct originals, up from 44. On the established [60-setting panel](#rectangular-and-additional-seed-coverage-in-directional-noise-3), the shared evaluator recovered eight originals at four geometries and all eight new ordinary saves. The 12-setting archive now has ten completed saves. At each setting below use the grayscale output, keep unlisted parameters at their defaults and compare the stored pixels. The controls column gives scale, disorder, angle, angle random and non-square expansion. Save normally and open the saved graph directly in both applications.
+
+| Dimensions · seed | Controls | Storage | One processor · maximum | Eight processors · maximum | Fresh ordinary save on one · maximum |
+|---|---|---|---:|---:|---:|
+| 64 × 32 · 103858 | 2, 0.6875, -0.21875, 0.40625, on | F32 | 2,044/2,048 · 2.61366367e−05 | 2,044/2,048 · 2.61366367e−05 | 2,044/2,048 · 2.61366367e−05 |
+| 32 × 32 · 103860 | 3, 0.125, 0.375, 0.03125, off | F32 | 1,024/1,024 · 0 | 1,024/1,024 · 0 | 1,024/1,024 · 0 |
+| 64 × 64 · 411697 | 3, 0.34375, 0.09375, 0.34375, on | U8 | 4,096/4,096 · 0 | 4,096/4,096 · 0 | 4,096/4,096 · 0 |
+| 64 × 64 · 411697 | 3, 0.34375, 0.09375, 0.34375, on | U16 | 4,092/4,096 · 2 | 4,090/4,096 · 2 | 4,090/4,096 · 2 |
+| 64 × 64 · 411697 | 3, 0.34375, 0.09375, 0.34375, on | F16 | 4,095/4,096 · 0.00048828125 | 4,094/4,096 · 0.00048828125 | 4,095/4,096 · 0.00048828125 |
+| 64 × 64 · 411697 | 3, 0.34375, 0.09375, 0.34375, on | F32 | 4,092/4,096 · 2.66134739e−05 | 4,091/4,096 · 2.71201134e−05 | 4,087/4,096 · 2.66432762e−05 |
+| 128 × 128 · 411880 | 3, 0.65625, 0.40625, 0.65625, off | U16 | 16,345/16,384 · 2 | 16,361/16,384 · 2 | 16,349/16,384 · 2 |
+| 128 × 128 · 411880 | 3, 0.65625, 0.40625, 0.65625, off | F32 | 16,350/16,384 · 3.05473804e−05 | 16,356/16,384 · 2.87890434e−05 | 16,352/16,384 · 2.87890434e−05 |
+
+Reopen the four additional eligible archived settings on one processor. Every archived and freshly saved local raw buffer has the original local hash.
+
+| Archived dimensions · seed | Storage | Exact pixels · maximum |
+|---|---|---:|
+| 64 × 32 · 103858 | F32 | 2,045/2,048 · 2.61366367e−05 |
+| 64 × 64 · 411697 | U16 | 4,089/4,096 · 2 |
+| 128 × 128 · 411880 | F32 | 16,350/16,384 · 3.05473804e−05 |
+| 128 × 512 · 412002 | F32 | 65,368/65,536 · 4.7326088e−05 |
+
+| All measured settings | Whole images exact / rendered | U8 exact pixels · maximum | U16 exact pixels · maximum | F16 exact pixels · maximum | F32 exact pixels · maximum |
+|---|---:|---:|---:|---:|---:|
+| Original on one processor | 16/52 | 85,248/85,248 · 0 | 296,916/297,728 · 3 | 87,282/87,296 · 0.00048828125 | 251,201/251,904 · 4.7326088e−05 |
+| Original on eight processors | 18/52 | 85,247/85,248 · 1 | 296,951/297,728 · 3 | 87,282/87,296 · 0.00048828125 | 251,325/251,904 · 4.7326088e−05 |
+| Archived ordinary save on one | 3/10 | 12,288/12,288 · 0 | 22,733/22,784 · 2 | — | 84,783/84,992 · 4.7326088e−05 |
+
+For a reduced work-count probe, keep the outer iteration and switch at the four geometries. Replace each deepest-stage tree by a single marker using separate unit random draws for its tint and rotation. Recover the seed from both values and propagate the authored seed offset of three through its four children at each subdivision. The 64 × 32 setting emits eight complete trees through depth ten. It visits 2,097,152 depth-nine parents with 645,344 distinct seeds, then 8,388,608 terminal children with 2,581,376 distinct seeds. The other three recovered settings emit nine trees each.
+
+The evaluator stores pure grayscale frame offsets, rotation and tint separately from constant stamp properties. It can reuse a drawing parent's properties while visiting its children in order. At 64 × 32 an intermediate build stopped with 1,838,058 full evaluations and 1,024,923 cached-draw credits still available. A cached parent that misses every pixel now uses the same bounded credit as a visible cached parent. The evaluator retains the 5,242,880 full-evaluation limit. The remaining 64 × 16 seed 42 and 64 × 32 seed 195031 cases emit sixteen and eighteen trees. Across depths their distinct seed counts alone are 6,275,400 and 6,785,426. Their earlier F32 failures and three outstanding companion formats per geometry remain open.
+
+For an independent original graph, follow seven empty quadrants with 160 outer and 224 inner iterations. Each draws a paraboloid parent and four paraboloid children with maximum blending. Set parent and child sizes to (96,80) and (24,32). Use independent random grayscale tints up to .875, rotations up to .375 turns and two frame-offset components from −.03125 to .03125. Compare seeds 19 at 16² and 113 at 32 × 16 in U8, U16, F16 and F32 and repeat after an ordinary save. All 6,144 pixels match, maximum zero. The earlier fixed-image parent/child controls match a further 6,144/6,144. All 96 earlier connected-image controls also reproduce their prior raw hashes and maximum errors.
+
+Four alternating cold-process runs on the previously completed 128 × 512 F32 reference setting, seed 412002, produced the same raw output, 65,377/65,536 on one processor, maximum 4.73260880e−05. Two runs per build averaged 62.17 s before and 41.88 s after the change. Maximum process working sets were 182.8 and 243.2 MiB respectively. All 566 node and evaluator release tests passed, along with formatting, workspace Clippy, layers and WebAssembly checks.
+
 ### Five individual image draws at one Dirt 1 pixel
 
 Use the [128 × 256 Dirt 1 setting](#individual-drawing-depths-at-a-dirt-1-rounding-boundary). Keep the 32² procedural source, the selected image, bilinear sampling, the original sizes, positions and seed. At each drawing depth keep the original computed grayscale tint when it equals the selected F32 tint below. Return zero for the other draws. Match coordinates from the top left. The child slots in each path run from the first quadrant of the first emitted tree and start at zero.

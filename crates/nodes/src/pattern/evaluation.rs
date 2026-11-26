@@ -2,7 +2,7 @@ use materialcraft_core::{PatternNode, PatternNodeKind, Value, ValueType};
 use std::collections::{BTreeMap, BTreeSet};
 
 use super::mixed_depth_runs::MixedDepthRuns;
-use super::stamp_cache::{self, StampCache};
+use super::stamp_cache::{self, StampCache, Storage};
 use super::{catalog, footprint::SampleGrid, pattern_stamp::PatternStamp, pattern_visit::PatternVisit, raster, variables::PatternVariables};
 use crate::function::{EvaluationContext, EvaluationState, Program, compile_with_literal_inputs};
 use crate::random::FunctionRandom;
@@ -26,28 +26,48 @@ enum QuadrantChildren {
 type PatternNodes<'a> = BTreeMap<u32, (&'a PatternNode, bool, QuadrantChildren)>;
 type PropertyPrograms<'a> = BTreeMap<(u32, &'a str), (Program, BTreeMap<String, ValueType>)>;
 
-fn reusable_leaf(node: &PatternNode, programs: &PropertyPrograms, assigned: &BTreeSet<&str>, grayscale: bool) -> bool {
-    let Some(shape) = node.parameters.get("patterntype").and_then(Value::as_i32) else { return false };
+fn reusable_properties(
+    node: &PatternNode,
+    children: QuadrantChildren,
+    programs: &PropertyPrograms,
+    assigned: &BTreeSet<&str>,
+    grayscale: bool,
+) -> Option<Storage> {
+    if children == QuadrantChildren::Other {
+        return None;
+    }
+    let shape = node.parameters.get("patterntype")?.as_i32()?;
     let image = image_pattern(shape);
     if !(2..=18).contains(&shape) && !(grayscale && image) {
-        return false;
+        return None;
     }
     let mut computed = false;
-    let Some(definition) = catalog::definition(node.kind) else { return false };
+    let mut placement = grayscale && (2..=16).contains(&shape);
+    let definition = catalog::definition(node.kind)?;
     for name in definition.params.iter().map(|p| p.id).filter(|name| uses_property(node.kind, name, shape)) {
         if let Some((program, _)) = programs.get(&(node.id, name)) {
             // A fixed-image entry stores the branch offset, size and grayscale tint.
             // Every other field, including the selected slot, must be constant for this leaf.
             if image && !matches!(name, "branchoffset" | "patternsize" | "opacity") {
-                return false;
+                return None;
             }
             if matches!(name, "patterntype" | "randomseed" | "randominherited") || !stamp_cache::reusable(program, assigned) {
-                return false;
+                return None;
             }
+            placement &= matches!(name, "frameoffset" | "patternrotation" | "opacity");
             computed = true;
         }
     }
-    computed
+    if !computed || (children == QuadrantChildren::AllTerminal && !placement) {
+        return None;
+    }
+    Some(if image {
+        Storage::FixedImage
+    } else if placement {
+        Storage::Placement
+    } else {
+        Storage::Full
+    })
 }
 
 struct TerminalSiblings {
@@ -307,8 +327,10 @@ fn evaluate(context: &CookContext, base_level_only: &[bool], visit_limit: usize,
     }
     let grayscale = !context.b("color_mode");
     let assigned = functions.values().flat_map(|(_, names)| names.keys().map(String::as_str)).collect();
-    let reusable_leaves: BTreeSet<_> =
-        graph.nodes.iter().filter(|n| terminal_nodes.contains(&n.id) && reusable_leaf(n, &functions, &assigned, grayscale)).map(|n| n.id).collect();
+    let reusable: BTreeMap<_, _> = nodes
+        .values()
+        .filter_map(|&(node, _, children)| reusable_properties(node, children, &functions, &assigned, grayscale).map(|storage| (node.id, storage)))
+        .collect();
     let mut stamp_cache = StampCache::default();
 
     let image_slots: Vec<_> =
@@ -457,8 +479,12 @@ fn evaluate(context: &CookContext, base_level_only: &[bool], visit_limit: usize,
         let mut random = FunctionRandom::image(visit.seed);
         let mut pattern = if node.kind == PatternNodeKind::Quadrant { evaluate("patterntype", &mut random)?.and_then(|v| v.as_i32()).unwrap_or(0) } else { 0 };
         let image_pattern = image_pattern(pattern);
-        let cache_key = reusable_leaves.contains(&node.id).then_some(stamp_cache::Key { node: node.id, depth: visit.depth, seed: visit.seed });
-        let cached = cache_key.and_then(|key| stamp_cache.get(key));
+        // A streamed parent still visits each connected child in its original position and order.
+        let cache = reusable
+            .get(&node.id)
+            .filter(|_| quadrant_children == QuadrantChildren::None || raster_work.streaming)
+            .map(|&storage| (stamp_cache::Key { node: node.id, depth: visit.depth, seed: visit.seed }, storage));
+        let cached = cache.and_then(|(key, storage)| stamp_cache.get(key, storage));
         let reused = cached.is_some();
         // An unused stamp property cannot publish a Set to a child. The branch offset still positions that child.
         let active = |id: &str| !matches!(id, "patterntype" | "randomseed" | "randominherited") && uses_property(node.kind, id, pattern);
@@ -539,12 +565,8 @@ fn evaluate(context: &CookContext, base_level_only: &[bool], visit_limit: usize,
                             filtering: integer("imagefiltering"),
                             premultiplied: field("imagepremul").and_then(Value::as_bool).unwrap_or(false),
                         };
-                        if let Some(key) = cache_key {
-                            stamp_cache.insert(
-                                key,
-                                stamp_cache::Properties { branch_offset: offset, stamp: stamp.clone() },
-                                image_pattern && raster_work.streaming,
-                            );
+                        if let Some((key, storage)) = cache {
+                            stamp_cache.insert(key, stamp_cache::Properties { branch_offset: offset, stamp: stamp.clone() }, storage, raster_work.streaming);
                         }
                         stamp
                     };
@@ -584,12 +606,17 @@ fn evaluate(context: &CookContext, base_level_only: &[bool], visit_limit: usize,
                             siblings.discarded = true;
                             reused_terminal_misses = reused_terminal_misses.saturating_add(usize::from(reused));
                             remaining += 1;
+                        } else if reused && quadrant_children == QuadrantChildren::AllTerminal && cached_stream_allowance > 0 {
+                            // The cached parent missed every sample. Charge it to the same bounded
+                            // allowance as a visible cached parent and visit its children below.
+                            cached_stream_allowance -= 1;
+                            remaining += 1;
                         } else {
                             discarded_draw = true;
                         }
                     } else {
-                        // A fully evaluated quadrant schedules at most four terminal children.
-                        // Its visit bounds their cache reads when their retained draws are released.
+                        // A parent visit schedules at most four terminal children. A cached parent
+                        // still pays for its own visit or uses a bounded streaming credit below.
                         accounted_stamps += usize::from(!reused || terminal_siblings.is_some());
                         stamps.push(stamp);
                     }

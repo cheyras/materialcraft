@@ -1,7 +1,7 @@
 use super::pattern_stamp::PatternStamp;
 use crate::function::Program;
 use materialcraft_core::Value;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeSet, HashMap};
 
 /// A terminal draw can reuse its properties across positions when its programs
 /// only depend on the traversal seed, depth and inputs fixed for this cook.
@@ -35,46 +35,66 @@ pub(super) struct Properties {
     pub stamp: PatternStamp,
 }
 
-// Only these five floats can vary for an eligible grayscale image leaf at a fixed depth.
-// Keep the original properties as a template so size and position retain their F32 rounding.
-struct ImageLeaf {
-    node: u32,
-    depth: u32,
-    template: Properties,
-    pages: BTreeMap<u16, Box<[Option<[f32; 5]>]>>,
+#[derive(Clone, Copy)]
+pub(super) enum Storage {
+    Full,
+    FixedImage,
+    Placement,
 }
 
-impl ImageLeaf {
+// Each node and depth has immutable properties. A sparse seed page points
+// to its changing fields, which occupy contiguous blocks across all depths.
+#[derive(Default)]
+struct PackedStamps<const FIELDS: usize> {
+    templates: HashMap<(u32, u32), Properties>,
+    pages: HashMap<(u32, u32, u16), Box<[u32]>>,
+    values: Vec<Vec<[f32; FIELDS]>>,
+    bytes: usize,
+}
+
+impl<const FIELDS: usize> PackedStamps<FIELDS> {
     const PAGE_SIZE: usize = 256;
-    const MAX_PAGES: usize = 64 * 1024 * 1024 / (Self::PAGE_SIZE * size_of::<Option<[f32; 5]>>());
+    const BLOCK_SIZE: usize = 4_096;
 
-    fn address(&self, key: Key) -> Option<(u16, usize)> {
-        // The child generator produces 24-bit words. Low bits shared by many children
-        // select one page. A different leaf, depth or wider seed uses the small cache.
-        (key.node == self.node && key.depth == self.depth && key.seed >> 24 == 0).then_some((key.seed as u16, (key.seed >> 16) as usize))
+    fn address(key: Key) -> ((u32, u32, u16), usize) {
+        ((key.node, key.depth, key.seed as u16), (key.seed >> 16) as usize)
     }
 
-    fn get(&self, key: Key) -> Option<Properties> {
-        let (page, index) = self.address(key)?;
-        let &[x, y, width, height, alpha] = self.pages.get(&page)?.get(index)?.as_ref()?;
-        let mut properties = self.template.clone();
-        properties.branch_offset = [x, y];
-        properties.stamp.size = [width, height];
-        properties.stamp.color[3] = alpha;
-        Some(properties)
+    fn get(&self, key: Key) -> Option<(Properties, [f32; FIELDS])> {
+        let (page, index) = Self::address(key);
+        let at = self.pages.get(&page)?.get(index)?.checked_sub(1)? as usize;
+        let fields = *self.values.get(at / Self::BLOCK_SIZE)?.get(at % Self::BLOCK_SIZE)?;
+        Some((self.templates.get(&(key.node, key.depth))?.clone(), fields))
     }
 
-    fn insert(&mut self, key: Key, properties: &Properties) -> bool {
-        let Some((page, index)) = self.address(key) else { return false };
-        // Limit the materialized pages even when every visit supplies a distinct random seed.
-        if self.pages.len() >= Self::MAX_PAGES && !self.pages.contains_key(&page) {
+    fn insert(&mut self, key: Key, properties: &Properties, fields: [f32; FIELDS], limit: usize) -> bool {
+        // Child streams have 24-bit seeds. Wider explicit seeds use the small cache.
+        if key.seed >> 24 != 0 {
             return false;
         }
-        let entries = self.pages.entry(page).or_insert_with(|| vec![None; Self::PAGE_SIZE].into_boxed_slice());
+        let (page, index) = Self::address(key);
+        let new_block = self.values.last().is_none_or(|block| block.len() == Self::BLOCK_SIZE);
+        let growth = usize::from(new_block) * Self::BLOCK_SIZE * size_of::<[f32; FIELDS]>()
+            + usize::from(!self.pages.contains_key(&page)) * Self::PAGE_SIZE * size_of::<u32>();
+        // Bound both indices and floating-point storage independently of the traversal length.
+        if self.bytes.saturating_add(growth) > limit {
+            return false;
+        }
+        let entries = self.pages.entry(page).or_insert_with(|| vec![0; Self::PAGE_SIZE].into_boxed_slice());
         let Some(entry) = entries.get_mut(index) else { return false };
-        let [x, y] = properties.branch_offset;
-        let [width, height] = properties.stamp.size;
-        *entry = Some([x, y, width, height, properties.stamp.color[3]]);
+        if *entry != 0 {
+            return true;
+        }
+        self.bytes += growth;
+        if new_block {
+            self.values.push(Vec::with_capacity(Self::BLOCK_SIZE));
+        }
+        let base = self.values.len().saturating_sub(1) * Self::BLOCK_SIZE;
+        let Some(block) = self.values.last_mut() else { return false };
+        let Ok(at) = u32::try_from(base + block.len() + 1) else { return false };
+        block.push(fields);
+        *entry = at;
+        self.templates.entry((key.node, key.depth)).or_insert_with(|| properties.clone());
         true
     }
 }
@@ -83,7 +103,8 @@ impl ImageLeaf {
 pub(super) struct StampCache {
     slots: Vec<Option<(Key, Properties)>>,
     lookups: usize,
-    image_leaf: Option<ImageLeaf>,
+    images: PackedStamps<5>,
+    placements: PackedStamps<4>,
 }
 
 impl StampCache {
@@ -95,7 +116,7 @@ impl StampCache {
         (hash >> 16) as usize & self.slots.len().saturating_sub(1)
     }
 
-    pub fn get(&mut self, key: Key) -> Option<Properties> {
+    pub fn get(&mut self, key: Key, storage: Storage) -> Option<Properties> {
         self.lookups = self.lookups.saturating_add(1);
         if self.slots.len() < Self::MAX_SLOTS && self.lookups > self.slots.len() * 2 {
             // A shallow or sparsely connected graph only needs a small table.
@@ -106,14 +127,41 @@ impl StampCache {
         {
             return Some(value.clone());
         }
-        self.image_leaf.as_ref()?.get(key)
+        match storage {
+            Storage::Full => None,
+            Storage::FixedImage => {
+                let (mut properties, [x, y, width, height, alpha]) = self.images.get(key)?;
+                properties.branch_offset = [x, y];
+                properties.stamp.size = [width, height];
+                properties.stamp.color[3] = alpha;
+                Some(properties)
+            }
+            Storage::Placement => {
+                let (mut properties, [x, y, rotation, alpha]) = self.placements.get(key)?;
+                properties.stamp.center = [x, y];
+                properties.stamp.rotation = rotation;
+                properties.stamp.color[3] = alpha;
+                Some(properties)
+            }
+        }
     }
 
-    pub fn insert(&mut self, key: Key, properties: Properties, streamed_image: bool) {
-        if streamed_image && self.lookups > Self::MAX_SLOTS * 2 && key.seed >> 24 == 0 {
-            let leaf =
-                self.image_leaf.get_or_insert_with(|| ImageLeaf { node: key.node, depth: key.depth, template: properties.clone(), pages: BTreeMap::new() });
-            if leaf.insert(key, &properties) {
+    pub fn insert(&mut self, key: Key, properties: Properties, storage: Storage, streaming: bool) {
+        if streaming {
+            let stamp = &properties.stamp;
+            let stored = match storage {
+                Storage::FixedImage if self.lookups > Self::MAX_SLOTS * 2 => {
+                    let [x, y] = properties.branch_offset;
+                    let [width, height] = stamp.size;
+                    self.images.insert(key, &properties, [x, y, width, height, stamp.color[3]], 64 << 20)
+                }
+                Storage::Placement => {
+                    let [x, y] = stamp.center;
+                    self.placements.insert(key, &properties, [x, y, stamp.rotation, stamp.color[3]], 96 << 20)
+                }
+                _ => false,
+            };
+            if stored {
                 return;
             }
         }
@@ -149,18 +197,18 @@ mod tests {
                 premultiplied: false,
             },
         };
-        cache.insert(first, properties.clone(), true);
+        cache.insert(first, properties.clone(), Storage::FixedImage, true);
         properties.branch_offset = [-0.375, 0.25];
         properties.stamp.size = [0.125, 0.875];
         properties.stamp.color[3] = 0.625;
-        cache.insert(second, properties, true);
-        let a = cache.get(first).unwrap();
-        let b = cache.get(second).unwrap();
+        cache.insert(second, properties, Storage::FixedImage, true);
+        let a = cache.get(first, Storage::FixedImage).unwrap();
+        let b = cache.get(second, Storage::FixedImage).unwrap();
         assert_eq!((a.branch_offset, a.stamp.size, a.stamp.color[3]), ([0.125, -0.25], [0.75, 0.25], 0.375));
         assert_eq!((b.branch_offset, b.stamp.size, b.stamp.color[3]), ([-0.375, 0.25], [0.125, 0.875], 0.625));
         assert_eq!((b.stamp.center, b.stamp.rotation, b.stamp.pattern), ([0.25, 0.125], -0.125, 257));
-        assert!(cache.get(Key { depth: 8, ..second }).is_none());
-        assert!(cache.get(Key { node: 18, ..second }).is_none());
-        assert!(cache.get(Key { seed: second.seed | (1 << 24), ..second }).is_none());
+        assert!(cache.get(Key { depth: 8, ..second }, Storage::FixedImage).is_none());
+        assert!(cache.get(Key { node: 18, ..second }, Storage::FixedImage).is_none());
+        assert!(cache.get(Key { seed: second.seed | (1 << 24), ..second }, Storage::FixedImage).is_none());
     }
 }
