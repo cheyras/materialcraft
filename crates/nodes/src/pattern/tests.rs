@@ -651,18 +651,20 @@ fn depth_six_stamps_and_their_four_leaves_draw_in_the_same_grandchild_run() {
     }
 }
 
-fn gated_nine_level_tree() -> PatternGraph {
+fn gated_mixed_depth_tree(grandchildren: bool) -> PatternGraph {
     let (mut graph, groups) = seven_level_tree();
     let middle = graph.add(PatternNodeKind::Quadrant).unwrap();
-    let leaf = graph.add(PatternNodeKind::Quadrant).unwrap();
-    for id in [middle, leaf] {
-        graph.nodes[(id - 1) as usize].parameters = additive_square(0.25, [0.0; 2], [0.0, 0.5]);
+    graph.nodes[(middle - 1) as usize].parameters = additive_square(0.25, [0.0; 2], [0.0, 0.5]);
+    if grandchildren {
+        let leaf = graph.add(PatternNodeKind::Quadrant).unwrap();
+        graph.nodes[(leaf - 1) as usize].parameters = additive_square(0.25, [0.0; 2], [0.0, 0.5]);
+        graph.nodes[(middle - 1) as usize].children.fill(Some(leaf));
     }
-    graph.nodes[(middle - 1) as usize].children.fill(Some(leaf));
     let tiny = f32::EPSILON * 0.25;
     for (group, QuadrantProbeGroup { last_three: [_, prior, parent], offset }) in groups.into_iter().enumerate() {
         let (weight, frame) = match group {
-            12 => (-1.0, [0.0; 2]),
+            12 if grandchildren => (-1.0, [0.0; 2]),
+            5 if !grandchildren => (-1.0, [0.0; 2]),
             0 => (tiny, [0.0; 2]),
             _ => (0.25, [0.5, 0.0]),
         };
@@ -681,51 +683,73 @@ fn gated_nine_level_tree() -> PatternGraph {
 #[test]
 fn single_branch_controls_keep_the_order_of_a_complete_nine_level_tree() {
     let variables = BTreeMap::from([("$tiling".into(), Value::Int(0))]);
-    let image = cook_in_regions(gated_nine_level_tree(), &variables, 188119, [128; 2], [[0.0, 1.0, 0.0, 1.0]; 2], 1.0).unwrap().remove(0);
+    let image = cook_in_regions(gated_mixed_depth_tree(true), &variables, 188119, [128; 2], [[0.0, 1.0, 0.0, 1.0]; 2], 1.0).unwrap().remove(0);
     let samples = [(0, 0), (8, 0), (0, 16), (16, 0)].map(|(x, y)| image.get_gray(x, y, false));
     let tiny = f32::EPSILON * 0.25;
     assert_eq!(samples, [0.0, tiny, tiny, 0.0], "one active tree through both iterators");
 }
 
-#[test]
-fn fixed_image_stamps_keep_the_subtree_order_of_an_untiled_quadrant_tree() {
+fn draw_white_image(mut graph: PatternGraph, filter: i32, axes: i32) -> craft_texture::Image {
     use craft_texture::Image;
     use materialcraft_core::OutputFormat;
 
     let definition = find("fx_map").unwrap();
+    for node in &mut graph.nodes {
+        if node.parameters.get("patterntype").and_then(Value::as_i32) == Some(2) {
+            node.parameters.insert("patterntype".into(), Value::Int(1));
+            node.parameters.insert("imagefiltering".into(), Value::Int(filter));
+        }
+    }
+    let params = resolve_params(
+        definition,
+        &BTreeMap::from([
+            ("pattern".into(), Value::PatternGraph(Box::new(graph))),
+            ("roughness".into(), Value::Float(0.0)),
+            ("color_mode".into(), Value::Bool(false)),
+            ("background".into(), Value::Color([1.0; 4])),
+        ]),
+    );
+    let context = CookContext {
+        w: 128,
+        h: 128,
+        seed: 188119,
+        format: OutputFormat::F32,
+        tile: axes != 0,
+        input_formats: &[OutputFormat::F32; 2],
+        inputs: &[None, Some(Image::gray(8, 8, |_, _| 1.0))],
+        params: &params,
+        resource: &|_| None,
+        vars: &BTreeMap::from([("$tiling".into(), Value::Int(axes))]),
+    };
+    (definition.cook)(&context).unwrap().remove(0)
+}
+
+#[test]
+fn fixed_image_stamps_keep_the_subtree_order_of_an_untiled_quadrant_tree() {
     let tiny = f32::EPSILON * 0.25;
     for filter in [2, 1, 0] {
-        let mut graph = gated_nine_level_tree();
-        for node in &mut graph.nodes {
-            if node.parameters.get("patterntype").and_then(Value::as_i32) == Some(2) {
-                node.parameters.insert("patterntype".into(), Value::Int(1));
-                node.parameters.insert("imagefiltering".into(), Value::Int(filter));
-            }
-        }
-        let params = resolve_params(
-            definition,
-            &BTreeMap::from([
-                ("pattern".into(), Value::PatternGraph(Box::new(graph))),
-                ("roughness".into(), Value::Float(0.0)),
-                ("color_mode".into(), Value::Bool(false)),
-                ("background".into(), Value::Color([1.0; 4])),
-            ]),
-        );
-        let context = CookContext {
-            w: 128,
-            h: 128,
-            seed: 188119,
-            format: OutputFormat::F32,
-            tile: false,
-            input_formats: &[OutputFormat::F32; 2],
-            inputs: &[None, Some(Image::gray(8, 8, |_, _| 1.0))],
-            params: &params,
-            resource: &|_| None,
-            vars: &BTreeMap::from([("$tiling".into(), Value::Int(0))]),
-        };
-        let image = (definition.cook)(&context).unwrap().remove(0);
+        let image = draw_white_image(gated_mixed_depth_tree(true), filter, 0);
         let samples = [(0, 0), (8, 0), (0, 16), (16, 0)].map(|(x, y)| image.get_gray(x, y, false));
         assert_eq!(samples, [0.0, tiny, tiny, 0.0], "filter {filter}");
+    }
+}
+
+#[test]
+fn fixed_image_draws_follow_the_quadrant_runs_when_both_axes_tile() {
+    for (grandchildren, axes) in [(false, 0), (false, 3), (true, 3)] {
+        let mut graph = gated_mixed_depth_tree(grandchildren);
+        // Place one row of child draws over the tile edge.
+        for node in &mut graph.nodes {
+            if node.parameters.get("frameoffset") == Some(&Value::Float2([0.0, 0.5])) {
+                node.parameters.insert("frameoffset".into(), Value::Float2([-0.5 / 256.0, 0.5]));
+            }
+        }
+        let vars = BTreeMap::from([("$tiling".into(), Value::Int(axes))]);
+        let squares = cook_in_regions(graph.clone(), &vars, 188119, [128; 2], [[0.0, 1.0, 0.0, 1.0]; 2], 1.0).unwrap().remove(0);
+        let image = draw_white_image(graph, 2, axes);
+        assert!(squares.data().contains(&(f32::EPSILON * 0.25)));
+        let exact = squares.data().iter().zip(image.data()).filter(|(a, b)| a.to_bits() == b.to_bits()).count();
+        assert_eq!(exact, squares.data().len(), "matching fixed-image pixels, grandchildren {grandchildren}, tiling {axes}");
     }
 }
 

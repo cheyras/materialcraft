@@ -59,6 +59,69 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-26 root comparisons
 
+### Fixed image draws in tiled Dirt graphs
+
+Open Noise Dirt 1 and Noise Dirt 2 with their ordinary graph tiling. Run the established 60 settings for each root and reopen the 12 archived ordinary saves directly. Compare stored pixels against the same one- and eight-processor desktop captures before and after the evaluator change. Each graph renders all 72 local buffers. [Earlier 60-setting comparison](#complete-render-coverage-for-the-two-fixed-image-dirt-graphs)
+
+| Stock graph and reference capture | Earlier whole images | Current whole images | Earlier exact pixels | Current exact pixels |
+|---|---:|---:|---:|---:|
+| Dirt 1 · original on one | 30/60 | 37/60 | 779,410/785,664 | 780,059/785,664 |
+| Dirt 1 · original on eight | 33/60 | 32/60 | 780,626/785,664 | 780,308/785,664 |
+| Dirt 1 · archived save on one | 6/12 | 7/12 | 147,509/149,504 | 147,510/149,504 |
+| Dirt 2 · original on one | 50/60 | 53/60 | 785,652/785,664 | 785,657/785,664 |
+| Dirt 2 · original on eight | 53/60 | 51/60 | 785,655/785,664 | 785,650/785,664 |
+| Dirt 2 · archived save on one | 10/12 | 11/12 | 149,502/149,504 | 149,503/149,504 |
+
+| Graph and reference capture | U8 exact · maximum | U16 exact · maximum | F16 exact · maximum | F32 exact · maximum |
+|---|---:|---:|---:|---:|
+| Dirt 1 · one processor | 99,840/99,840 · 0 | 338,928/338,944 · 1 | 101,888/101,888 · 0 | 239,403/244,992 · 1.1920929e−07 |
+| Dirt 1 · eight processors | 99,840/99,840 · 0 | 338,927/338,944 · 1 | 101,888/101,888 · 0 | 239,653/244,992 · 1.1920929e−07 |
+| Dirt 1 · archived save on one | 26,624/26,624 · 0 | 51,708/51,712 · 1 | — | 69,178/71,168 · 1.1920929e−07 |
+| Dirt 2 · one processor | 99,840/99,840 · 0 | 338,940/338,944 · 2 | 101,887/101,888 · 6.10351562e−05 | 244,990/244,992 · 2.52053142e−05 |
+| Dirt 2 · eight processors | 99,840/99,840 · 0 | 338,935/338,944 · 2 | 101,887/101,888 · 0.000122070312 | 244,988/244,992 · 2.52090394e−05 |
+| Dirt 2 · archived save on one | 26,624/26,624 · 0 | 51,712/51,712 · 0 | — | 71,167/71,168 · 2.52053142e−05 |
+
+The following settings changed locally. Defaults include scale 1. Leave unlisted controls at their defaults, save each graph normally and open the saved SBS file directly in both applications. Every fresh local save produces its original pixel buffer.
+
+| Graph · dimensions · seed | Changed controls | Format | Earlier on one · maximum | Current on one · maximum | Current on eight · maximum | Fresh save on one · maximum |
+|---|---|---|---:|---:|---:|---:|
+| Dirt 1 · 128 × 128 · 0 | defaults | U16 | 16,383/16,384 · 1 | 16,384/16,384 · 0 | 16,383/16,384 · 1 | 16,384/16,384 · 0 |
+| Dirt 1 · 256 × 256 · 0 | defaults | U16 | 65,533/65,536 · 1 | 65,536/65,536 · 0 | 65,532/65,536 · 1 | 65,536/65,536 · 0 |
+| Dirt 1 · 16 × 16 · 105424 | defaults | F32 | 251/256 · 5.96046448e−08 | 256/256 · 0 | 248/256 · 5.96046448e−08 | 256/256 · 0 |
+| Dirt 1 · 32 × 32 · 105426 | disorder 0.3125, expansion off | F32 | 1,000/1,024 · 5.96046448e−08 | 1,024/1,024 · 0 | 1,001/1,024 · 5.96046448e−08 | 1,024/1,024 · 0 |
+| Dirt 1 · 64 × 32 · 105432 | disorder 0.3125, expansion off | F32 | 1,992/2,048 · 1.1920929e−07 | 2,048/2,048 · 0 | 1,980/2,048 · 5.96046448e−08 | 2,048/2,048 · 0 |
+| Dirt 1 · 64 × 64 · 433480 | disorder 0.9375, expansion off | F32 | 3,979/4,096 · 1.1920929e−07 | 4,096/4,096 · 0 | 3,962/4,096 · 5.96046448e−08 | 4,096/4,096 · 0 |
+| Dirt 1 · 128 × 128 · 0 | defaults | F32 | 15,941/16,384 · 1.1920929e−07 | 16,384/16,384 · 0 | 15,813/16,384 · 1.1920929e−07 | 16,384/16,384 · 0 |
+| Dirt 2 · 128 × 128 · 0 | defaults | U16 | 16,383/16,384 · 2 | 16,384/16,384 · 0 | 16,383/16,384 · 2 | 16,384/16,384 · 0 |
+| Dirt 2 · 256 × 256 · 0 | defaults | U16 | 65,533/65,536 · 2 | 65,536/65,536 · 0 | 65,531/65,536 · 2 | 65,536/65,536 · 0 |
+| Dirt 2 · 128 × 128 · 0 | defaults | F32 | 16,383/16,384 · 2.51829624e−05 | 16,384/16,384 · 0 | 16,383/16,384 · 2.51829624e−05 | 16,384/16,384 · 0 |
+
+Across Dirt 2 all 785,643 pixels common to the one- and eight-processor reference captures still match. In each of its three changed local images every pixel agrees with the one-processor capture. Seven stored pixels across the 60 original settings still differ on one processor. Both roots remain open.
+
+For an independent control, keep a single full quadrant tree with four children per interior node and draw a fixed connected image at depths seven and eight, then extend it to depth nine. Also test two alternating connected terminal child slots at depth eight with both tiling axes off. Use a white procedural source, the original 64² and 128 × 64 sizes, seeds 881021 and 881153 and F32 output. The no-tiling, four-child control also runs at depth eight. [Original subtree settings](#fixed-image-draw-order-in-untiled-noise-dirt-1)
+
+| Last depth · children per drawing parent · tiling | Earlier F32 on one · maximum | Current F32 on one · maximum |
+|---|---:|---:|
+| 8 · four · off | 12,124/12,288 · 2.38418579e−07 | 12,288/12,288 · 0 |
+| 8 · two · off | 12,212/12,288 · 1.1920929e−07 | 12,288/12,288 · 0 |
+| 8 · four · both | 12,082/12,288 · 2.38418579e−07 | 12,288/12,288 · 0 |
+| 9 · four · both | 11,772/12,288 · 1.1920929e−07 | 12,288/12,288 · 0 |
+| 9 · four · horizontal | 11,832/12,288 · 1.1920929e−07 | 11,832/12,288 · 1.1920929e−07 |
+
+For a varying procedural source use a single 32² grayscale paraboloid as the connected image. Set scale 1 and turn off non-square expansion. At 32 × 64 use seed 437019 and disorder .3125. At 128² use seed 437059 and disorder .84375. Compare U8, U16, F16 and F32 and repeat after an ordinary save.
+
+| Last depth · children · tiling · filter | Original on one · whole images | Original on eight · whole images | Ordinary save on one · whole images |
+|---|---:|---:|---:|
+| 8 · four · both · nearest | 73,728/73,728 · 8/8 | 73,510/73,728 · 5/8 | 73,728/73,728 · 8/8 |
+| 8 · two · off · bilinear | 73,728/73,728 · 8/8 | 73,723/73,728 · 7/8 | 73,728/73,728 · 8/8 |
+| 9 · four · both · automatic | 73,728/73,728 · 8/8 | 73,054/73,728 · 5/8 | 73,728/73,728 · 8/8 |
+
+The one-processor original and reopened controls have maximum error zero in every format. The largest eight-processor differences across the three controls are U8 0, U16 1, F16 0, F32 1.1920929e−07. Integer errors use stored levels and floating-point errors use absolute differences.
+
+The shared evaluator uses the existing subtree and tile-copy order for a single complete grayscale quadrant tree drawing one fixed image and filter. The normal cook regression moves part of a signed drawing over the tile edge. The earlier depth-eight control matched 16,060/16,384 analytic-square pixels. The corrected tree matches all 16,384 at depth eight with tiling off and with both axes on, and at depth nine with both on. The white-image horizontal-only control still differs. The graph files use their original procedural controls throughout.
+
+Four alternating cold-process release runs at the Dirt 1 default 128² F32 setting averaged 3.04 s before and 2.93 s after. Peak process working sets were 197.6 and 204.0 MiB. All 568 release tests in the node and evaluator crates passed along with formatting, strict workspace Clippy, layers and WebAssembly checks.
+
 ### Fixed-image draw order in untiled Noise Dirt 1
 
 Open Noise Dirt 1 and set the graph tiling mode to absolute with both axes off. Keep scale at 1 and use the settings below. At the first three sizes render U8, U16, F16 and F32. At 64 × 128 render F32. Repeat after an ordinary save outside the package library, opening the saved file directly in both applications. A separate control sets the same tiling mode on the drawing FX-Map with the graph at its default. All 13 local output buffers and all 13 one-processor reference buffers agree between the two ways of setting the property.
@@ -91,7 +154,7 @@ Each of the three reduced U16 series matches 12,288/12,288 on one processor. Wit
 
 The evaluator now uses the existing subtree submission order when all drawing quadrants share a fixed image slot, filter and additive grayscale blend in one complete untiled depth-nine tree. Before the change the image draws followed traversal order. The normal cook regression uses a connected white image and signed overlapping draws on white. The earlier cook read zero at (8,0) and (0,16). Nearest, bilinear and automatic filtering now read 2⁻²⁵ at both locations. All 567 release node and evaluator tests passed, along with formatting, strict workspace Clippy, layer and WebAssembly checks.
 
-The two-tree 64 × 128 result still differs on one processor. The original 60-setting panel uses the graph’s ordinary tiling and retains its [recorded whole-graph differences](#complete-render-coverage-for-the-two-fixed-image-dirt-graphs).
+The two-tree 64 × 128 result still differs on one processor. Subsequent comparisons measure the same evaluator on the [60-setting panel with ordinary tiling](#fixed-image-draws-in-tiled-dirt-graphs).
 
 ### Drawing parents and terminal children in Directional Noise 3
 
