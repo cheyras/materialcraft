@@ -1891,6 +1891,34 @@ fn terminal_quadrants_charge_the_first_discard_of_each_sibling_group() {
 }
 
 #[test]
+fn streamed_analytic_draws_keep_the_accumulated_pixels_and_bounded_work() {
+    let mut graph = PatternGraph::with_root(PatternNodeKind::Quadrant);
+    for _ in 0..6 {
+        let parent = graph.nodes.len() - 1;
+        let child = graph.add(PatternNodeKind::Quadrant).unwrap();
+        graph.nodes[parent].children[0] = Some(child);
+    }
+    let outer = graph.add(PatternNodeKind::Iterate).unwrap();
+    let inner = graph.add(PatternNodeKind::Iterate).unwrap();
+    let square = graph.add(PatternNodeKind::Quadrant).unwrap();
+    graph.nodes[6].children[0] = Some(outer);
+    graph.nodes[7].children[1] = Some(inner);
+    graph.nodes[8].children[1] = Some(square);
+    graph.nodes[7].parameters.insert("numberadded".into(), Value::Int(4));
+    graph.nodes[8].parameters.insert("numberadded".into(), Value::Int(24));
+    let leaf = &mut graph.nodes[9].parameters;
+    leaf.insert("patterntype".into(), Value::Int(2));
+    leaf.insert("patternsize".into(), Value::Float2([512.0; 2]));
+    leaf.insert("opacity".into(), Value::Float(0.01));
+    let expected = (0..96).fold(0.0_f32, |background, _| background + 0.01_f32);
+    assert_eq!(render_with_visit_limit(&graph, 256).unwrap()[0].data(), &[expected; 16]);
+    assert_eq!(render_with_visit_limit(&graph, 64).unwrap()[0].data(), &[expected; 16]);
+
+    graph.nodes[7].parameters.insert("numberadded".into(), Value::Int(12));
+    assert!(render_with_visit_limit(&graph, 64).unwrap_err().contains("execution budget"));
+}
+
+#[test]
 fn repeated_terminal_misses_cover_uncached_misses_in_the_next_branch() {
     let mut graph = PatternGraph::with_root(PatternNodeKind::Iterate);
     let marker = graph.add(PatternNodeKind::Quadrant).unwrap();

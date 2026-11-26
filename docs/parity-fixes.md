@@ -59,6 +59,32 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-26 root comparisons
 
+### Streaming equal-ranked analytic stamps through one output image
+
+Directional Noise 3 now renders 17 of the first 19 established whole-graph settings. Revision `3d3aec1` rendered 15 of those 19. The two recovered settings both use seed zero and U16. For the changed setting, set scale to 2, disorder to .37, angle to .125 and angle random to .2. Leave every other exposed parameter at its default. Save each setting normally, reopen it directly in both applications and capture the one-processor reference again. Each saved file gave the same raw MaterialCraft output as its source. [Earlier whole-graph comparison](#reused-properties-across-adjacent-groups-of-terminal-quadrants)
+
+| Recovered setting | Original on one · maximum | Original on eight · maximum | Ordinary save on one · maximum |
+|---|---:|---:|---:|
+| 256², defaults | 65,371/65,536 · 2 | 65,406/65,536 · 3 | 65,358/65,536 · 3 |
+| 128², changed | 16,345/16,384 · 2 | 16,350/16,384 · 2 | 16,339/16,384 · 2 |
+
+Recook all 19 starting settings. At both processor counts, compare to the raw output at the requested storage precision. All eight settings recovered in the previous evaluator change kept their raw MaterialCraft pixels. The remaining F32 settings that exceed the execution budget are 64 × 32, seed 103858, and 32², seed 103860. For the first, use scale 2, disorder .6875, non-square expansion on, angle −.21875 and angle random .40625. For the second, use scale 3, disorder .125, non-square expansion off, angle .375 and angle random .03125.
+
+| Storage | Completed settings | One processor · maximum | Eight processors · maximum |
+|---|---:|---:|---:|
+| U8 | 2 | 5,120/5,120 · 0 | 5,120/5,120 · 0 |
+| U16 | 7 | 121,539/121,856 · 2 | 121,590/121,856 · 3 |
+| F16 | 3 | 7,167/7,168 · 0.000244140625 | 7,168/7,168 · 0 |
+| F32 | 5 | 7,383/7,424 · 2.7358532e−05 | 7,410/7,424 · 2.65836716e−05 |
+
+Across those 17 completed outputs, 141,209/141,568 pixels matched on one processor and 141,288/141,568 on eight. Five and six whole buffers respectively were exact.
+
+The shared evaluator can composite deep analytic draws in chunks once it has ruled out every subtree ordering and verified a single draw rank throughout the reachable graph. A chunk retains the F32 output image for the next chunk. Pixel and tile-copy work is counted across the entire render. Released draws receive bounded credit against the traversal and copy limits. The regression uses seven empty quadrants followed by two nested iterations. Four outer iterations of 24 additive full-coverage squares agree bit-for-bit at work allowances of 64 and 256. The earlier evaluator rejected the allowance of 64. Twelve outer iterations still exceed that allowance.
+
+For the independent depth and storage control, attach 80 × 70 iterations beneath seven empty quadrants. Each iteration emits two successive square quadrants, the second on the first child slot of the first. Disable tiling. Use a .125 background, roughness zero, opacity one, sizes (512,512) for both squares and scalar tint expressions 2⁻¹³ and −2⁻¹⁴. In the second graph use (128,128) for the child. For the RGBA control use that smaller child and swatches (.25,.5,.75,2⁻¹³) and (.75,.25,.5,2⁻¹⁴). In each graph render 16² with seed 19 and 32 × 16 with seed 113 in U8, U16, F16 and F32. Reopen ordinary saves in both applications. The grayscale graphs matched 12,288/12,288 pixels and the RGBA graph matched 6,144/6,144 against the reference and the prior release. Maximum error was zero across all 48 buffers.
+
+On the 128² default, alternate the earlier and changed single-worker release runners in A/B/B/A order, starting each cook in a new process. All four raw buffers were identical. Median process peak working set was 232.5 MiB before and 184.4 MiB after, a reduction of 20.7%. Median cook durations were 15.13 s and 15.17 s.
+
 ### Two depth-seven draws at a stored rounding boundary
 
 At (30,57) in Noise BNW Spots 3, the two applications evaluate both contributing stamps to exactly the same F32 values. The order of their additions explains the one-level U16 difference. Use 64², scale 2, disorder .37, seed 42 and the other exposed defaults. Read the deep pattern directly with F32 storage. Its background is .5. Keep the pattern geometry and set the tints to zero on the depths outside the group under test. [Original and repeated whole-graph observations](#reusing-terminal-quadrant-properties-in-dense-rectangular-renders)

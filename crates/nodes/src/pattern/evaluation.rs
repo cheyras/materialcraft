@@ -46,6 +46,34 @@ struct TerminalSiblings {
     discarded: bool,
 }
 
+fn uniform_deep_draws(root: Option<u32>, nodes: &PatternNodes) -> bool {
+    let mut pending: Vec<_> = root.into_iter().map(|id| (id, 0_u8)).collect();
+    let mut seen = BTreeSet::new();
+    let mut order = None;
+    while let Some((id, depth)) = pending.pop() {
+        if !seen.insert((id, depth)) {
+            continue;
+        }
+        let Some(&(node, _, _)) = nodes.get(&id) else { return false };
+        let quadrant = node.kind == PatternNodeKind::Quadrant;
+        if quadrant {
+            let literal = |name: &str| node.parameters.get(name).map_or(Some(0), Value::as_i32);
+            let Some(shape) = literal("patterntype") else { return false };
+            if shape != 0 {
+                // A drawing first-level quadrant can require reordering across outer iterations.
+                let Some(blend @ 0..=2) = literal("blendingmode") else { return false };
+                let rank = (shape, blend != 0);
+                if depth < 2 || !(2..=16).contains(&shape) || *order.get_or_insert(rank) != rank {
+                    return false;
+                }
+            }
+        }
+        let child_depth = (depth + u8::from(quadrant)).min(2);
+        pending.extend(node.children.iter().flatten().map(|&child| (child, child_depth)));
+    }
+    order.is_some()
+}
+
 fn quadrant_mode(kind: PatternNodeKind, name: &str) -> bool {
     kind == PatternNodeKind::Quadrant && matches!(name, "patterntype" | "blendingmode" | "imagefiltering" | "imagepremul" | "randominherited")
 }
@@ -281,6 +309,10 @@ fn evaluate(context: &CookContext, base_level_only: &[bool], visit_limit: usize,
     let mut remaining = visit_limit;
     let mut discard_allowance = visit_limit;
     let mut full_evaluations = visit_limit.saturating_mul(5);
+    let mut stream_allowance = visit_limit;
+    let stream_chunk = (visit_limit / 4).clamp(1, 4_096);
+    let mut uniform_order = None;
+    let mut raster_work = raster::RasterWork::new();
     let grayscale = !context.b("color_mode");
     let mut repeated_roots = None;
     let mut repeated_six_level: Option<super::repeated_six_level::RepeatedSixLevelRuns> = None;
@@ -491,7 +523,7 @@ fn evaluate(context: &CookContext, base_level_only: &[bool], visit_limit: usize,
                     }
                     // Evaluate every property before discarding a stamp. Its assignments can reach
                     // later visits. Keep the first stamp so raster setup still validates depth weights.
-                    let missed = !stamps.is_empty() && grid.as_ref().is_some_and(|grid| grid.misses(&stamp));
+                    let missed = (!stamps.is_empty() || raster_work.background.is_some()) && grid.as_ref().is_some_and(|grid| grid.misses(&stamp));
                     if underfilled
                         .as_mut()
                         .is_some_and(|runs| !runs.draw(&stamp, opacities.as_deref().unwrap_or_default(), grid.as_ref(), stamps.len(), !missed))
@@ -628,6 +660,27 @@ fn evaluate(context: &CookContext, base_level_only: &[bool], visit_limit: usize,
             discard_allowance -= 1;
             remaining += 1;
         }
+        // Once every subtree ordering has been ruled out, equal-ranked analytic stamps can be
+        // composited immediately in traversal order. Reuse their storage and preserve all F32 adds.
+        if stamps.len() >= stream_chunk
+            && max_depth > 6
+            && mixed_depth_runs.is_none()
+            && terminal_quadrants.is_none()
+            && sparse_runs.is_none()
+            && underfilled.is_none()
+            && seven_level_runs.is_none()
+            && repeated_six_level.is_none()
+            && *uniform_order.get_or_insert_with(|| uniform_deep_draws(graph.root, &nodes))
+        {
+            let released = stamps.len().min(stream_allowance);
+            raster_work.credit_streamed_stamps(released);
+            let group = [super::pattern_stamp::DrawRun::whole(&stamps)];
+            let image = raster::render(context, &group, &opacities, nonfinite_gray_opacity, base_level_only, runtime_image_selector, &mut raster_work)?;
+            raster_work.background = Some(image);
+            stream_allowance -= released;
+            remaining = remaining.saturating_add(released);
+            stamps.clear();
+        }
         if children.len() + pending.len() + usize::from(repeated.is_some()) > remaining {
             return Err("pattern graph exceeded its execution budget".into());
         }
@@ -674,7 +727,14 @@ fn evaluate(context: &CookContext, base_level_only: &[bool], visit_limit: usize,
         .or_else(|| underfilled.and_then(|runs| runs.finish(&stamps)))
         .or_else(|| repeated_six_level.and_then(|runs| runs.finish(&stamps, repeated_roots.unwrap_or_default())))
         .or_else(|| repeated_roots.and_then(|repeats| super::repeated_quadrants::runs(context, &stamps, repeats, max_depth)));
-    let image =
-        raster::render(context, mixed_groups.as_deref().unwrap_or(&groups), opacities, nonfinite_gray_opacity, base_level_only, runtime_image_selector)?;
+    let image = raster::render(
+        context,
+        mixed_groups.as_deref().unwrap_or(&groups),
+        &opacities,
+        nonfinite_gray_opacity,
+        base_level_only,
+        runtime_image_selector,
+        &mut raster_work,
+    )?;
     Ok((image, variables.bound_draw))
 }

@@ -18,17 +18,37 @@ const MAX_SAMPLES: u64 = 256_000_000;
 const MAX_STAMP_COPIES: u64 = 1_048_576;
 pub(super) const MIN_STAMP_SIZE: f32 = 1e-8;
 
+pub(super) struct RasterWork {
+    pub background: Option<Image>,
+    samples_left: u64,
+    copies_left: u64,
+}
+
+impl RasterWork {
+    pub fn new() -> Self {
+        Self { background: None, samples_left: MAX_SAMPLES, copies_left: MAX_STAMP_COPIES }
+    }
+
+    pub fn credit_streamed_stamps(&mut self, stamps: usize) {
+        // A released stamp covers one copy. Extra tile copies share the original cook-wide allowance.
+        self.copies_left = self.copies_left.saturating_add(stamps as u64);
+    }
+}
+
 pub(super) fn render(
     context: &CookContext,
     groups: &[DrawRun<'_>],
-    opacities: Result<Vec<f32>, String>,
+    opacities: &Result<Vec<f32>, String>,
     nonfinite_gray_opacity: bool,
     base_level_only: &[bool],
     runtime_image_selector: bool,
+    work: &mut RasterWork,
 ) -> Result<Image, String> {
     let (width, height) = craft_texture::clamp_size(context.w, context.h);
     let kind = if context.b("color_mode") { Kind::Color } else { Kind::Gray };
-    let background = if context.input(0).is_some_and(|image| image.kind() != kind) {
+    let background = if let Some(previous) = work.background.take() {
+        previous
+    } else if context.input(0).is_some_and(|image| image.kind() != kind) {
         Image::filled(width, height, kind, [0.0; 4])
     } else {
         resized_input(context, 0, InputResize::PatternBackground).unwrap_or_else(|| {
@@ -44,14 +64,12 @@ pub(super) fn render(
     }
 
     let channels = kind.channels();
-    let opacities = opacities?;
+    let opacities = opacities.as_ref().map_err(Clone::clone)?;
     let integer_sampling = background.integer_sampling();
     let mut data = Arc::clone(background.shared_data());
     drop(background);
 
     let pixels = Arc::make_mut(&mut data);
-    let mut budget = MAX_SAMPLES;
-    let mut copies_left = MAX_STAMP_COPIES;
     let render_region = Region::new(context.v4("render_region"))?;
     let span = render_region.period();
     let pixel_size = [span[0] / width as f32, span[1] / height as f32];
@@ -149,7 +167,7 @@ pub(super) fn render(
         if selected == 0 {
             continue;
         }
-        copies_left = copies_left.checked_sub(selected).ok_or("pattern repetition exceeds its budget")?;
+        work.copies_left = work.copies_left.checked_sub(selected).ok_or("pattern repetition exceeds its budget")?;
         let columns = repeats[0].centers();
         let mut copy = 0_u64;
         'rows: for y_center in repeats[1].centers() {
@@ -168,7 +186,7 @@ pub(super) fn render(
                 if samples == 0 {
                     continue;
                 }
-                budget = budget.checked_sub(samples).ok_or("pattern rendering exceeded its pixel budget")?;
+                work.samples_left = work.samples_left.checked_sub(samples).ok_or("pattern rendering exceeded its pixel budget")?;
                 let planes = PixelPlanes::new(&frame, &render_region, center, stamp.size, [width, height]);
                 if let Some(sampler) = &mut texture {
                     sampler.start_copy();
