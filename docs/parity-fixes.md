@@ -59,6 +59,32 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-26 root comparisons
 
+### Quadrant batch order after a sibling transfer
+
+Noise BNW Spots 1 now matches 65 of its 86 established original settings on one processor, up from 64. The shared pattern renderer accounts for a full batch that finishes in a child transferred from another quadrant. The following two settings exercise different submission orders. Both use scale 1. Counts compare raw F32 pixels. [Renderer](../crates/nodes/src/pattern/underfilled_quadrants/remaining.rs) · [Regression graph](../crates/nodes/src/pattern/tests/underfilled_quadrants.rs)
+
+| Size, seed, disorder, roughness | One processor, before → after | Ordinary save on one, before → after | Fresh eight processors, before → after | Maximum after, one / saved / eight |
+|---|---:|---:|---:|---:|
+| 32 × 16, 161954, .34375, .46484375 | 501 → 512/512 | 501 → 512/512 | 410 → 408/512 | 0 / 0 / 2⁻²³ |
+| 64 × 32, 162172, .5625, .6015625 | 1,994 → 2,045/2,048 | 1,994 → 2,045/2,048 | 1,591 → 1,586/2,048 | 2⁻²⁴ / 2⁻²⁴ / 3 × 2⁻²⁴ |
+
+U8 and F16 each match all 2,560 pixels on the three routes. U16 matches 2,560/2,560 on one processor and on reopening, and 2,558/2,560 on eight, maximum one stored level. All four recent one-processor captures of each F32 frame agree with each other, including the three earlier original captures. The four recent saves also agree with each other at every position. On eight processors those four captures agree at 344/512 and 1,147/2,048 positions. MaterialCraft matches 317 and 1,043 of those positions respectively.
+
+Use two iterations of the [additive-square quadrant tree with an inactive depth-ten branch](#pending-quadrant-siblings-and-the-first-full-receiving-batch). Start with one physical copy per draw. After 26 full batches of 5,460 copies, compare the lower pair, upper pair, first receiving group and last child. The lower pair submits first. When its cut leaves two unvisited depth-five subtrees and it transfers one, the upper pair precedes the receiver. The last child also precedes the receiver when the upper pair has two such subtrees left. When the lower pair has three or four left and transfers two, the receiver precedes the upper pair, followed by the last child. This comparison covers a receiver that fills within the first child supplied by the second group.
+
+For a one-copy boundary, use second-tree depth-three quadrant 52 in zero-based traversal order. Begin twelve draws after its root. For *e* extra copies, move the first ⌊*e*/3⌋ draws to a corner and the next *e* mod 3 draws to an edge. At 165 extra copies the lower pair transfers one sibling. At 166 it transfers two and the upper–receiver order reverses. Repeat with independent counts in quadrants 56 and 48. Across 96 fields, each of the six pairs of batches was compared at nine positions using both gain directions. Of 5,184 relations, 5,155 agreed in both directions on the first capture and all agreed with the renderer. The other 29 came from one field with 95, 330 and 128 extra copies in quadrants 52, 56 and 48. Each of three independent reacquisitions agreed on all 54 relations in that field, including a reversed acquisition order.
+
+For the whole-image control, number the depth-five subtrees from zero in each tree. In the second tree only, place coincident squares from subtrees (896,336), (336,896) or (896,768) on white with gains −1 and 2⁻²⁵. Give other squares gain 2⁻⁷⁶. Test six copy fields. Use one copy everywhere, wrap the leaves of depth-six subtrees 3328–3330, wrap depth-five subtree 832, wrap 832 and 896, wrap 832 and 768, or wrap the leaves of both depth-six ranges 3328–3330 and 3584–3586. A wrapped leaf sits at a corner and contributes four physical copies. Use 32² F32 seed 41384, 16 × 32 U8 seed 41484 with gains −.5 and 2⁻²⁵, 32 × 16 U16 seed 41588 with −1 and 2⁻²⁴, and 64 × 32 F16 seed 41692 with 2⁻²⁵ and −1. All 72 original frames and all 72 ordinary saves match. Each route improved from 73,719 to 73,728/73,728 pixels, maximum zero. The regression failed on the preceding renderer.
+
+| Established Spots 1 panel | One processor, exact pixels · maximum | Eight processors, exact pixels · maximum | Ordinary saves, exact pixels · maximum |
+|---|---:|---:|---:|
+| U8 | 108,800/108,800 · 0 | 108,799/108,800 · 1 | 90,112/90,112 · 0 |
+| U16 | 328,399/328,448 · 1 | 328,244/328,448 · 1 | 93,693/93,696 · 1 |
+| F16 | 108,800/108,800 · 0 | 108,798/108,800 · 2⁻¹¹ | 6,400/6,400 · 0 |
+| F32 | 278,632/295,680 · 2⁻²² | 230,980/295,680 · 3 × 2⁻²³ | 5,988/6,144 · 2⁻²³ |
+
+Across the established settings, 824,631/841,728 pixels match on one processor, 776,821/841,728 on eight and 196,193/196,352 in 19 ordinary saves. There are 38/86 exact eight-processor frames and 16/19 exact saves. The two fresh rectangular saves extend this coverage. Remaining differences include three repeatable F32 pixels in the larger rectangle and different eight-processor results between captures. All 550 release tests in the node and evaluation crates, formatting, strict workspace Clippy, dependency layering and WebAssembly passed.
+
 ### Finishing a quadrant copy batch in the next tree
 
 Noise BNW Spots 1 v2 gained 58 exact F32 pixels across three 16 × 32 original settings on one processor. The same three ordinary SBS saves reopened on one processor gained the same 58. U8 and F16 matched all 1,536 pixels on all three routes. U16 matched 1,536/1,536 on one processor and on reopening, and 1,535/1,536 on eight, maximum one stored level. For the changed setting use scale 1, roughness 1, disorder, speed and anisotropy zero, angle −.375 and tile offset (0,0). The other two settings use the graph defaults.

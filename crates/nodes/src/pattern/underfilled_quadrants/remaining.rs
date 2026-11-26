@@ -21,6 +21,11 @@ impl SiblingOffsets {
         }
     }
 
+    fn unvisited_subtrees(&self, used: u32) -> usize {
+        let subtrees = &self.starts[2];
+        subtrees.len() - subtrees.partition_point(|&start| start < used)
+    }
+
     fn children(&self, level: usize, first: usize, count: usize, sole_parent: bool, total: u32) -> Option<SiblingCut> {
         let starts = self.starts.get(level)?;
         let end = first + count;
@@ -193,6 +198,26 @@ impl UnderfilledQuadrants {
             // With no pending sibling in either pair, both paired batches precede the last child.
             next.extend(upper_batch);
             Self::append_receiver_and_last(&first, full_receiver, last_batch, &mut next)?;
+        } else if !more_trees && full_receiver && Self::piece_count(&first[..2])? < COPIES_PER_BATCH && Self::piece_count(&first[..3])? >= COPIES_PER_BATCH {
+            // The first child handed over by the second group completes the receiver.
+            // How many siblings the lower pair gives up determines when that batch submits.
+            match self.repeated[0].branches.unvisited_subtrees(lower.before.start) {
+                2 if !lower.deferred[0].is_empty() && lower.deferred[1].is_empty() => {
+                    next.extend(upper_batch);
+                    // When both pairs transfer one of their final two subtrees,
+                    // the last child finishes before the receiver.
+                    if self.repeated[1].branches.unvisited_subtrees(upper.before.start) == 2 {
+                        next.append(&mut last_batch);
+                    }
+                    Self::append_receiver_and_last(&first, true, last_batch, &mut next)?;
+                }
+                3 | 4 if lower.deferred.iter().all(|sibling| !sibling.is_empty()) => {
+                    Self::append_copy_window(&first, 0, COPIES_PER_BATCH, &mut next)?;
+                    next.extend(upper_batch);
+                    next.extend(last_batch);
+                }
+                _ => {}
+            }
         } else if !more_trees && !full_receiver {
             next.extend(last_batch);
             next.extend(upper_batch);

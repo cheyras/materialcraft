@@ -321,6 +321,17 @@ fn carried_pairs_can_fill_before_the_following_tree_starts() {
 }
 
 #[test]
+fn a_receiving_batch_precedes_the_upper_pair_after_a_sibling_transfer() {
+    let sample = |first, second, wrapped: &[usize]| marked_tree_pixel((5, first), (5, second), Continuation::ActiveTrees(2), wrapped, Some([2, 2]), Some(2));
+    let small = 2.0_f32.powi(-25);
+    assert_eq!(sample(896, 336, &[]).to_bits(), small.to_bits());
+    // The 64 corner squares add 192 copies. The lower pair hands off two
+    // siblings, and the receiving batch and upper pair both precede the last pair.
+    assert_eq!(sample(336, 896, &[832]).to_bits(), small.to_bits());
+    assert_eq!(sample(896, 768, &[832]).to_bits(), small.to_bits());
+}
+
+#[test]
 fn earlier_sibling_transfers_keep_their_order_across_repeated_trees() {
     let small = 2.0_f32.powi(-25);
     for trees in [2, 3, 4] {
