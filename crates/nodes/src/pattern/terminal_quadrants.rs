@@ -198,7 +198,8 @@ impl TerminalQuadrants {
                 self.saw_iteration = true;
                 outer && node.children.first() == Some(&None)
             }
-            PatternNodeKind::Dot | PatternNodeKind::Switch => depth == 0,
+            // Routed quadrants are counted when visited, including children selected by an interior switch.
+            PatternNodeKind::Dot | PatternNodeKind::Switch => true,
             PatternNodeKind::Quadrant if depth == 8 => node.children.iter().all(Option::is_none),
             PatternNodeKind::Quadrant if depth < 8 && node.children.iter().flatten().count() == 4 => {
                 if depth == 0 {

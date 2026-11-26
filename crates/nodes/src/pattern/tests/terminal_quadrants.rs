@@ -33,7 +33,7 @@ fn check_terminal_levels(expanded: bool) {
     }
 }
 
-fn check_terminal_case(count: i32, expanded: bool, extra_limit: u32, seed: u32, markers: &[(u32, u32, bool)], route: Option<PatternNodeKind>) {
+fn check_terminal_case(count: i32, expanded: bool, extra_limit: u32, seed: u32, markers: &[(u32, u32, bool)], route: Option<(u32, PatternNodeKind)>) {
     // In a white pixel a tiny positive value survives only when the negative square draws first.
     let tiny = f32::EPSILON * 0.25;
     let root = if count == 1 { PatternNodeKind::Quadrant } else { PatternNodeKind::Iterate };
@@ -45,7 +45,7 @@ fn check_terminal_case(count: i32, expanded: bool, extra_limit: u32, seed: u32, 
         graph.nodes[(parent - 1) as usize].parameters.insert("branchoffset".into(), advance_tree_offset());
         graph.nodes[0].children[1] = Some(parent);
     }
-    if let Some(kind) = route {
+    if let Some((0, kind)) = route {
         let child = graph.root;
         let relay = graph.add(kind).unwrap();
         graph.nodes[(relay - 1) as usize].children[0] = child;
@@ -54,6 +54,13 @@ fn check_terminal_case(count: i32, expanded: bool, extra_limit: u32, seed: u32, 
     for depth in 1..=8 {
         let child = graph.add(PatternNodeKind::Quadrant).unwrap();
         graph.nodes[(parent - 1) as usize].children.fill(Some(child));
+        if let Some((level, kind)) = route
+            && depth == level
+        {
+            let relay = graph.add(kind).unwrap();
+            graph.nodes[(relay - 1) as usize].children[0] = Some(child);
+            graph.nodes[(parent - 1) as usize].children[0] = Some(relay);
+        }
         if depth >= 6 {
             let column = match depth {
                 6 => 384,
@@ -119,7 +126,15 @@ fn check_terminal_case(count: i32, expanded: bool, extra_limit: u32, seed: u32, 
 fn terminal_quadrants_preserve_draw_order_through_an_outer_route() {
     let markers = [(148776, 167500, false), (2356, 50934, true), (29011, 120962, false)];
     for route in [PatternNodeKind::Dot, PatternNodeKind::Switch] {
-        check_terminal_case(2, false, 0, 255151, &markers, Some(route));
+        check_terminal_case(2, false, 0, 255151, &markers, Some((0, route)));
+    }
+}
+
+#[test]
+fn an_interior_route_preserves_terminal_draw_order() {
+    let markers = [(148776, 167500, false), (2356, 50934, true), (29011, 120962, false)];
+    for (level, kind) in [(1, PatternNodeKind::Dot), (3, PatternNodeKind::Switch), (8, PatternNodeKind::Dot)] {
+        check_terminal_case(2, false, 0, 255151, &markers, Some((level, kind)));
     }
 }
 
