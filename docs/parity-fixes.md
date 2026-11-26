@@ -59,6 +59,27 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-25 root comparisons
 
+### Final pattern draws above inactive quadrants in Spots 1 v2
+
+Render the second Noise BNW Spots 1 package in F32. Read the output of each of its two FX-Maps and the final output bridge in the same capture session. Repeat in the ordinary MaterialCraft save. For a background control, leave the upstream connection in place and set each authored pattern type to zero in the final FX-Map. Save and reopen this control with its function packages available through their usual relative paths.
+
+The upstream U8 image matches 1,216/1,216 pixels in the one-processor, eight-processor and reopened comparisons, maximum zero on each. After resizing, the background control matches 4,864/4,864 F32 pixels, maximum zero. Comparing separate reference reads of the final FX-Map and its output bridge gives 4,863/4,864 on one processor, 4,747/4,864 on eight and 4,846/4,864 after reopening. Their maximum F32 errors are 5.96046448e−8, 1.19209290e−7 and 5.96046448e−8 respectively. At 16² defaults those comparisons give 256/256, 236/256 and 256/256.
+
+| Size, seed and exposed settings | Release vs. one processor | Release vs. eight processors | Release vs. ordinary save | Maximum F32 error across the three |
+|---|---:|---:|---:|---:|
+| 16², 0, defaults | 232/256 | 241/256 | 232/256 | 1.19209290e−7 |
+| 16 × 32, 0, scale 1, roughness 1, disorder/speed/anisotropy 0, angle −.375, offset (0,0) | 473/512 | 468/512 | 473/512 | 1.19209290e−7 |
+| 16 × 32, 194426, defaults | 463/512 | 476/512 | 463/512 | 1.19209290e−7 |
+| 32 × 16, 456654, scale 2, roughness .375, disorder .28125, speed .24609375, anisotropy .140625, angle −.09375, offset (.0703125,−.03515625) | 511/512 | 512/512 | 511/512 | 5.96046448e−8 |
+| 32², 113, scale 2, roughness .6, disorder .37, speed .6, anisotropy .3, angle .125, offset (.17,.29) | 1,014/1,024 | 1,015/1,024 | 1,015/1,024 | 5.96046448e−8 |
+| 32 × 64, 194520, scale 1, roughness/disorder/speed/anisotropy .1875, angle −.0625, offset (−.15625,.2421875), non-square expansion on | 2,048/2,048 | 2,048/2,048 | 2,048/2,048 | 0 |
+
+At 16² and seed zero the final tree draws 16,384 parents at depth seven and four children per parent at depth eight. They generate 83,159 physical tile copies. To observe their order, make an independent graph with a single outer iteration and switch, four children per quadrant, a single iteration on the way to depth seven, and unselected branches reaching depth ten. Use additive squares on white. Place unmarked squares inside the tile, on one edge or at the corner to preserve each draw's one, two or four copies. Give two single-copy squares gains −1 and 2⁻²⁵ and place them on the same pixel. Repeat with the gains exchanged. The two reads identify which square drew first.
+
+In the 16² root, 196 pixels have the same stored sum for every order of their contributors. The other 60 pixels involve 404 distinct single-copy pairs. Measure all 404 pairs on the independent graph in fourteen 128² F32 renders. Applying these comparisons to MaterialCraft's own background and individual draw contributions reproduces 256/256 original and 256/256 reopened pixels on one processor, maximum zero. The same replay matches 228/256 pixels on the eight-processor capture, maximum 1.19209290e−7. Removing the interior and outer routes and stopping the tree at depth eight reverses nine of the 38 relationships required by the original and reopened pixels. Keeping the inactive descendants alone preserves all 38 on this field.
+
+The release renderer still differs on the F32 settings above. The inventory remains 480/546. [Whole graph across 87 settings and 19 ordinary saves](#copy-batches-from-the-final-quadrant-pair-and-the-following-group)
+
 ### Pending quadrant siblings and the first full receiving batch
 
 Use the [overlapping square fixture](#final-copy-batches-in-one-and-two-quadrant-trees) with one active pass and a connected, inactive depth-ten branch. Put the two signed marks at depth-five quadrants 32 and 30, counting from zero in traversal order. Moving the 64 terminal squares under quadrant 928 to the tile corner adds 192 physical copies. The first batch fills with two pending siblings under the same parent. The first sibling moves to the receiving group and the second stays with the submitting pair. At pixel (8,8) the unwrapped F32 control reads zero, the wrapped version reads 2⁻²⁵, and exchanging the gains gives zero again. The independent one-pass ordering replay agrees with 2,036/2,036 signed comparisons for the 32² spot field and 2,043/2,043 at 64 × 32. [Copy ranges](../crates/nodes/src/pattern/underfilled_quadrants/carried.rs)
