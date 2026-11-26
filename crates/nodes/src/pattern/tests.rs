@@ -898,6 +898,43 @@ fn a_receiving_tile_batch_can_cross_the_middle_of_its_quadrant() {
 }
 
 #[test]
+fn tiled_receiving_order_survives_an_earlier_cut_in_the_preceding_quadrant() {
+    // Parents 32,139 and 29,680 overlap after the eight-batch cut moves
+    // into the 64-parent subtree preceding parent 24,448.
+    let value = two_tree_copy_field_readout([113, 107], [92, 92], |group| match group {
+        236 => 76,
+        256 => 156,
+        308 | 352 => 85,
+        320 => 169,
+        439 => 132,
+        480 => 37,
+        488 => 105,
+        _ => 0,
+    });
+    assert_eq!(value, f32::EPSILON * 0.25);
+}
+
+#[test]
+fn tiled_receiving_order_defers_two_subtrees_until_the_batch_fits() {
+    // At 83 the pending pair returns after parent 21,055. At 84 the
+    // batch fits exactly, putting parent 31,935 before parent 24,452.
+    for (extra, negative, small) in [(83, [71, 23], [48, 56]), (84, [103, 111], [114, 56]), (85, [103, 111], [114, 56])] {
+        let value = two_tree_copy_field_readout(negative, small, |group| match group {
+            234 => 70,
+            260 => 141,
+            320 => 191,
+            440 => 145,
+            450 => 62,
+            480 => 24,
+            488 => 126,
+            497 => extra,
+            _ => 0,
+        });
+        assert_eq!(value, f32::EPSILON * 0.25, "receiving batch with {extra} extra copies in subtree 497");
+    }
+}
+
+#[test]
 fn fixed_image_draws_follow_the_quadrant_runs_when_both_axes_tile() {
     for (grandchildren, axes) in [(false, 0), (false, 3), (true, 3)] {
         let mut graph = gated_mixed_depth_tree(grandchildren);

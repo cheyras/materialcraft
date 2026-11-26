@@ -59,6 +59,65 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-26 root comparisons
 
+### Deferring two tiled subtrees until a quadrant batch fills
+
+When two tiled FX-Map trees share a batch, an earlier split can fall in the preceding 64-parent subtree. A later pair of subtrees resumes at a different position if it cannot fill the receiving batch. This occurs with additive procedural shapes and connected image stamps. The shared evaluator uses the number of physical copies submitted by each subtree.
+
+Open Noise Dirt 1 with graph tiling enabled, set scale to 1 and use the dimensions, seed and disorder below. Enable non-square expansion except at seed 785357. Request the listed storage on the node supplying the output. Save normally outside the package library, reopen directly in both applications and compare the stored pixels. Counts are exact pixels / pixels compared, followed by maximum error. Integer errors are measured in storage levels.
+
+| F32 dimensions · seed · disorder | Previous on one processor | Corrected on one | Corrected on eight | Ordinary save on one |
+|---|---:|---:|---:|---:|
+| 32 × 16 · 649503 · 0.53125 | 501/512 · 1.1920929e-07 | 512/512 · 0 | 496/512 · 1.1920929e-07 | 512/512 · 0 |
+| 64 × 32 · 649541 · 0.8125 | 2,044/2,048 · 5.96046448e-08 | 2,044/2,048 · 5.96046448e-08 | 1,989/2,048 · 1.1920929e-07 | 2,045/2,048 · 5.96046448e-08 |
+| 128 × 64 · 649603 · 0.21875 | 7,988/8,192 · 1.1920929e-07 | 8,192/8,192 · 0 | 7,958/8,192 · 1.1920929e-07 | 8,184/8,192 · 5.96046448e-08 |
+| 32 × 16 · 785317 · 0.71875 | 496/512 · 5.96046448e-08 | 512/512 · 0 | 493/512 · 5.96046448e-08 | 512/512 · 0 |
+| 64 × 32 · 785327 · 0.40625 | 2,002/2,048 · 5.96046448e-08 | 2,048/2,048 · 0 | 1,990/2,048 · 5.96046448e-08 | 2,048/2,048 · 0 |
+| 128 × 64 · 785339 · 0.625 | 8,006/8,192 · 1.1920929e-07 | 8,192/8,192 · 0 | 7,968/8,192 · 5.96046448e-08 | 8,192/8,192 · 0 |
+| 64 × 128 · 785357 · 0.09375 | 8,192/8,192 · 0 | 8,192/8,192 · 0 | 7,873/8,192 · 1.1920929e-07 | 8,192/8,192 · 0 |
+
+At the four new seeds, render U16 and F32 at every size, adding U8 and F16 at 32 × 16 and 64 × 32. The originals now match all 12 settings on one processor. All 12 ordinary saves have the same local raw hashes and match their reopened reference. The eight-processor captures match seven complete settings.
+
+| Format | Previous on one | Corrected on one | Corrected on eight | Ordinary save on one |
+|---|---:|---:|---:|---:|
+| U8 | 2,560/2,560 · 0 | 2,560/2,560 · 0 | 2,560/2,560 · 0 | 2,560/2,560 · 0 |
+| U16 | 18,943/18,944 · 1 | 18,944/18,944 · 0 | 18,942/18,944 · 1 | 18,944/18,944 · 0 |
+| F16 | 2,560/2,560 · 0 | 2,560/2,560 · 0 | 2,560/2,560 · 0 | 2,560/2,560 · 0 |
+| F32 | 18,696/18,944 · 1.1920929e-07 | 18,944/18,944 · 0 | 18,324/18,944 · 1.1920929e-07 | 18,944/18,944 · 0 |
+
+Including the earlier geometries, this run checked 41 originals and their 41 ordinary saves. Rerun the [five earlier F32 geometries](#the-receiving-half-of-a-quadrant-in-two-tiled-trees) and the [earlier U8, U16 and F16 geometries](#four-full-batches-in-two-tiled-quadrant-trees) with the same settings. Each local original reproduces its saved raw buffer.
+
+| All 41 settings by format | Previous on one | Corrected on one | Corrected on eight | Ordinary save on one |
+|---|---:|---:|---:|---:|
+| U8 · 9 settings | 33,792/33,792 · 0 | 33,792/33,792 · 0 | 33,791/33,792 · 1 | 33,792/33,792 · 0 |
+| U16 · 11 settings | 50,175/50,176 · 1 | 50,176/50,176 · 0 | 50,172/50,176 · 1 | 50,176/50,176 · 0 |
+| F16 · 9 settings | 33,792/33,792 · 0 | 33,792/33,792 · 0 | 33,792/33,792 · 0 | 33,792/33,792 · 0 |
+| F32 · 12 settings | 82,476/82,944 · 1.1920929e-07 | 82,939/82,944 · 5.96046448e-08 | 80,373/82,944 · 1.1920929e-07 | 82,933/82,944 · 5.96046448e-08 |
+
+In the [60-setting Dirt series](#expanded-image-and-save-comparisons-for-dirt-1-and-dirt-2), the earlier visit counts identify 13 settings per graph with two complete outer trees. Recheck all 13, plus seven settings covering one, four, eight, nine and 36 outer trees. Recheck the four archived ordinary saves per graph selected by the same geometries, including three with two trees. Each cell gives exact complete images / images rendered and exact pixels / pixels compared.
+
+| Graph | Previous originals on one | Corrected originals on one | Corrected originals on eight | Archived saves on one |
+|---|---:|---:|---:|---:|
+| Noise Dirt 1 | 15/20 · 153,462/154,368 | 16/20 · 153,516/154,368 | 10/20 · 152,459/154,368 | 3/4 · 39,338/39,424 |
+| Noise Dirt 2 | 20/20 · 154,368/154,368 | 20/20 · 154,368/154,368 | 18/20 · 154,366/154,368 | 4/4 · 39,424/39,424 |
+
+For Noise Dirt 1, the U8 / U16 / F16 / F32 maxima are 0 / 1 / 0 / 1.1920929e-07 on one processor, 0 / 1 / 0 / 1.1920929e-07 on eight and 0 / 0 / — / 5.96046448e-08 for the archived saves.
+For Noise Dirt 2, the U8 / U16 / F16 / F32 maxima are 0 / 0 / 0 / 0 on one processor, 0 / 0 / 0 / 2.52090394e-05 on eight and 0 / 0 / — / 0 for the archived saves.
+
+The only changed raw hash in these 48 comparisons was Noise Dirt 1 at 64 × 32, seed 299403, scale 1, zero disorder and expansion enabled. Its one-processor F32 score improved from 1,994/2,048 · 5.96046448e-08 to 2,048/2,048 · 0. A new ordinary save gives 2,048/2,048 · 0. The previous complete 60-setting comparisons for both graphs remain recorded separately.
+
+Noise Dirt 1 v2 also changes at 64 × 32. Use seed 299446, scale 1, zero disorder and anisotropy, zero angle and tile offset, unit disorder speed and expansion enabled. Compare this setting with the other five [tiled v2 settings](#whole-untiled-dirt-relatives-and-the-depth-seven-iteration). The other five return their previous local hashes. The F32 result moved from 1,981/2,048 · 1.1920929e-07 to 2,048/2,048 · 0 on one processor and from 1,993/2,048 · 5.96046448e-08 to 1,964/2,048 · 1.1920929e-07 on eight. The ordinary save moved from 1,989/2,048 · 1.1920929e-07 to 2,036/2,048 · 5.96046448e-08.
+
+For Noise Dirt 5, repeat the [two tiled .34375 rectangles](#the-receiving-half-of-a-quadrant-in-two-tiled-trees) across all four formats. The one-processor result improved from 6/8 · 40,958/40,960 to 8/8 · 40,960/40,960. All eight ordinary saves also match every pixel. The corrected U16 word at (92,40) is 24,511. On eight processors 4/8 · 40,949/40,960 match. The U8 / U16 / F16 / F32 maxima on eight processors are 0 / 4 / 6.10351562e-05 / 5.08278608e-05.
+
+For the isolation, start with the [two-tree additive-square field](#four-full-batches-in-two-tiled-quadrant-trees). Distribute an added copy per parent in local Y then X order within each group of 64, starting another pass when necessary. Number the 32,768 drawing parents from zero. On a white background give the earlier of two marked parents tint −1 and the later tint 2⁻²⁵. Read the common pixel in F32 and repeat with the two tints reversed.
+
+- Give groups 234, 260, 320, 440, 450, 480 and 488 exactly 70, 141, 191, 145, 62, 24 and 126 extra copies. Give group 497 successively 83, 84 and 85. At 83, parent 21,055 draws before 20,352. At 84 and 85, parent 31,935 draws before 24,452. At the first two thresholds the previous release returned zero on the relevant marker. The corrected release returns 2⁻²⁵ at all three.
+- Give groups 236, 256, 308, 320, 439, 480 and 488 exactly 76, 156, 85, 169, 132, 37 and 105 extras. Give group 352 successively 83, 84 and 85. The earlier batch can cross the boundary at parent 24,448. At 85, marking parents 32,139 and 29,680 gives 2⁻²⁵ instead of the previous zero. All 65,534 signed neighboring comparisons matched in the separate sparse field at 85. Three differences in the first read of the opposite polarity also matched in two repeat captures.
+
+Two root-derived fields, eight independently perturbed fields and six newly generated weighted or sparse fields each match all 65,534 signed comparisons in their original reference reads. For the perturbations, apply 100 random −1, 0 or +1 group updates with PCG64 seed 807143 and distribute each group's nonnegative total uniformly across its 64 parents. For the second seed 391073, the three weighted fields contain 1,703, 1,543 and 1,847 extras. The three sparse fields contain 898, 851 and 935. The separate 16-field release comparison uses two root-derived fields, six new generated fields, six boundary fields and two earlier controls. For every field compare both complete 256² images from the even and odd adjacent pairs. Results are 2,097,152/2,097,152 · 0 for originals and 2,097,152/2,097,152 · 0 for ordinary saves.
+
+In four alternating single-processor cold release runs at 128 × 64 and seed 649603, median cook time moved from 6.57 to 6.25 seconds and median peak working set from 235.6 to 249.9 MiB. Both new normal-cook regressions failed on the preceding implementation. All 574 node and evaluator release tests, formatting, strict workspace Clippy, layers and WebAssembly passed.
+
 ### Whole untiled Dirt relatives and the depth-seven iteration
 
 Set graph tiling to absolute with both axes off. At 16 × 32 use seed 649211 and disorder .3125. At 32 × 64 use seed 649229 and disorder .78125. Enable non-square expansion. Use scale 1 on the three graphs exposing it. For each geometry render U8, U16, F16 and F32, then save the graph normally outside the package library and open that file directly in both applications. Compare the builds immediately before and after the [two-tree untiled draw-order change](#unfinished-draws-across-two-untiled-quadrant-trees). Cells give exact settings / settings rendered and exact pixels / pixels compared.

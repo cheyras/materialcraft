@@ -478,14 +478,14 @@ impl TileCopies {
             return self.subtree_ends.get(42).zip(self.subtree_ends.get(44)).is_some_and(|(&before, &after)| before < cut && cut < after);
         }
         if self.subtree_ends.len() == TWO_DEEP_TREES {
-            // The fifth batch can fill group 87 exactly. A receiving batch
-            // can likewise fill exactly the first half of group 116.
-            if parents == 351 * DEPTH_FOUR_PARENTS + 1 || parents == 466 * DEPTH_FOUR_PARENTS - 1 {
+            // A full batch can land on the end of group 87, the middle of
+            // group 116, or the end of the pending pair at parent 31,936.
+            if parents == 351 * DEPTH_FOUR_PARENTS + 1 || parents == 466 * DEPTH_FOUR_PARENTS - 1 || parents == 498 * DEPTH_FOUR_PARENTS + 1 {
                 return self.subtree_ends.get(subtree - 1).zip(self.subtree_ends.get(subtree)).is_some_and(|(&lower, &upper)| lower < cut && cut <= upper);
             }
-            // The preceding batch and the later cut in group 120 can each
+            // The earlier cuts and the later cut in group 120 can each
             // fall on either side of an interior subtree boundary.
-            if parents == 348 * DEPTH_FOUR_PARENTS + 1 || parents == 483 * DEPTH_FOUR_PARENTS + 1 {
+            if parents == 348 * DEPTH_FOUR_PARENTS + 1 || parents == 382 * DEPTH_FOUR_PARENTS + 1 || parents == 483 * DEPTH_FOUR_PARENTS + 1 {
                 return self.subtree_ends.get(subtree - 2).zip(self.subtree_ends.get(subtree)).is_some_and(|(&lower, &upper)| lower < cut && cut < upper);
             }
         }

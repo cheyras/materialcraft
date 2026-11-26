@@ -220,28 +220,38 @@ fn tiled_pair_continuation(five_batches: bool) -> Vec<(usize, usize)> {
 static FIVE_BATCH_CONTINUATION: LazyLock<Vec<(usize, usize)>> = LazyLock::new(|| tiled_pair_continuation(true));
 static FOUR_BATCH_CONTINUATION: LazyLock<Vec<(usize, usize)>> = LazyLock::new(|| tiled_pair_continuation(false));
 
-// If the cut before parent 18,432 falls before parent 18,368, three
-// pending subtrees start before the later quadrant. The receiving cut at
-// parent 29,824 determines which half of that quadrant is still pending.
-fn receiving_pair_continuation(past_middle: bool) -> Vec<(usize, usize)> {
+enum ReceivingBatch {
+    FirstHalf,
+    SecondHalf,
+    DeferredPair,
+}
+
+// Three pending subtrees start before the later quadrant when the cut
+// before 18,432 falls before 18,368. If the pair ending at 31,936 cannot
+// fill the receiving batch, it resumes in the run that returns to 21,120.
+fn receiving_pair_continuation(receiver: ReceivingBatch) -> Vec<(usize, usize)> {
+    let first_half = matches!(receiver, ReceivingBatch::FirstHalf);
+    let deferred = matches!(receiver, ReceivingBatch::DeferredPair);
     let mut ordered = PAIRED_GRANDCHILDREN.to_vec();
     ordered.sort_unstable_by_key(|&(_, rank)| rank);
     let mut ends = Vec::with_capacity(ordered.len());
     for (end, _) in ordered {
         match end {
             // Physical batch ends can move into another 64-parent subtree.
+            24452 if !first_half => ends.push(24449),
             28612 => ends.push(28545),
             22276 => ends.push(22465),
             18380 => ends.push(18305),
-            29832 if !past_middle => ends.push(29823),
+            29832 if first_half => ends.push(29823),
             30920 => ends.push(30849),
-            31056 => ends.push(if past_middle { 30977 } else { 31041 }),
-            // The first two unfinished batches now precede the receiving cut.
-            24576 => ends.extend([20480, 31873, end]),
-            30080 if !past_middle => ends.push(29888),
-            29952 if !past_middle => ends.extend([29824, end]),
+            31056 => ends.push(if first_half { 31041 } else { 30977 }),
+            24576 if !deferred => ends.extend([20480, 31873, end]),
+            30080 if first_half => ends.push(29888),
+            29952 if first_half => ends.extend([29824, end]),
             24768 => ends.extend([22528, end]),
-            30144 => ends.extend([31936, if past_middle { end } else { 30080 }]),
+            // The pending pair can finish exactly at the end of its second subtree.
+            21120 if deferred => ends.extend([20993, 20480, 31936, 30081, end]),
+            30144 if !deferred => ends.extend([31936, if first_half { 30080 } else { end }]),
             // These parts moved above or joined the preceding full batch.
             22528 | 24648 | 21068 | 20480 | 31936 | 30084 => {}
             _ => ends.push(end),
@@ -250,8 +260,9 @@ fn receiving_pair_continuation(past_middle: bool) -> Vec<(usize, usize)> {
     continued_layout(&[], 0, &ends)
 }
 
-static FIRST_HALF_RECEIVER: LazyLock<Vec<(usize, usize)>> = LazyLock::new(|| receiving_pair_continuation(false));
-static SECOND_HALF_RECEIVER: LazyLock<Vec<(usize, usize)>> = LazyLock::new(|| receiving_pair_continuation(true));
+static FIRST_HALF_RECEIVER: LazyLock<Vec<(usize, usize)>> = LazyLock::new(|| receiving_pair_continuation(ReceivingBatch::FirstHalf));
+static SECOND_HALF_RECEIVER: LazyLock<Vec<(usize, usize)>> = LazyLock::new(|| receiving_pair_continuation(ReceivingBatch::SecondHalf));
+static DEFERRED_PAIR: LazyLock<Vec<(usize, usize)>> = LazyLock::new(|| receiving_pair_continuation(ReceivingBatch::DeferredPair));
 
 #[derive(Default)]
 pub(super) struct MixedDepthRuns {
@@ -408,6 +419,7 @@ impl MixedDepthRuns {
                     FOUR_BATCH_CONTINUATION.as_slice(),
                     FIRST_HALF_RECEIVER.as_slice(),
                     SECOND_HALF_RECEIVER.as_slice(),
+                    DEFERRED_PAIR.as_slice(),
                     self.layout,
                 ];
                 let (selected, bounds) =
