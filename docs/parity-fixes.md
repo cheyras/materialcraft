@@ -59,6 +59,27 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-26 root comparisons
 
+### Ten recovered whole Noise Dirt 5 settings
+
+The shared pattern evaluator now produces images for 58 of the [60 original Noise Dirt 5 settings](#sixty-whole-settings-for-three-directional-and-dirt-noise-packages). The earlier comparison produced 48. Recook the twelve former execution errors on the normal release. Compare the stored grayscale words or floating-point values against the original one- and eight-processor reference captures. For each recovered setting also save the package normally, reopen it in both applications and compare against a fresh one-processor reference. Every local saved buffer reproduces its original raw hash.
+
+Open Noise Dirt 5, keep graph tiling enabled and apply the settings below. Set the requested storage on the node supplying the output. Each measurement gives exact pixels / pixels compared and maximum absolute error. Integer maxima are in storage levels.
+
+| Size · seed · scale · disorder · non-square expansion | Storage | Original on one processor | Original on eight | Ordinary save on one |
+|---|---|---:|---:|---:|
+| 32 × 16 · 105549 · 2 · 0.8125 · on | F32 | 512/512 · 0 | 512/512 · 0 | 512/512 · 0 |
+| 16 × 32 · 105550 · 2 · 0.8125 · on | U16 | 512/512 · 0 | 511/512 · 4 | 512/512 · 0 |
+| 32 × 16 · 42 · 2 · 0.21875 · on | U16 | 512/512 · 0 | 512/512 · 0 | 512/512 · 0 |
+| 32 × 16 · 42 · 2 · 0.21875 · on | F32 | 512/512 · 0 | 512/512 · 0 | 512/512 · 0 |
+| 32 × 64 · 281801 · 2 · 0.8125 · on | U8 | 2,048/2,048 · 0 | 2,048/2,048 · 0 | 2,048/2,048 · 0 |
+| 32 × 64 · 281801 · 2 · 0.8125 · on | U16 | 2,047/2,048 · 4 | 2,047/2,048 · 4 | 2,047/2,048 · 4 |
+| 32 × 64 · 281801 · 2 · 0.8125 · on | F16 | 2,047/2,048 · 0.000122070312 | 2,048/2,048 · 0 | 2,047/2,048 · 0.000122070312 |
+| 32 × 64 · 281801 · 2 · 0.8125 · on | F32 | 2,047/2,048 · 5.08278608e-05 | 2,047/2,048 · 5.08129597e-05 | 2,047/2,048 · 5.08278608e-05 |
+| 256 × 128 · 433719 · 3 · 0.328125 · off | U16 | 32,761/32,768 · 3 | 32,763/32,768 · 3 | 32,759/32,768 · 3 |
+| 256 × 128 · 433719 · 3 · 0.328125 · off | F32 | 32,758/32,768 · 5.08576632e-05 | 32,758/32,768 · 5.08725643e-05 | 32,757/32,768 · 5.08725643e-05 |
+
+Across these ten settings the one- and eight-processor reads match 75,756 and 75,758 of 75,776 pixels. The ten fresh saves match 75,753. In the separate twelve-setting archive, eleven saved settings now render. At 128 × 32, seed 433608, scale 3, disorder .046875 and expansion enabled, both U16 and F32 still reach the execution guard. The archived save at that geometry also reaches it.
+
 ### Deferring two tiled subtrees until a quadrant batch fills
 
 When two tiled FX-Map trees share a batch, an earlier split can fall in the preceding 64-parent subtree. A later pair of subtrees resumes at a different position if it cannot fill the receiving batch. This occurs with additive procedural shapes and connected image stamps. The shared evaluator uses the number of physical copies submitted by each subtree.
