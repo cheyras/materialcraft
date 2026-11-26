@@ -59,6 +59,31 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-26 root comparisons
 
+### Tiled outputs of ten noise roots and the full Wood Fibers 2 series
+
+Release `0f01b25` renders the previously blocked 256 × 256 default in Wood Fibers 2. Open the ordinary tiled package, leave all parameters at their defaults and use 256 × 256, seed 0. Read the final U16 grayscale output. The archived setting matches 65,381/65,536 · 2. Across all 18 settings, the recorded comparisons now cover 121,030/126,208 exact pixels. [Previous sizes, formats and changed parameters](#discarding-pattern-stamps-that-miss-every-output-sample)
+
+A fresh one-processor capture matches 65,333/65,536 · 2, eight processors match 65,315/65,536 · 2, and the ordinary save reopened on one matches 65,340/65,536 · 2. Each value after the pixel counts is the maximum absolute error in U16 levels. The saved and original local buffers have the same raw hash.
+
+For the ten Noise packages below, keep tiling enabled. At 16 × 32 use the first seed, the published defaults, and U16 and F32 storage. Use all four formats at the second size and seed. Set the storage on the node supplying the final output and reopen an ordinary save in both applications. Each cell gives exact complete images / rendered images, then exact pixels / total and maximum error in U8, U16, F16 and F32 order. A dash indicates that the format did not produce an image. Integer maxima are storage levels.
+
+| Noise graph · first seed · second size and seed | Original · one processor | Original · eight processors | Ordinary save · one processor |
+|---|---:|---:|---:|
+| BNW Spots 1 v2 · 194426 · 64 × 32, 194473 | 4/6 · 9,189/9,216 · 0 / 0 / 0 / 1.1920929e-07 | 4/6 · 9,174/9,216 · 0 / 0 / 0 / 1.1920929e-07 | 4/6 · 9,192/9,216 · 0 / 0 / 0 / 5.96046448e-08 |
+| BNW Spots 3 v2 · 194488 · 64 × 32, 194535 | 0/2 · 978/1,024 · — / 1 / — / 5.96046448e-08 | 1/2 · 986/1,024 · — / 0 / — / 1.1920929e-07 | 1/2 · 981/1,024 · — / 0 / — / 8.94069672e-08 |
+| Clouds 1 v2 · 0 · 16 × 16, 0 | 5/6 · 1,986/2,048 · 0 / 0 / 0 / 1.49011612e-07 | 4/6 · 1,945/2,048 · 0 / 0 / 0 / 1.78813934e-07 | 5/6 · 1,986/2,048 · 0 / 0 / 0 / 1.49011612e-07 |
+| Clouds 2 v2 · 0 · 16 × 16, 0 | 5/6 · 2,044/2,048 · 0 / 0 / 0 / 5.96046448e-08 | 4/6 · 2,043/2,048 · 0 / 0 / 0 / 5.96046448e-08 | 5/6 · 2,044/2,048 · 0 / 0 / 0 / 5.96046448e-08 |
+| Directional Noise 1 v2 · 194891 · 64 × 32, 194938 | 3/6 · 8,198/9,216 · 0 / 1 / 0 / 2.38418579e-07 | 3/6 · 8,253/9,216 · 0 / 1 / 0 / 1.78813934e-07 | 3/6 · 8,132/9,216 · 0 / 1 / 0 / 2.38418579e-07 |
+| Directional Noise 2 v2 · 194953 · 64 × 32, 195000 | 0/2 · 850/1,024 · — / 1 / — / 8.94069672e-08 | 1/2 · 890/1,024 · — / 0 / — / 5.96046448e-08 | 0/2 · 830/1,024 · — / 1 / — / 5.96046448e-08 |
+| Directional Noise 3 v2 · 195015 · 64 × 32, 195062 | 2/2 · 1,024/1,024 · — / 0 / — / 0 | 2/2 · 1,024/1,024 · — / 0 / — / 0 | 2/2 · 1,024/1,024 · — / 0 / — / 0 |
+| Dirt 3 · 299453 · 64 × 32, 299532 | 4/6 · 9,197/9,216 · 0 / 0 / 0 / 2.98023224e-08 | 4/6 · 9,193/9,216 · 0 / 0 / 0 / 5.96046448e-08 | 4/6 · 9,197/9,216 · 0 / 0 / 0 / 2.98023224e-08 |
+| Dirt 3 v2 · 299496 · 64 × 32, 299575 | 4/6 · 9,200/9,216 · 0 / 0 / 0 / 5.96046448e-08 | 4/6 · 9,192/9,216 · 0 / 0 / 0 / 5.96046448e-08 | 4/6 · 9,200/9,216 · 0 / 0 / 0 / 5.96046448e-08 |
+| Dirt Gradient v2 · 281778 · 64 × 32, 281845 | 3/6 · 8,398/9,216 · 0 / 1 / 0 / 2.38418579e-07 | 3/6 · 8,518/9,216 · 0 / 1 / 0 / 2.38418579e-07 | 3/6 · 8,431/9,216 · 0 / 1 / 0 / 2.38418579e-07 |
+
+Use the published defaults at both Clouds sizes. For the second Spots and Directional sizes, set scale 3, disorder, disorder speed and disorder anisotropy .34375, anisotropy angle .09375, tile offset (0,.10546875) and non-square expansion on. Set Spots 1 roughness to .34375. For the Directional graphs use angle .09375 and random angle .34375. For Dirt 3 use scale 1, zero disorder and expansion on. For Dirt 3 v2 also set disorder anisotropy and angle to zero, tile offset (0,0) and disorder speed 1. Dirt Gradient v2 uses zero disorder, anisotropy and anisotropy angle, speed 1 and expansion on.
+
+The 48 completed originals and their 48 ordinary saves cover 53,248 pixels per comparison route. Every saved local buffer reproduces its original. The 64 × 32 settings of BNW Spots 3 v2, Directional Noise 2 v2 and Directional Noise 3 v2 still reach the execution limit in all four formats, including on reopening. The 16 × 32 Directional Noise 3 v2 default matches both original captures and the save in U16 and F32.
+
 ### Recovered Dirt 4 and Moisture renders at seed 113
 
 Repeat the earlier 32 × 32 F32 comparison at seed 113. The earlier evaluator reached its execution guard on Noise Dirt 4, Noise Moisture Noise 1 v2 and Noise Moisture Noise 2. The current release produces all three outputs. Against the archived captures, Dirt 4 matches 1,013/1,024 · 7.62939453e-05, Moisture 1 v2 matches 684/1,024 · 2.98023224e-07 and Moisture 2 matches 809/1,024 · 1.49011612e-07. Each entry gives exact pixels / pixels compared and maximum absolute error.
