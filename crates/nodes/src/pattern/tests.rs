@@ -1833,6 +1833,32 @@ fn render_with_visit_limit(graph: &PatternGraph, limit: usize) -> crate::CookRes
 }
 
 #[test]
+fn narrow_quadrants_only_consume_a_draw_when_their_shape_covers_a_sample() {
+    // At 4 by 4 the nearest sample to the lower left of center is (.375, .375).
+    // The thin rectangle lies between columns. Only the corner of the disc's box reaches that sample.
+    for (shape, size, offset) in [(2, [0.0625, 0.75], [0.0; 2]), (3, [0.25; 2], [-0.03125; 2])] {
+        let mut graph = PatternGraph::with_root(PatternNodeKind::Iterate);
+        let marker = graph.add(PatternNodeKind::Quadrant).unwrap();
+        let repeated = graph.add(PatternNodeKind::Quadrant).unwrap();
+        graph.nodes[0].children = vec![Some(marker), Some(repeated)];
+        graph.nodes[0].parameters.insert("numberadded".into(), Value::Int(80));
+        square(&mut graph, 1);
+        graph.nodes[1].parameters.insert("opacity".into(), Value::Float(0.375));
+        graph.nodes[2].parameters = BTreeMap::from([
+            ("patterntype".into(), Value::Int(shape)),
+            ("patternsize".into(), Value::Float2(size)),
+            ("frameoffset".into(), Value::Float2(offset)),
+            ("opacity".into(), Value::Float(0.25)),
+        ]);
+        assert_eq!(render_with_visit_limit(&graph, 64).unwrap()[0].data(), &[0.375; 16]);
+
+        graph.nodes[2].parameters.insert("frameoffset".into(), Value::Float2([-0.125; 2]));
+        assert!(render_with_visit_limit(&graph, 64).unwrap_err().contains("execution budget"));
+        assert_eq!(render_with_visit_limit(&graph, 128).unwrap()[0].get_gray(1, 1, false), 20.375);
+    }
+}
+
+#[test]
 fn terminal_quadrants_charge_the_first_discard_of_each_sibling_group() {
     let mut graph = PatternGraph::with_root(PatternNodeKind::Iterate);
     let marker = graph.add(PatternNodeKind::Quadrant).unwrap();

@@ -103,17 +103,17 @@ impl PixelPlanes {
         })
     }
 
-    pub fn covers_any(&self, bounds: [[u32; 2]; 2]) -> bool {
+    pub fn covers_any(&self, bounds: [[u32; 2]; 2], circular: bool) -> bool {
         let [[left, right], [top, bottom]] = self.clip(bounds);
         if left >= right || top >= bottom {
             return false;
         }
-        if matches!(self.mapping, Mapping::Aligned { .. }) {
+        if !circular && matches!(self.mapping, Mapping::Aligned { .. }) {
             return true;
         }
         (top..bottom).any(|y| {
             let row = self.row(y);
-            (left..right).any(|x| row(x).is_some())
+            (left..right).any(|x| row(x).is_some_and(|uv| !(circular && super::shape::radius_squared(uv) > 1.0)))
         })
     }
 

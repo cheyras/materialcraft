@@ -109,8 +109,8 @@ impl SampleGrid {
             return true;
         }
         let Ok(frame) = Footprint::new(stamp) else { return false };
-        // Limit this check to footprints spanning at most two sample columns and rows per copy.
-        if (0..2).any(|i| frame.radius[i] * self.dimensions[i] as f32 > 0.5 * self.render.period()[i]) {
+        // A footprint wider than two sample spacings in both directions usually covers a pixel.
+        if (0..2).all(|i| frame.radius[i] * self.dimensions[i] as f32 > self.render.period()[i]) {
             return false;
         }
         let Ok(repeats) = self.repeats(stamp, &frame) else { return false };
@@ -122,6 +122,7 @@ impl SampleGrid {
         if copies > 4 {
             return false;
         }
+        let circular = super::shape::circular(stamp.pattern);
         let columns = repeats[0].centers();
         for y_center in repeats[1].centers() {
             for x_center in columns.clone() {
@@ -130,6 +131,10 @@ impl SampleGrid {
                 let [[left, right], [top, bottom]] = bounds;
                 if left == right || top == bottom {
                     continue;
+                }
+                // Bound the search for long, thin stamps that cross the render window.
+                if u64::from(right - left) * u64::from(bottom - top) > 16 {
+                    return false;
                 }
                 // Skip the copy when even the final sample precedes the snapped triangle
                 // and lies outside the ordinary footprint used for extreme vertex spans.
@@ -145,14 +150,17 @@ impl SampleGrid {
                     continue;
                 }
                 if let Some(planes) = PixelPlanes::new(&frame, &self.render, center, stamp.size, self.dimensions) {
-                    if planes.covers_any(bounds) {
+                    if planes.covers_any(bounds, circular) {
                         return false;
                     }
                     continue;
                 }
                 for y in top..bottom {
                     for x in left..right {
-                        if frame.local(self.render.point([x, y], self.dimensions), center, stamp.size).is_some() {
+                        if frame
+                            .local(self.render.point([x, y], self.dimensions), center, stamp.size)
+                            .is_some_and(|uv| !(circular && super::shape::radius_squared(uv) > 1.0))
+                        {
                             return false;
                         }
                     }

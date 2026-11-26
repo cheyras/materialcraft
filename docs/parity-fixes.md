@@ -59,6 +59,42 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-26 root comparisons
 
+### Sample coverage of narrow and circular quadrant stamps
+
+Noise BNW Spots 3 v2 now renders the 128 × 512 original in U16 and F32 and the ordinary F32 save. On the preceding release and on a trial that reused writable terminal properties, these settings exceeded the execution budget. Set scale 2, disorder, disorder speed and anisotropy .53125, anisotropy angle .28125, tile offset (.1875, −.05859375), non-square expansion off and seed 411890. Leave other controls at their defaults. Compare the grayscale output at its stored precision. Save the graph in MaterialCraft and reopen it in each application for the last column. [Previous dense settings and saved cases](#recovered-settings-in-the-second-version-of-the-third-spots-graph)
+
+| Format | One processor, exact / total · maximum | Eight processors, exact / total · maximum | Ordinary save, one processor |
+|---|---:|---:|---:|
+| U16 | 65,509/65,536 · 1 | 65,508/65,536 · 1 | |
+| F32 | 58,614/65,536 · 2.38418579e−7 | 57,113/65,536 · 2.98023224e−7 | 58,614/65,536 · 2.38418579e−7 |
+
+The original and reopened MaterialCraft F32 buffers are bit-identical. Cumulatively, 48 of 62 established originals and 10 of 14 ordinary saves have produced images. Fourteen original settings and four saved settings retain their earlier execution failures. The 64² seed 411585 case alone emits 101,738 depth-six subtrees. Each visits 85 quadrants through depth nine.
+
+In the 128 × 512 case, the former grid check retained each of the first 112,352 depth-eight draws because one axis spanned more than one pixel. Keep only the first child at depths one, two and three of the deepest pattern graph to run a smaller diagnostic. Of its 12,288 depth-eight draws, only 3,253 contributed to a sample. The evaluator now tests a narrow footprint against the same snapped sample coordinates and disc boundary as the rasterizer. A copy can test at most 16 pixel positions, with at most four copies per draw. The original property evaluations and the limits on traversal, stored stamps and raster work still apply. The production change uses the existing terminal-property cache.
+
+For an independent control, use an additive square of .375 over a .125 grayscale background, unit render and tiling regions, tiling on, roughness zero and opacity one. Connect four child quadrants in slot order. Use grayscale swatches for the tints. Set the supplementary parameter to .0625 on the children. In the second graph change only the first two frame offsets as shown.
+
+| Child shape | Authored size | Frame offset in first graph | Frame offset in second graph | Turns | Tint |
+|---|---|---|---|---:|---:|
+| Square (2) | (.03125, .75) | (0, 0) | (.03125, 0) | 0 | .125 |
+| Disc (3) | (.125, .125) | (−.0078125, −.0078125) | (−.03125, −.03125) | 0 | .25 |
+| Paraboloid (4) | (.0625, .6875) | (.03125, −.03125) | (.03125, −.03125) | .125 | .5 |
+| Shape 18 | (.125, .1875) | (.234375, .234375) | (.234375, .234375) | .28125 | .1875 |
+
+Render both original graphs and their ordinary saves at 16² with seed 0, 32 × 16 with seed 42 and 16 × 32 with seed 411890. Set the pattern output precision to U8, U16, F16 and F32 independently. The one-worker D3D11 reference renderer matches 10,240/10,240 original and 10,240/10,240 reopened pixels, maximum zero. All 62 original and 14 saved MaterialCraft buffers for the first Spots 3 variant also remained bit-identical to revision `ae86c8a`. The reduced Rust regression exceeded the execution budget before the coverage change. All 558 node and evaluator release tests, formatting, strict workspace Clippy, layer checks and WebAssembly checks passed.
+
+### Complete rectangular render coverage in the first clouds graph
+
+Noise Clouds 1 now renders all 60 established original settings and all 15 ordinary saves. The final two settings already render on revision `ae86c8a`. Use scale 5, disorder .8125 and non-square expansion on. Keep other exposed parameters at their defaults. At 64 × 32, seed 103023, the F32 original matches 2,046/2,048 on each processor count, maximum 1.52587891e−5. At 32 × 64, seed 103024, the U16 original matches 2,047/2,048 on each processor count, maximum one level. Its ordinary save also matches 2,047/2,048, maximum one. These three MaterialCraft buffers were bit-identical before and after the narrow-stamp coverage change. [Original settings and save procedure](#four-cloud-noise-generators-and-repeated-saved-file-comparisons)
+
+| Comparison | Exact frames | U8 exact / total · max | U16 exact / total · max | F16 exact / total · max | F32 exact / total · max |
+|---|---:|---:|---:|---:|---:|
+| Original, one processor | 43/60 | 85,760/85,760 · 0 | 296,130/296,192 · 1 | 93,952/93,952 · 0 | 253,382/253,440 · 1.52587891e−5 |
+| Original, eight processors | 37/60 | 85,760/85,760 · 0 | 296,086/296,192 · 1 | 93,950/93,952 · .00048828125 | 253,330/253,440 · 1.52587891e−5 |
+| Ordinary save, one processor | 9/15 | 4,096/4,096 · 0 | 94,954/94,976 · 1 | 1,536/1,536 · 0 | 22,522/22,528 · 1.52587891e−5 |
+
+The full comparison gives 729,224/729,344 original pixels on one processor, 729,126/729,344 on eight and 123,108/123,136 after reopening. At 64 × 32, the first previously blocked setting in Noise Clouds 1 v2 and Noise Clouds 2 v2 still exceeds the execution budget.
+
 ### Reusing terminal quadrant properties in dense rectangular renders
 
 Noise BNW Spots 3 renders the eight rectangular settings that previously exhausted the pattern execution budget. Set non-square expansion on and leave the other exposed parameters at their defaults except for the values in the table. Compare the raw grayscale output in U8, U16, F16 and F32. Each row includes all four formats. [Earlier six recovered settings and eight failures](#dense-settings-recovered-in-the-third-spots-graph)

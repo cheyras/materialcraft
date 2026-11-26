@@ -1,3 +1,11 @@
+pub(super) fn circular(pattern: i32) -> bool {
+    matches!(pattern, 3..=7 | 11..=14 | 16 | 18)
+}
+
+pub(super) fn radius_squared([x, y]: [f32; 2]) -> f32 {
+    y.mul_add(y, x * x)
+}
+
 /// Prepare the per-stamp constants once, then sample coverage and the signed channel offset.
 pub(super) fn prepare(pattern: i32, variation: f32) -> impl Fn(f32, f32) -> Result<Option<(f32, f32)>, String> {
     let width = match pattern {
@@ -6,9 +14,9 @@ pub(super) fn prepare(pattern: i32, variation: f32) -> impl Fn(f32, f32) -> Resu
         _ => 0.0,
     };
     let inverse_width = if width == 0.0 { 0.0 } else { crate::function::pixel_divide(1.0, width) };
-    let circular = matches!(pattern, 3..=7 | 11..=14 | 16 | 18);
+    let circular = circular(pattern);
     move |x: f32, y: f32| {
-        let radius_squared = y.mul_add(y, x * x);
+        let radius_squared = radius_squared([x, y]);
         // An uncovered pixel preserves the background even when the blend selects the maximum.
         if circular && radius_squared > 1.0 {
             return Ok(None);
