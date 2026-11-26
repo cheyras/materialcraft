@@ -4,6 +4,7 @@ use std::ops::Range;
 mod completion;
 #[cfg(test)]
 mod tests;
+mod wide_transfer;
 
 // A depth-three quadrant contains sixteen depth-five subtrees. A boundary can
 // split a tiled stamp, so convert subtree boundaries to physical copies before filling a batch.
@@ -68,6 +69,9 @@ fn receiving_pair(ends: &[u32], partner: usize, main: usize, first: bool) -> Opt
                 sibling..sibling + pending.div_ceil(2) * 4
             }
             4 => deferred.end..deferred.end + 2,
+            // After a whole depth-three sibling, the following half and quarter
+            // of a sibling also transfer before this receiver resumes.
+            SUBTREES if deferred.len() == SUBTREES => deferred.end..deferred.end + SUBTREES / 2 + SUBTREES / 4,
             _ => return None,
         };
         handoff = Some(copies(ends, extra.clone())?);
@@ -118,8 +122,11 @@ fn full_outer_pair(ends: &[u32]) -> Option<[Range<u32>; 2]> {
     Some([own, incoming.start..incoming.start + room])
 }
 
-fn following_batches(ends: &[u32], receivers: &[ReceivingPair], leading: &[Range<u32>], outer_submitted: bool) -> Option<Vec<Range<u32>>> {
+fn following_batches(ends: &[u32], receivers: &[ReceivingPair], leading: &[Range<u32>], outer_tail: Option<&Range<u32>>) -> Option<Vec<Range<u32>>> {
     let [first, middle, last] = receivers else { return None };
+    if first.split_width == SUBTREES {
+        return wide_transfer::ranges(ends, receivers, leading, outer_tail?);
+    }
     let handoff = first.handoff.as_ref()?;
     let middle_siblings = copies(ends, middle.pending.clone())?;
     let last_siblings = copies(ends, last.pending.clone())?;
@@ -139,7 +146,9 @@ fn following_batches(ends: &[u32], receivers: &[ReceivingPair], leading: &[Range
     let mut full = leading.to_vec();
     full.extend(order.into_iter().flatten().cloned());
     let tails = [first.tail.clone(), middle_siblings, last.tail.clone()];
-    if !outer_submitted && let Some(completed) = completion::ranges(ends, receivers, &halves, third.start + COPIES_PER_BATCH..third.end, &full, &tails) {
+    if outer_tail.is_none()
+        && let Some(completed) = completion::ranges(ends, receivers, &halves, third.start + COPIES_PER_BATCH..third.end, &full, &tails)
+    {
         return Some(completed);
     }
     full.extend(tails);
@@ -161,11 +170,13 @@ pub(super) fn ranges(ends: &[u32]) -> Option<Vec<Range<u32>>> {
     }
     // The last two depth-three subtrees continue into the first two of the same
     // root quadrant. A complete batch submits before work reaches the receivers.
-    let outer = full_outer_pair(ends);
-    let outer_submitted = outer.is_some();
-    if let Some(pair) = outer {
-        runs.extend(pair);
-    }
+    let outer_tail = if let Some([own, incoming]) = full_outer_pair(ends) {
+        let tail = incoming.end..boundary(ends, 50 * SUBTREES)?;
+        runs.extend([own, incoming]);
+        Some(tail)
+    } else {
+        None
+    };
     // The final root quadrant sends one pair of depth-three subtrees to each
     // receiving half. Each receiver can submit two complete batches.
     let mut receivers = Vec::with_capacity(3);
@@ -174,7 +185,7 @@ pub(super) fn ranges(ends: &[u32]) -> Option<Vec<Range<u32>>> {
         runs.extend_from_slice(&pair.runs);
         receivers.push(pair);
     }
-    if let Some(following) = following_batches(ends, &receivers, &runs, outer_submitted) {
+    if let Some(following) = following_batches(ends, &receivers, &runs, outer_tail.as_ref()) {
         runs = following;
     }
     // Preserve every remaining physical copy in traversal order.

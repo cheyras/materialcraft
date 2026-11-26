@@ -131,3 +131,32 @@ fn a_full_outer_pair_submits_when_its_last_required_copy_arrives() {
         }
     }
 }
+
+#[test]
+fn a_receiver_can_transfer_a_whole_sibling_and_parts_of_the_next() {
+    let mut copies = vec![1; 81_920];
+    for i in 0..360 {
+        copies[50 * 1280 + (103 * i + 31) % 2560] = 2;
+    }
+    let ranks = ranks_for_copies(|draw| copies[draw]);
+    for (left, right) in [(66559, 20480), (76799, 0), (71679, 40960)] {
+        assert!(ranks[left] < ranks[right], "draws {left}, {right}");
+    }
+}
+
+#[test]
+fn the_third_half_fills_from_the_first_child_of_the_transferred_quarter() {
+    // Change how many copies of that child fit, from all eighty down to one.
+    for (extra, next) in [(600, 25200), (620, 25020), (679, 24961)] {
+        let mut copies = vec![1; 81_920];
+        for (group, width, amount) in [(24, 8, 680), (40, 8, 680), (8, 8, extra), (50, 2, 400), (58, 2, 400), (54, 2, 400), (62, 2, 340)] {
+            for i in 0..amount {
+                copies[group * 1280 + (211 * i + 17) % (width * 1280)] = 2;
+            }
+        }
+        let ranks = ranks_for_copies(|draw| copies[draw]);
+        for (left, right) in [(30719, 2560), (51199, 25040), (25119, 9240), (69119, next)] {
+            assert!(ranks[left] < ranks[right], "{extra} extra copies, draws {left}, {right}");
+        }
+    }
+}

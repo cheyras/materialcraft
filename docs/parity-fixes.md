@@ -59,6 +59,60 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-26 root comparisons
 
+### Drawing the children of a transferred quadrant
+
+Noise BNW Spots 1 v2 now matches 512/512 raw F32 pixels at 32 × 16 and seed 561067 on one processor, up from 497/512. The ordinary MaterialCraft save reopened in the reference app also matches 512/512. Four independent one-processor reference renders gave the same bits at every position. The archived eight-processor frame gives 460/512, up from 459/512, with a maximum error of 2⁻²³. Use scale 1, roughness .875, disorder .1875, speed .5, anisotropy .25, non-square expansion off and tile offset (−.1875, .0625).
+
+The difference first appeared where two full batches of tile copies pass through a pair of quadrants. Use the [original additive-square graph and draw numbering](#tile-copies-in-the-last-two-active-quadrant-levels). On one processor, moving 360 squares in group 50 to the tile edge makes the first receiver pass a whole sibling and then a half and a quarter of the following sibling to other streams. Their children can reach different batches. Give overlapping marker squares gains of −1 and 2⁻²⁵ on white, and exchange the gains on a second render. The previously reversed pairs (66559, 20480), (76799, 0) and (71679, 40960) each put the first draw before the second on both renders. The renderer uses the physical copy counts at the subtree boundaries. [Renderer](../crates/nodes/src/pattern/tile_runs/inactive_children/wide_transfer.rs) · [Regression tests](../crates/nodes/src/pattern/tile_runs/inactive_children/tests.rs)
+
+For the first control, move draw `50 × 1280 + (103j + 31) mod 2560` to an edge for j = 0 through 359. For three further controls, take groups (24, 40, 8, 50, 58, 54, 62) with widths (8, 8, 8, 2, 2, 2, 2) and extra copy counts (680, 680, e, 400, 400, 400, 340). In each group g of width w, move draw `1280g + (211j + 17) mod (1280w)` for j starting at zero. With e = 600, 620 or 679, the third leading half needs 80, 60 or one copy from the first child of the transferred quarter to fill its 5,460-copy batch. That cut changes when the remaining children draw.
+
+For independent inputs, the table gives the extra copy counts in the same group order. In the three eight-group regions, use stride 991 for an odd field number i or 1777 for an even i, with offset 31 + 4i. In the four two-group regions, use stride 233 for an odd i or 103 for an even i, with offset 71 + 5i. In fields 6, 8, 9 and 11, also place `12 + (7i + k) mod 30` draws at the edge within each depth-five subtree k = 312 through 315, starting at draw `80k + (23j + 7) mod 80`.
+
+| Field | 24 | 40 | 8 | 50 | 58 | 54 | 62 | Adjacent pairs exact in both directions |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| 1 | 733 | 751 | 600 | 379 | 380 | 383 | 369 | 78,324/78,324 |
+| 2 | 786 | 822 | 601 | 398 | 391 | 396 | 398 | 78,127/78,127 |
+| 3 | 839 | 893 | 619 | 417 | 402 | 409 | 427 | 77,913/77,913 |
+| 4 | 892 | 693 | 651 | 436 | 413 | 422 | 456 | 77,956/77,956 |
+| 5 | 945 | 764 | 679 | 455 | 424 | 435 | 485 | 77,732/77,732 |
+| 6 | 717 | 835 | 590 | 474 | 435 | 448 | 347 | 77,923/77,923 |
+| 8 | 823 | 706 | 610 | 387 | 457 | 474 | 405 | 77,971/77,971 |
+| 9 | 876 | 777 | 625 | 406 | 468 | 487 | 434 | 77,732/77,732 |
+| 11 | 701 | 919 | 640 | 444 | 372 | 393 | 492 | 77,878/77,878 |
+
+At 256² F32 and seed 617333 + 13i, compare each pair of consecutive unwrapped draws in the calculated order. Render alternating pairs together, then shift by one to cover the other adjacencies. A separate field used the recorded copy counts of the [1,024 subtrees at seed 561067](#repeated-drawing-quadrants-and-full-batches-in-the-outer-pair). For each subtree k with c copies, move its first c − 80 selections to the edge using the same stride 23 and offset 7. At seed 617333 this gave another 75,742/75,742 exact comparisons. Across the ten fields all 777,298 comparisons agreed in both gain directions, maximum F32 readout error zero.
+
+For a full-image and save check, render the first control, the three e values and independent fields 4 and 9. Put each pair of markers at the same texel on a 128² grid, starting at (6,5) and advancing one column after each pair. Use both gain directions.
+
+| Field | Five marker pairs in traversal order |
+|---|---|
+| Group 50 only | (66559,20480), (76799,0), (71679,40960), (49479,2960), (48557,38555) |
+| e = 600, 620 or 679 | (30719,2560), (51199,25040), (25119,9240), (79359,23680), (44799,24560) |
+| 4 | (66559,20480), (76799,0), (71679,40960), (50177,15373), (30719,2560) |
+| 9 | (66559,20480), (76799,0), (71679,40960), (50112,15375), (30719,2560) |
+
+| Storage, size and seed | Original exact pixels | Reopened exact pixels | Maximum error on either |
+|---|---:|---:|---:|
+| U8, 64 × 128, 617513 | 98,304/98,304 | 98,304/98,304 | 0 |
+| U16, 128 × 64, 617521 | 98,304/98,304 | 98,304/98,304 | 0 |
+| F16, 256 × 128, 617537 | 393,216/393,216 | 393,216/393,216 | 0 |
+| F32, 128², 617491 | 196,608/196,608 | 196,608/196,608 | 0 |
+
+All 48 original renders and all 48 renders from the ordinary save match in full. Previously F32 matched 196,548/196,608 pixels, maximum error 2⁻²⁵ on each route.
+
+Use the same exposed Spots 1 v2 parameters at three independent seeds. U8, U16 and F16 each match all 2,048 pixels on one processor, eight processors and an ordinary save reopened on one. The following counts use the raw F32 buffers.
+
+| Size and seed | One processor, before → after | Reopened, before → after | Eight processors, before → after | Maximum after, one / eight |
+|---|---:|---:|---:|---:|
+| 32 × 16, 614019 | 497 → 506/512 | 497 → 506/512 | 477 → 479/512 | 2⁻²⁴ / 2⁻²⁴ |
+| 16 × 32, 614041 | 500 → 500/512 | 500 → 500/512 | 473 → 473/512 | 2⁻²⁴ / 2⁻²⁴ |
+| 32², 614063 | 989 → 1,019/1,024 | 989 → 1,019/1,024 | 945 → 949/1,024 | 2⁻²⁵ / 2⁻²³ |
+
+At seed 561067, the four separate eight-processor renders agreed at 435 of 512 positions. MaterialCraft matches 425/435 of those positions, previously 428/435. Across the four full captures it matches 464, 454, 475 and 469 pixels respectively, with maxima 2⁻²³, 2⁻²⁴, 2⁻²⁴ and 2⁻²³. Ten stable positions still differ. At seed 614019 the third half needs 87 copies and its first transferred child contains 85. The continuation across that boundary and the other two seeds remain open.
+
+The 86 original Spots 1 settings, 87 original Spots 1 v2 settings and 19 ordinary saves of each graph reproduced the preceding release's raw output digests on all 211 frames. The first graph gives 824,569/841,728 pixels on one processor, 776,831/841,728 on eight and 196,193/196,352 on reopening. The second gives 839,402/842,752, 830,541/842,752 and 137,715/139,008 respectively. In a separate four-setting F32 check at seeds 560971, 560983, 561019 and 561067, all 2,304/2,304 pixels are now exact on one processor and on reopening. On eight processors 2,146/2,304 match, maximum 2⁻²³. [Whole-root format counts and maximum errors](#completing-partial-copy-batches-above-inactive-quadrants) · [Exposed values for the four F32 settings](#tile-copies-in-the-last-two-active-quadrant-levels)
+
 ### Repeated drawing quadrants and full batches in the outer pair
 
 Start with the [original additive-square graph and its traversal numbering](#tile-copies-in-the-last-two-active-quadrant-levels). Keep both tiling axes and the connected, inactive descendants through depth ten. Between each depth-six quadrant and its children, insert an Iterate with an empty initial branch. On the depth-six branch offset, read the red channel of a 1024² procedural field at texel (256 + x, 512 + y). Here x and y are the 64² quadrant coordinates. Write an integer child count of two for a marked texel or one otherwise, then return a zero offset. Read that count in the Iterate. Each marked depth-six quadrant adds four depth-seven parents and sixteen depth-eight draws.
