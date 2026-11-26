@@ -59,6 +59,47 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-26 root comparisons
 
+### Two depth-seven draws at a stored rounding boundary
+
+At (30,57) in Noise BNW Spots 3, the two applications evaluate both contributing stamps to exactly the same F32 values. The order of their additions explains the one-level U16 difference. Use 64², scale 2, disorder .37, seed 42 and the other exposed defaults. Read the deep pattern directly with F32 storage. Its background is .5. Keep the pattern geometry and set the tints to zero on the depths outside the group under test. [Original and repeated whole-graph observations](#reusing-terminal-quadrant-properties-in-dense-rectangular-renders)
+
+| Active drawing depths | MaterialCraft at (30,57) | One-processor reference at (30,57) | Exact F32 pixels · maximum |
+|---|---:|---:|---:|
+| 6–9 | .4972076416015625 | .4972076117992401 | 3,586/4,096 · 1.19209290e−7 |
+| 6 and 7 | .4972076416015625 | .4972076117992401 | 3,918/4,096 · 1.19209290e−7 |
+| 8 and 9 | .5 | .5 | 3,831/4,096 · 1.19209290e−7 |
+| 6 alone | .5 | .5 | 4,036/4,096 · 5.96046448e−8 |
+| 7 alone | .4972076416015625 | .4972076117992401 | 4,042/4,096 · 5.96046448e−8 |
+
+On depth seven only, set the background to zero and replace its tint expression T in turn with max(T,0) and min(T,0). At the same pixel both applications produced +.00044396534212864935 and −.0032363433856517076. The positive control matched 4,091/4,096 and the negative control 4,087/4,096 across the full image, maximum 1.49011612e−8 in both. Starting at .5 and rounding each F32 add, positive first gives .4972076416015625, which stores as 32,585. Negative first gives .4972076117992401, which stores as 32,584. Applying the existing U16 storage rule to the F32 reference also reproduced all 4,092 invariant deep-stage U16 pixels in this setting and all 16,380 at the 128² default.
+
+Alternate seeds 42 and 43 between reads and compare only seed 42. The depth-seven pixel took the lower value in all five one-processor reads. On eight processors three reads gave the higher value and one the lower. There are 184 pixels with exactly two contributions whose order changes the result. On one processor, 123 consistently followed traversal, 11 consistently reversed it and 50 changed between reads. On eight, the counts were 87, 3 and 94. All the results at these pixels equal one of the two measured orders. Reversing the four root-child groups within each tree would improve the first capture by ten pixels but reduce agreement on the 3,996 invariant single-processor pixels from 3,979 to 3,977. The production renderer keeps the existing ordering.
+
+### Rectangular dirt-family settings recovered by the shared evaluator
+
+Revision `3d3aec1` renders seven previously blocked F32 settings in the next eleven open Dirt-family roots. Use the dimensions, seeds and parameters below, with all other exposed parameters at their defaults. Read the raw grayscale output. Save the graph normally in MaterialCraft and reopen the saved file directly in both applications for the last comparison.
+
+| Noise package | Dimensions · seed | Changed parameters | One processor · max | Eight processors · max | Ordinary save on one · max |
+|---|---|---|---:|---:|---:|
+| Dirt 3 | 128 × 32 · 433556 | scale 3, disorder 0.046875, non square expansion on | 4,067/4,096 · 5.96046448e−08 | 4,060/4,096 · 2.98023224e−08 | 4,065/4,096 · 5.96046448e−08 |
+| Dirt 4 | 16 × 32 · 0 | Defaults | 512/512 · 0 | 491/512 · 5.34057617e−05 | 512/512 · 0 |
+| Dirt 4 v2 | 16 × 32 · 299582 | Defaults | 512/512 · 0 | 512/512 · 0 | 512/512 · 0 |
+| Dirt 5 | 32 × 16 · 42 | scale 2, disorder 0.21875, non square expansion on | 512/512 · 0 | 512/512 · 0 | 512/512 · 0 |
+| Dirt 5 v2 | 32 × 16 · 42 | scale 2, disorder 0.21875, disorder speed 0.21875, disorder anisotropy 0.21875, disorder anisotropy angle -0.03125, tile offset (-0.125, 0.21484375), non square expansion on | 457/512 · 5.96046448e−08 | 457/512 · 2.98023224e−08 | 459/512 · 5.96046448e−08 |
+| Dirt Gradient | 512 × 128 · 433856 | disorder 0.671875, non square expansion on | 65,520/65,536 · 1.52587891e−05 | 65,517/65,536 · 1.52587891e−05 | 65,517/65,536 · 1.52587891e−05 |
+| Dirt Gradient v2 | 32 × 16 · 42 | disorder 0.21875, disorder speed 0.21875, disorder anisotropy 0.21875, disorder anisotropy angle -0.03125, non square expansion on | 361/512 · 2.98023224e−07 | 381/512 · 1.78813934e−07 | 357/512 · 2.98023224e−07 |
+
+Dirt 3 and Dirt Gradient each had two established rectangular settings left without an output. The U16 companion at 128 × 32, seed 433556, matches all 4,096 pixels on both processor counts. At 512 × 128, seed 433856, the U16 Dirt Gradient companion matches 65,520/65,536 on one and 65,510/65,536 on eight, both within one level. Together with the earlier 58 renders for each graph, all 60 established originals in both graphs now have measured outputs. [Earlier Dirt 3 settings](#compositing-a-single-seven-level-tree-through-pattern-controls) · [Earlier Dirt Gradient settings](#sixty-whole-settings-for-three-directional-and-dirt-noise-packages)
+
+The same release still exceeded its execution budget for the following F32 settings.
+
+| Noise package | Dimensions · seed | Changed parameters |
+|---|---|---|
+| Dirt 1 | 32 × 16 · 105430 | non square expansion on, disorder 0.8125, scale 2 |
+| Dirt 1 v2 | 32 × 16 · 105447 | disorder 0.8125, disorder anisotropy 0.625, scale 2, non square expansion on, tile offset (-0.3125, 0.4375), disorder anisotropy angle -0.21875, disorder speed 1.4375 |
+| Dirt 2 | 32 × 16 · 42 | scale 2, disorder 0.21875, non square expansion on |
+| Dirt 3 v2 | 128 × 32 · 433569 | scale 3, disorder 0.046875, disorder speed 0.046875, disorder anisotropy 0.046875, disorder anisotropy angle -0.203125, tile offset (-0.296875, 0.365234375), non square expansion on |
+
 ### Reused properties across adjacent groups of terminal quadrants
 
 Directional Noise 3 has produced images for 15 of its first 19 whole settings, up from seven. The eight additional settings below include two default seeds, two changed square sizes and one changed rectangle. The preceding release still exhausted the execution limit at 32², seed 113. On the current release the 256² default and the changed 128² graph at seed zero still exceed it. The 64 × 32 scale-two and 32² scale-three settings retain their earlier failures. The corresponding 32², seed 113 setting in Directional Noise 3 v2 was also checked on the current release and still exceeds the limit. [Initial nineteen settings](#discarding-pattern-stamps-that-miss-every-output-sample)
