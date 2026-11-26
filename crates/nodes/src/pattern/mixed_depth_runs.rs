@@ -220,6 +220,39 @@ fn tiled_pair_continuation(five_batches: bool) -> Vec<(usize, usize)> {
 static FIVE_BATCH_CONTINUATION: LazyLock<Vec<(usize, usize)>> = LazyLock::new(|| tiled_pair_continuation(true));
 static FOUR_BATCH_CONTINUATION: LazyLock<Vec<(usize, usize)>> = LazyLock::new(|| tiled_pair_continuation(false));
 
+// If the cut before parent 18,432 falls before parent 18,368, three
+// pending subtrees start before the later quadrant. The receiving cut at
+// parent 29,824 determines which half of that quadrant is still pending.
+fn receiving_pair_continuation(past_middle: bool) -> Vec<(usize, usize)> {
+    let mut ordered = PAIRED_GRANDCHILDREN.to_vec();
+    ordered.sort_unstable_by_key(|&(_, rank)| rank);
+    let mut ends = Vec::with_capacity(ordered.len());
+    for (end, _) in ordered {
+        match end {
+            // Physical batch ends can move into another 64-parent subtree.
+            28612 => ends.push(28545),
+            22276 => ends.push(22465),
+            18380 => ends.push(18305),
+            29832 if !past_middle => ends.push(29823),
+            30920 => ends.push(30849),
+            31056 => ends.push(if past_middle { 30977 } else { 31041 }),
+            // The first two unfinished batches now precede the receiving cut.
+            24576 => ends.extend([20480, 31873, end]),
+            30080 if !past_middle => ends.push(29888),
+            29952 if !past_middle => ends.extend([29824, end]),
+            24768 => ends.extend([22528, end]),
+            30144 => ends.extend([31936, if past_middle { end } else { 30080 }]),
+            // These parts moved above or joined the preceding full batch.
+            22528 | 24648 | 21068 | 20480 | 31936 | 30084 => {}
+            _ => ends.push(end),
+        }
+    }
+    continued_layout(&[], 0, &ends)
+}
+
+static FIRST_HALF_RECEIVER: LazyLock<Vec<(usize, usize)>> = LazyLock::new(|| receiving_pair_continuation(false));
+static SECOND_HALF_RECEIVER: LazyLock<Vec<(usize, usize)>> = LazyLock::new(|| receiving_pair_continuation(true));
+
 #[derive(Default)]
 pub(super) struct MixedDepthRuns {
     layout: &'static [(usize, usize)],
@@ -370,7 +403,13 @@ impl MixedDepthRuns {
                 layout = copies.layout(self.layout)?;
                 self.starts = copies.boundaries(&layout, self.draws_per_parent)?;
             } else {
-                let candidates = [FIVE_BATCH_CONTINUATION.as_slice(), FOUR_BATCH_CONTINUATION.as_slice(), self.layout];
+                let candidates = [
+                    FIVE_BATCH_CONTINUATION.as_slice(),
+                    FOUR_BATCH_CONTINUATION.as_slice(),
+                    FIRST_HALF_RECEIVER.as_slice(),
+                    SECOND_HALF_RECEIVER.as_slice(),
+                    self.layout,
+                ];
                 let (selected, bounds) =
                     candidates.into_iter().find_map(|candidate| copies.boundaries(candidate, self.draws_per_parent).map(|bounds| (candidate, bounds)))?;
                 layout = Cow::Borrowed(selected);

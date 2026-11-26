@@ -478,8 +478,9 @@ impl TileCopies {
             return self.subtree_ends.get(42).zip(self.subtree_ends.get(44)).is_some_and(|(&before, &after)| before < cut && cut < after);
         }
         if self.subtree_ends.len() == TWO_DEEP_TREES {
-            // The fifth batch can end exactly at the last copy of group 87.
-            if parents == 351 * DEPTH_FOUR_PARENTS + 1 {
+            // The fifth batch can fill group 87 exactly. A receiving batch
+            // can likewise fill exactly the first half of group 116.
+            if parents == 351 * DEPTH_FOUR_PARENTS + 1 || parents == 466 * DEPTH_FOUR_PARENTS - 1 {
                 return self.subtree_ends.get(subtree - 1).zip(self.subtree_ends.get(subtree)).is_some_and(|(&lower, &upper)| lower < cut && cut <= upper);
             }
             // The preceding batch and the later cut in group 120 can each

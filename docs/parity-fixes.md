@@ -59,6 +59,49 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-26 root comparisons
 
+### The receiving half of a quadrant in two tiled trees
+
+A batch of wrapped FX-Map draws can finish partway through a quadrant containing 256 parents. On either side of its halfway point, three unfinished subtrees return in a different order. The shared evaluator selects that order when the physical copy counts fit every measured subtree boundary.
+
+Open Noise Dirt 1 with ordinary graph tiling, scale 1 and non-square expansion enabled. Change disorder and seed as shown. Set the node supplying the grayscale output to F32. Save normally outside the package library and open that file directly in both applications. Each comparison gives exact pixels / pixels compared and maximum error.
+
+| Size · seed · disorder | Earlier on one processor | Corrected on one | Corrected on eight | Ordinary save on one |
+|---|---:|---:|---:|---:|
+| 64 × 32 · 649261 · 0.34375 | 1,991/2,048 · 5.96046448e-08 | 2,047/2,048 · 2.98023224e-08 | 1,971/2,048 · 5.96046448e-08 | 2,048/2,048 · 0 |
+| 128 × 64 · 649277 · 0.34375 | 8,009/8,192 · 1.1920929e-07 | 8,192/8,192 · 0 | 7,917/8,192 · 1.1920929e-07 | 8,192/8,192 · 0 |
+| 32 × 16 · 649503 · 0.53125 | 501/512 · 1.1920929e-07 | 501/512 · 1.1920929e-07 | 501/512 · 5.96046448e-08 | 501/512 · 1.1920929e-07 |
+| 64 × 32 · 649541 · 0.8125 | 2,017/2,048 · 5.96046448e-08 | 2,044/2,048 · 5.96046448e-08 | 1,989/2,048 · 1.1920929e-07 | 2,045/2,048 · 5.96046448e-08 |
+| 128 × 64 · 649603 · 0.21875 | 7,988/8,192 · 1.1920929e-07 | 7,988/8,192 · 1.1920929e-07 | 8,007/8,192 · 1.1920929e-07 | 7,986/8,192 · 1.1920929e-07 |
+
+The two rectangles at disorder .34375 moved from 10,000/10,240 · 1.1920929e-07 to 10,239/10,240 · 2.98023224e-08 on one processor. All 10,240 saved pixels matched. On three further one-processor reads, the 64 × 32 reference matched all 2,048 pixels each time. At 128 × 64 it matched 8,192, 8,184 and 8,192. Across the original, the save and the repeated one- and eight-processor reads, MaterialCraft matched all 1,940 and 7,792 invariant locations, respectively. The 64 × 32 image at disorder .8125 still differs at three of the 1,991 locations shared by its original one- and eight-processor reads.
+
+Repeat in U8, U16 and F16 at the [four earlier geometries](#four-full-batches-in-two-tiled-quadrant-trees) and the three extra seeds above. Each row covers seven original settings and seven ordinary saves. Integer errors are stored levels.
+
+| Format | Earlier on one | Corrected on one | Corrected on eight | Ordinary save on one |
+|---|---:|---:|---:|---:|
+| U8 | 31,232/31,232 · 0 | 31,232/31,232 · 0 | 31,231/31,232 · 1 | 31,232/31,232 · 0 |
+| U16 | 31,231/31,232 · 1 | 31,232/31,232 · 0 | 31,230/31,232 · 1 | 31,232/31,232 · 0 |
+| F16 | 31,232/31,232 · 0 | 31,232/31,232 · 0 | 31,232/31,232 · 0 | 31,232/31,232 · 0 |
+
+Repeat all 60 originals and 12 archived ordinary saves per graph in the [established Dirt series](#expanded-image-and-save-comparisons-for-dirt-1-and-dirt-2). Each cell gives exact whole settings / settings rendered and exact pixels / pixels compared.
+
+| Graph | Earlier originals on one | Corrected originals on one | Corrected originals on eight | Archived saves on one |
+|---|---:|---:|---:|---:|
+| Noise Dirt 1 | 41/60 · 780,815/785,664 | 41/60 · 780,815/785,664 | 32/60 · 779,996/785,664 | 8/12 · 147,514/149,504 |
+| Noise Dirt 2 | 53/60 · 785,657/785,664 | 53/60 · 785,657/785,664 | 51/60 · 785,650/785,664 | 11/12 · 149,503/149,504 |
+
+In U8 / U16 / F16 / F32 order, Dirt 1 maxima are 0 / 1 / 0 / 1.1920929e-07 on one processor, 0 / 1 / 0 / 1.1920929e-07 on eight and 0 / 0 / — / 1.1920929e-07 on the archived saves. Dirt 2 maxima are 0 / 2 / 6.10351562e-05 / 2.52053142e-05 on one processor, 0 / 2 / 0.000122070312 / 2.52090394e-05 on eight and 0 / 0 / — / 2.52053142e-05 on the archived saves.
+
+All 144 local raw buffers in the established series reproduce their earlier hashes. The three earlier tall F32 originals and saves still match 43,008/43,008 on one processor.
+
+Use the [two-tree field of additive squares](#four-full-batches-in-two-tiled-quadrant-trees). Per group of 64 parents, distribute extra wrapped leaves first by local Y then X. In groups 256, 309, 320, 428 and 488 add 189, 85, 169, 169 and 148 copies. In group 464 add successively 167, 168 and 169. Starting on white, give parent 28,996 a gain of −1 and parent 24,640 a gain of 2⁻²⁵. With 167 and 168 extra copies the reference returns 2⁻²⁵ and zero. The preceding release returned zero at 167. At 169 copies use parents 29,824 and 32,596 for the same two gains. Both applications give zero. Reversing the gains also verifies the draw order.
+
+Compare neighboring parents in three independent weighted fields, four independent perturbed fields and the three boundary fields. For the weighted fields use the [PCG64 procedure](#tiled-copies-across-two-complete-quadrant-trees) with seed 1388429, total copies drawn uniformly from 1,400 through 3,199, accepting candidates 1,813, 3,499 and 5,173 counted from each previous selection. Their totals are 1,570, 1,612 and 1,437. For the four perturbed fields use PCG64 seed 879131. From the five fixed group counts above, draw 512 integer offsets from −60 through 80, applying only those at nonzero groups. Add a random integer from 150 through 290 to group 464. Draw from 10 through 180 extra group indices uniformly with replacement. Within each group assign its copies to uniform parent indices with replacement. Reject fields with a parent above sixteen copies or a batch outside the measured receiving subtree. The four fields have 1,128, 1,190, 1,143 and 1,229 extra copies. All 262,136 signed adjacent comparisons matched. For the ten fields compare the two full images containing the even and odd neighboring pairs with opposing gains. The release matched 1,310,688/1,310,720 · 2.98023224e-08 on originals and 1,310,720/1,310,720 · 0 on ordinary saves. The 32 differing signed checks in the first weighted field all matched in two further original captures. A field in which the third pending subtree cannot fill the batch still has a different order.
+
+Noise Dirt 5 uses the same evaluator. Keep ordinary tiling and repeat the two .34375 rectangles above in all four formats. On one processor 6/8 · 40,958/40,960 match, on eight 4/8 · 40,949/40,960, and on ordinary saves 6/8 · 40,958/40,960. U8 matches at both sizes on all three routes. F16 matches both single-processor originals and saves. On eight processors it gives 2,048/2,048 and 8,190/8,192, maximum 2⁻¹⁴ at the larger size. At 128 × 64, the U16 / F32 maxima are 3 / 5.07831573e-05 on one, 4 / 5.08278608e-05 on eight and 3 / 5.07831573e-05 on the save. Add a second output exposing the upstream FX-Map alongside Levels. At (92,40), two one-processor captures give input 39,995 and U16 output 24,511. Two eight-processor captures give 39,994 and 24,508. Over eleven reads including these paired outputs, MaterialCraft matches all 8,187 invariant locations in each format. Each of its 8,192 pixels appears in at least one reference read of that format. In each format the one-processor original still differs at one pixel.
+
+All 572 node and evaluator release tests passed along with formatting, strict workspace Clippy, layers and WebAssembly checks.
+
 ### Four full batches in two tiled quadrant trees
 
 In a pair of complete depth-nine quadrant trees, the last wrapped copy can fill the fifth physical batch before parent 22,528. When only four batches fit, two pending subtrees start earlier. The fifth batch can also end exactly at its subtree boundary. Three additional Noise Dirt 1 settings exposed this difference in the shared FX-Map evaluator.

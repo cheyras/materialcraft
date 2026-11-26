@@ -822,8 +822,7 @@ fn extra_copies_of_leaves_can_move_a_parent_past_another_subtree() {
     }
 }
 
-#[test]
-fn the_last_tile_copy_in_a_batch_moves_the_following_two_tree_draws() {
+fn two_tree_copy_field_readout(negative: [i32; 2], small: [i32; 2], copies_in_group: impl Fn(u32) -> u32 + Sync) -> f32 {
     use craft_texture::Image;
 
     // The two banks hold one texel per terminal quadrant. Move the selected
@@ -843,34 +842,58 @@ fn the_last_tile_copy_in_a_batch_moves_the_following_two_tree_draws() {
     let center = frame.add("vector2", &[x, y], None);
     frame.output = Some(frame.add("sub", &[center, pos], None));
 
-    // Parent 29,819 and parent 22,269 both belong to the second iteration.
-    let mut graph = two_tree_parent_probe((1, [109, 71]), (1, [111, 30]), false);
+    let mut graph = two_tree_parent_probe((1, negative), (1, small), false);
     graph.nodes.last_mut().unwrap().parameters.insert("frameoffset".into(), Value::Function(Box::new(frame)));
+    let field = Image::gray(1024, 512, |x, y| {
+        let parent_x = x % 512 / 4;
+        let parent_y = y / 4;
+        let mut ordinal = (x / 512) * 16384;
+        for bit in 0..7 {
+            ordinal |= ((parent_x >> bit) & 1) << (2 * bit);
+            ordinal |= ((parent_y >> bit) & 1) << (2 * bit + 1);
+        }
+        let copies = copies_in_group(ordinal / 64);
+        let leaves = copies / 64 + u32::from(ordinal % 64 < copies % 64);
+        if (y % 4) * 4 + x % 4 < leaves { 0.0 } else { 0.875 }
+    });
+    let image = cook_probe_on_white(graph.clone(), 3, &[None, Some(field)]);
+    image.get_gray(32, 16, false)
+}
+
+#[test]
+fn the_last_tile_copy_in_a_batch_moves_the_following_two_tree_draws() {
+    // Parent 29,819 and parent 22,269 both belong to the second iteration.
     for (extra, expected) in [(167, f32::EPSILON * 0.25), (168, 0.0), (169, 0.0)] {
-        let field = Image::gray(1024, 512, |x, y| {
-            let parent_x = x % 512 / 4;
-            let parent_y = y / 4;
-            let mut ordinal = (x / 512) * 16384;
-            for bit in 0..7 {
-                ordinal |= ((parent_x >> bit) & 1) << (2 * bit);
-                ordinal |= ((parent_y >> bit) & 1) << (2 * bit + 1);
-            }
-            let copies = match ordinal / 64 {
-                213 => 46,
-                217 => 67,
-                312 | 419 => 85,
-                332 => extra,
-                372 => 171,
-                384 => 154,
-                464 => 36,
-                472 => 32,
-                _ => 0,
-            };
-            let leaves = copies / 64 + u32::from(ordinal % 64 < copies % 64);
-            if (y % 4) * 4 + x % 4 < leaves { 0.0 } else { 0.875 }
+        let value = two_tree_copy_field_readout([109, 71], [111, 30], |group| match group {
+            213 => 46,
+            217 => 67,
+            312 | 419 => 85,
+            332 => extra,
+            372 => 171,
+            384 => 154,
+            464 => 36,
+            472 => 32,
+            _ => 0,
         });
-        let image = cook_probe_on_white(graph.clone(), 3, &[None, Some(field)]);
-        assert_eq!(image.get_gray(32, 16, false), expected, "two-tree order with {extra} extra copies in subtree 332");
+        assert_eq!(value, expected, "two-tree order with {extra} extra copies in subtree 332");
+    }
+}
+
+#[test]
+fn a_receiving_tile_batch_can_cross_the_middle_of_its_quadrant() {
+    // Parents 28,996 and 24,640 exchange order when the next copy fills
+    // the first half of the receiving 256-parent quadrant.
+    // Parents 29,824 and 32,596 check the order once that half is full.
+    for (extra, negative, small, expected) in [(167, [90, 64], [8, 64], f32::EPSILON * 0.25), (168, [90, 64], [8, 64], 0.0), (169, [96, 72], [126, 112], 0.0)] {
+        let value = two_tree_copy_field_readout(negative, small, |group| match group {
+            256 => 189,
+            309 => 85,
+            320 | 428 => 169,
+            464 => extra,
+            488 => 148,
+            _ => 0,
+        });
+        assert_eq!(value, expected, "receiving quadrant with {extra} copies on its first subtree");
     }
 }
 
