@@ -73,6 +73,7 @@ enum Continuation {
     None,
     EmptySwitch,
     InactiveBranch(u32),
+    SingleTree,
     RoutedIteration(PatternNodeKind),
 }
 
@@ -129,7 +130,8 @@ fn marked_tree_pixel(
     let root = graph.add(PatternNodeKind::Quadrant).unwrap();
     graph.nodes[(iterate - 1) as usize].children[1] = Some(root);
     if marker_iterations.is_some() || wrap_iteration.is_some() {
-        graph.nodes[(iterate - 1) as usize].parameters.insert("numberadded".into(), set_then_return("tree_index", Value::Float(0.0), Value::Int(2)));
+        let count = if matches!(continuation, Continuation::SingleTree) { 1 } else { 2 };
+        graph.nodes[(iterate - 1) as usize].parameters.insert("numberadded".into(), set_then_return("tree_index", Value::Float(0.0), Value::Int(count)));
         graph.nodes[(root - 1) as usize].parameters.insert("branchoffset".into(), advance_tree_offset());
     }
     let end = matches!(continuation, Continuation::EmptySwitch).then(|| graph.add(PatternNodeKind::Switch).unwrap());
@@ -176,7 +178,7 @@ fn marked_tree_pixel(
     }
     let inactive_depth = match continuation {
         Continuation::InactiveBranch(depth) => Some(depth),
-        Continuation::RoutedIteration(_) => Some(10),
+        Continuation::SingleTree | Continuation::RoutedIteration(_) => Some(10),
         _ => None,
     };
     if let Some(depth) = inactive_depth {
@@ -279,6 +281,23 @@ fn later_full_batches_reach_subsequent_collecting_quadrants() {
         let pixel = marked_tree_pixel(negative, positive, Continuation::InactiveBranch(10), &[], Some(passes), None);
         assert_eq!(pixel.to_bits(), 2.0_f32.powi(-25).to_bits());
     }
+}
+
+#[test]
+fn a_single_tree_drains_the_middle_quadrant_before_the_carried_pair() {
+    let sample = |negative, positive| marked_tree_pixel((3, negative), (3, positive), Continuation::SingleTree, &[], Some([1, 1]), None);
+    assert_eq!(sample(60, 52).to_bits(), 2.0_f32.powi(-25).to_bits());
+    assert_eq!(sample(52, 60).to_bits(), 0);
+}
+
+#[test]
+fn pending_quadrants_finish_after_the_last_full_batches() {
+    for ordinal in [336, 592] {
+        let sample = marked_tree_pixel((5, ordinal), (5, 80), Continuation::InactiveBranch(10), &[624], Some([2, 2]), Some(1));
+        assert_eq!(sample.to_bits(), 2.0_f32.powi(-25).to_bits());
+    }
+    let upper = marked_tree_pixel((5, 896), (5, 768), Continuation::InactiveBranch(10), &[624], Some([2, 2]), Some(1));
+    assert_eq!(upper.to_bits(), 2.0_f32.powi(-25).to_bits());
 }
 
 #[test]

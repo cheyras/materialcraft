@@ -59,6 +59,33 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-25 root comparisons
 
+### Final copy batches in one and two quadrant trees
+
+Start with the [eight-level overlapping squares](#remaining-siblings-at-a-full-quadrant-copy-batch) and keep the inactive depth-ten branch. Give ordinary squares gain 2⁻⁷⁶ on a white background. Move two selected squares to the center of pixel (8,8) at 32² with gains −1 and 2⁻²⁵. For one pass, use depth-three quadrants 60 and 52 in traversal order. The reference value is 2⁻²⁵. Exchanging the gains gives zero. Once the last full batch submits, each producer with a partially filled batch keeps its remaining draw ranges together. The previous traversal separated the middle producer's ranges from the later pair. [Shared copy ranges](../crates/nodes/src/pattern/underfilled_quadrants/carried.rs)
+
+For two passes, move the 64 final squares under first-pass depth-five quadrant 624 to the tile corner. Compare second-pass depth-five quadrants 336 and 80, 592 and 80, then 896 and 768. Each reference marker reads 2⁻²⁵. A pending sibling can belong entirely to the next pair, leaving an empty intersection with the current pair. When both carried pairs have no pending sibling, both full batches submit before the final child. A receiving group that fills another 5,460 copies can change this order and remains open. Both the one- and two-pass regressions failed before their respective corrections. [Sibling transfers](../crates/nodes/src/pattern/underfilled_quadrants/remaining.rs) · [Procedural regression graphs](../crates/nodes/src/pattern/tests/underfilled_quadrants.rs)
+
+The following independently authored graphs use the four output formats of the linked square fixture. Each reopened count compares an ordinary MaterialCraft save with the reference app. The final column gives the largest absolute error across originals and reopens.
+
+| Controls | Graphs | Previous original | Current original | Reopened | Maximum |
+|---|---:|---:|---:|---:|---:|
+| One-pass and second-pass controls | 9 | 36,837/36,864 | 36,864/36,864 | 36,864/36,864 | 0 |
+| Carried depth-five markers | 6 | 24,570/24,576 | 24,575/24,576 | 24,575/24,576 | 2⁻²⁵ |
+| Carried depth-three markers | 9 | 36,783/36,864 | 36,819/36,864 | 36,828/36,864 | 2⁻²⁵ |
+| Lower, upper and last pairs at depth five | 6 | 24,570/24,576 | 24,574/24,576 | 24,574/24,576 | 2⁻²⁵ |
+| Earlier and later sibling transfers | 11 | 45,008/45,056 | 45,029/45,056 | 45,029/45,056 | 2⁻²⁵ |
+
+Across 86 complete Spots 1 settings, thirteen additional one-processor frames become exact, including eleven F32 and two U16 frames. All 64 exact frames are included below. The one-processor total gains 3,098 exact pixels. Eight-processor agreement falls by 415 pixels, with three frames improving, nine declining and 38 exact. The 19 ordinary saves retain their previous scores, including 16 exact frames. [Preceding counts](#remaining-siblings-at-a-full-quadrant-copy-batch)
+
+| Storage | One processor · exact pixels · maximum | Eight processors · exact pixels · maximum | Reopened · exact pixels · maximum |
+|---|---:|---:|---:|
+| U8 | 108,800/108,800 · 0 | 108,799/108,800 · 1 | 90,112/90,112 · 0 |
+| U16 | 328,398/328,448 · 1 | 328,243/328,448 · 1 | 93,693/93,696 · 1 |
+| F16 | 108,800/108,800 · 0 | 108,798/108,800 · .00048828125 | 6,400/6,400 · 0 |
+| F32 | 278,260/295,680 · 2.38418579e−07 | 231,026/295,680 · 3.57627869e−07 | 5,986/6,144 · 1.1920929e−07 |
+
+At 16 × 32 and seed zero, all four original and all four reopened F32 captures now match 512/512, up from 490/512, with maximum zero. At 64 × 32 the four original reads still give 1,695/1,832 invariant pixels and the four reopened reads give 1,587/1,679. For independent one-pass F32 settings, disable non-square expansion, set scale 1 and use (width, height, seed, disorder, roughness) of (16,32,395161,0,1), (64,64,395846,.9375,.21875) and (64,128,395983,.5625,.5625). All 12,800/12,800 original and 12,800/12,800 reopened pixels match, maximum zero. The additional (32,32,395435,.375,.875) and (64,32,395572,.8125,.4375) cases remain at 968/1,024 and 1,991/2,048 on both the original and the save. The second version of Spots 1 retains every measured digest across 87 originals and 19 saves, scoring 831,506/842,752 on one processor, 831,311/842,752 on eight and 137,715/139,008 on the saves. [Second-version settings and errors](#full-copy-batches-spanning-successive-quadrant-trees)
+
 ### Interior routes between terminal quadrants
 
 In the [three-level terminal square graph](#outer-routes-into-the-final-three-active-quadrant-levels), insert a Dot on the first child at depth 1, 3 or 8 of a two-pass tree. Repeat with a Switch at depth 3 or 8, connecting both choices to the original child. Also test a single pass with a Dot at depth 4 and four passes with a Switch at depth 7. The renderer now checks the quadrants reached through each route. The previous depth-zero restriction discarded the terminal draw order at the first interior route. The two-pass F32 regression failed before this change. [Traversal](../crates/nodes/src/pattern/terminal_quadrants.rs) · [Regression graph](../crates/nodes/src/pattern/tests/terminal_quadrants.rs)
