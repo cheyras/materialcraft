@@ -59,6 +59,26 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-26 root comparisons
 
+### Individual drawing depths at a Dirt 1 rounding boundary
+
+Revision `3f984f7` reproduced the [complete Dirt 1 and Dirt 2 comparison](#complete-render-coverage-for-the-two-fixed-image-dirt-graphs) on the same release binary. For each graph the 58 earlier originals and 11 earlier ordinary saves reproduced their local raw hashes. The two remaining originals and the remaining archived save were already measured on this binary. All 144 original and reopened results have the exact counts and maximum errors previously recorded.
+
+Open Noise Dirt 1 at 128 × 256, seed 433665, scale 1, disorder .8125 and non-square expansion enabled. Leave other parameters at their defaults. Render U16 and F32 twice on one and eight processors, reversing their format order for the second pair. Save normally, open that file in both applications and render both formats on one processor. Include the two earlier originals for seven reference reads of each format.
+
+In U16, six comparisons give 32,764/32,768 exact pixels and the archived eight-processor comparison gives 32,762/32,768. Each maximum is one code. Of the 32,764 locations with the same reference code in every read, MaterialCraft matches 32,762. The stable differences are at (59,61) and (42,230). All 32,768 local U16 codes agree with conversion from local F32. The original and normal save give identical local buffers in both formats. In F32, 31,145 pixels are invariant across the seven reads and 31,093 of those match.
+
+To isolate (59,61), keep the procedural 32² source and the outer iteration, switch, branch offsets, sizes and seed streams. Silence excluded drawing levels individually with a literal zero grayscale tint. Use the same F32 format and one processor for each graph. The unmodified control matches all 32,768 pixels of the original reference capture, maximum zero.
+
+| Active depths | Exact pixels | Maximum error | MaterialCraft at (59,61) | Reference at (59,61) |
+|---|---:|---:|---:|---:|
+| 7 | 32,726/32,768 | 5.96046448e-08 | 0.2156563848 | 0.2156563848 |
+| 8 | 32,717/32,768 | 5.96046448e-08 | 0.3543898463 | 0.3543898463 |
+| 9 | 32,726/32,768 | 2.98023224e-08 | 0.05112567171 | 0.05112567171 |
+| 7 and 8 | 32,499/32,768 | 1.1920929e-07 | 0.5700462461 | 0.5700461864 |
+| 7, 8 and 9 | 32,050/32,768 | 1.1920929e-07 | 0.6211718917 | 0.6211719513 |
+
+At (59,61), each isolated level agrees exactly. The whole graph yields 40,708 in MaterialCraft and 40,709 on all seven U16 reference reads. Adding the three separate F32 level images in each of the six possible orders gives .6211718917 here. Taking the reference image for levels seven and eight together, then adding level nine, gives .6211718321. The whole reference result is .6211719513. Recovering the order of individual overlapping draws remains open.
+
 ### Complete render coverage for the two fixed-image Dirt graphs
 
 Noise Dirt 1 and Noise Dirt 2 each now render all 60 originals and all 12 ordinary saves in their established series. Repeat the [two scale-3 rectangles](#expanded-image-and-save-comparisons-for-dirt-1-and-dirt-2) at 128 × 32. Use disorder .046875, non-square expansion on and all other controls at their defaults. Run each in U16 and F32. Save each graph normally and open the saved file directly in both applications. Also repeat the F32 comparison on the earlier ordinary save.
