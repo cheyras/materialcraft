@@ -59,6 +59,43 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-26 root comparisons
 
+### Reused properties across adjacent groups of terminal quadrants
+
+Directional Noise 3 has produced images for 15 of its first 19 whole settings, up from seven. The eight additional settings below include two default seeds, two changed square sizes and one changed rectangle. The preceding release still exhausted the execution limit at 32², seed 113. On the current release the 256² default and the changed 128² graph at seed zero still exceed it. The 64 × 32 scale-two and 32² scale-three settings retain their earlier failures. The corresponding 32², seed 113 setting in Directional Noise 3 v2 was also checked on the current release and still exceeds the limit. [Initial nineteen settings](#discarding-pattern-stamps-that-miss-every-output-sample)
+
+For the 128² renders, leave all parameters at their defaults. For the 32² and 64² changed renders, set scale 2, disorder .37, angle .125 and angle random .2. For the 64 × 32 F16 case use scale 1, non-square expansion on, disorder zero and both angles zero. Leave every other control at its default. Read the grayscale output at the indicated precision. In the last column save normally in MaterialCraft and reopen in each application.
+
+| Size and seed | Format | Original, one processor · max | Original, eight processors · max | Ordinary save, one processor · max |
+|---|---|---:|---:|---:|
+| 128², 0 | U16 | 16,342/16,384 · 2 | 16,339/16,384 · 2 | 16,342/16,384 · 2 |
+| 128², 42 | U16 | 16,346/16,384 · 2 | 16,342/16,384 · 2 | — |
+| 32², 113 | F32 | 1,014/1,024 · 2.50339508e−05 | 1,023/1,024 · 2.53617764e−05 | 1,014/1,024 · 2.53617764e−05 |
+| 64², 42 | U8 | 4,096/4,096 · 0 | 4,096/4,096 · 0 | 4,096/4,096 · 0 |
+| 64², 42 | U16 | 4,071/4,096 · 2 | 4,087/4,096 · 2 | — |
+| 64², 42 | F16 | 4,095/4,096 · 0.000244140625 | 4,096/4,096 · 0 | — |
+| 64², 42 | F32 | 4,073/4,096 · 2.7358532e−05 | 4,088/4,096 · 2.62260437e−05 | — |
+| 64 × 32, 103861 | F16 | 2,048/2,048 · 0 | 2,048/2,048 · 0 | — |
+
+The eight recovered originals match 52,085/52,224 pixels on one processor and 52,119/52,224 on eight. The three ordinary saves match 21,452/21,504 on one. Each saved MaterialCraft buffer is bit-identical to its original. At 32², the original and reopened reference captures themselves agree on 1,022/1,024, with maximum error 2.53617764e−05.
+
+The deepest pattern at 32² traverses four depth-ten trees, totaling 5,592,404 quadrant visits. Each depth-nine parent has four terminal draws. A replay of the four incoming seeds under the property cache found 807,299 hits, concentrated in 342,193 of 1,048,576 terminal sibling groups. The previous accounting credited only the first reused miss in each group. Even if every draw missed, it required at least 2,104,483 charges against 2,097,152 available. The evaluator now counts each cached terminal draw that misses every sample once. It can spend that saving on the first discard of a later sibling group. Parents and visible draws still pay separately. The evaluator allows at most 5,242,880 full property evaluations and 1,048,576 retained stamps. Raster work is capped at 256,000,000 candidate pixels. [Quadrant evaluator](../crates/nodes/src/pattern/evaluation.rs)
+
+For an independent regression, connect the initial branch of an Iterate to a .375 square. Repeat a second branch 34 times. Give it two children, each with four references to a 1/64-size square. On the first set of leaves, disable seed inheritance and use a random tint scaled by .5. On the second set use a constant .25 tint. The 4² Rust test previously exhausted its 64 visits. All 16 output values now equal .375. Moving the cached leaves onto samples still reaches the limit. [Regression and visible-draw control](../crates/nodes/src/pattern/tests.rs)
+
+For desktop readback, use a .125 background, roughness zero, opacity one and additive squares. Set both parents and both leaves to 1/64 size. Render with leaf offsets (1/16, 1/16), then (1/32, 1/32). Use 16², seed 19 and 32 × 16, seed 113, and repeat at U8, U16, F16 and F32. All 6,144 original and 6,144 ordinary-save pixels matched the one-processor reference, maximum zero, and reproduced the previous MaterialCraft buffers exactly. Moving the squares produced three distinct F32 levels at 16². All 559 node and evaluator release tests, formatting, strict workspace Clippy, layer checks and WebAssembly checks passed.
+
+### Complete render coverage in the second version of Directional Noise 1
+
+Directional Noise 1 v2 now renders all 60 established originals and all 12 ordinary saves. Four 64 × 32 originals and their U8 save previously reached the execution budget. These buffers were measured on revision `ac8706a`. Set seed 194938, scale 3, disorder, disorder speed, disorder anisotropy and angle random .34375, disorder anisotropy angle and angle .09375, tile offset (0, .10546875) and non-square expansion on. The U8 and F16 originals each match 2,048/2,048 pixels on both processor counts, maximum zero. U16 matches 2,045/2,048 on one processor and 2,044 on eight, maximum one level. F32 matches 1,222/2,048 and 1,229/2,048, maximum errors 2.38418579e−7 and 1.78813934e−7 respectively. The U8 ordinary save matches 2,048/2,048, maximum zero. [Established settings and save procedure](#sixty-whole-settings-for-three-directional-and-dirt-noise-packages)
+
+| Comparison | Exact frames | U8 exact / total · max | U16 exact / total · max | F16 exact / total · max | F32 exact / total · max |
+|---|---:|---:|---:|---:|---:|
+| Original, one processor | 20/60 | 137,469/137,472 · 1 | 251,336/251,648 · 1 | 90,360/90,368 · 0.00048828125 | 147,168/254,976 · 4.17232513e−07 |
+| Original, eight processors | 24/60 | 137,472/137,472 · 0 | 251,387/251,648 · 1 | 90,357/90,368 · 0.00048828125 | 153,836/254,976 · 4.17232513e−07 |
+| Ordinary save, one processor | 4/12 | 30,719/30,720 · 1 | 6,389/6,400 · 1 | 1,024/1,024 · 0 | 45,629/84,992 · 4.17232513e−07 |
+
+Across all settings, 626,333/734,464 original pixels match on one processor, 633,052/734,464 on eight and 83,761/123,136 after reopening on one. The F32 differences keep this root open.
+
 ### Sample coverage of narrow and circular quadrant stamps
 
 Noise BNW Spots 3 v2 now renders the 128 × 512 original in U16 and F32 and the ordinary F32 save. On the preceding release and on a trial that reused writable terminal properties, these settings exceeded the execution budget. Set scale 2, disorder, disorder speed and anisotropy .53125, anisotropy angle .28125, tile offset (.1875, −.05859375), non-square expansion off and seed 411890. Leave other controls at their defaults. Compare the grayscale output at its stored precision. Save the graph in MaterialCraft and reopen it in each application for the last column. [Previous dense settings and saved cases](#recovered-settings-in-the-second-version-of-the-third-spots-graph)

@@ -44,7 +44,6 @@ fn reusable_leaf(node: &PatternNode, programs: &PropertyPrograms, assigned: &BTr
 struct TerminalSiblings {
     stack: usize,
     discarded: bool,
-    reused: bool,
 }
 
 fn quadrant_mode(kind: PatternNodeKind, name: &str) -> bool {
@@ -278,6 +277,7 @@ fn evaluate(context: &CookContext, base_level_only: &[bool], visit_limit: usize,
     let mut max_depth = 0;
     let mut state = EvaluationState::default();
     let mut terminal_siblings: Option<TerminalSiblings> = None;
+    let mut reused_terminal_misses = 0_usize;
     let mut remaining = visit_limit;
     let mut discard_allowance = visit_limit;
     let mut full_evaluations = visit_limit.saturating_mul(5);
@@ -518,7 +518,7 @@ fn evaluate(context: &CookContext, base_level_only: &[bool], visit_limit: usize,
                         // properties and failed the sample-grid test in the original draw order.
                         if let Some(siblings) = &mut terminal_siblings {
                             siblings.discarded = true;
-                            siblings.reused |= reused;
+                            reused_terminal_misses = reused_terminal_misses.saturating_add(usize::from(reused));
                             remaining += 1;
                         } else {
                             discarded_draw = true;
@@ -529,7 +529,7 @@ fn evaluate(context: &CookContext, base_level_only: &[bool], visit_limit: usize,
                 }
 
                 if quadrant_children == QuadrantChildren::AllTerminal {
-                    terminal_siblings = Some(TerminalSiblings { stack: pending.len(), discarded: false, reused: false });
+                    terminal_siblings = Some(TerminalSiblings { stack: pending.len(), discarded: false });
                 }
                 if quadrant_children != QuadrantChildren::None {
                     let mut child_random = visit.seed;
@@ -612,11 +612,13 @@ fn evaluate(context: &CookContext, base_level_only: &[bool], visit_limit: usize,
             && terminal_siblings.as_ref().is_some_and(|siblings| pending.len() == siblings.stack)
             && let Some(siblings) = terminal_siblings.take()
             && siblings.discarded
-            && !siblings.reused
         {
-            // A parent covers its terminal misses when a repeated property evaluation
-            // was avoided. Otherwise charge the first discard once all siblings finish.
-            if discard_allowance > 0 {
+            // Each skipped property evaluation pays for one group's first discarded draw.
+            // Sibling groups can reuse different numbers of stamps. Parents and visible
+            // stamps still pay for their own visits, and full evaluations stay bounded.
+            if reused_terminal_misses > 0 {
+                reused_terminal_misses -= 1;
+            } else if discard_allowance > 0 {
                 discard_allowance -= 1;
             } else {
                 remaining = remaining.checked_sub(1).ok_or("pattern graph exceeded its execution budget")?;

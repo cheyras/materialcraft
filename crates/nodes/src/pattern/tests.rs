@@ -1891,6 +1891,42 @@ fn terminal_quadrants_charge_the_first_discard_of_each_sibling_group() {
 }
 
 #[test]
+fn repeated_terminal_misses_cover_uncached_misses_in_the_next_branch() {
+    let mut graph = PatternGraph::with_root(PatternNodeKind::Iterate);
+    let marker = graph.add(PatternNodeKind::Quadrant).unwrap();
+    let pair = graph.add(PatternNodeKind::Quadrant).unwrap();
+    let first = graph.add(PatternNodeKind::Quadrant).unwrap();
+    let second = graph.add(PatternNodeKind::Quadrant).unwrap();
+    let cached = graph.add(PatternNodeKind::Quadrant).unwrap();
+    let uncached = graph.add(PatternNodeKind::Quadrant).unwrap();
+    graph.nodes[0].children = vec![Some(marker), Some(pair)];
+    graph.nodes[0].parameters.insert("numberadded".into(), Value::Int(34));
+    square(&mut graph, 1);
+    graph.nodes[1].parameters.insert("opacity".into(), Value::Float(0.375));
+    graph.nodes[2].children = vec![Some(first), Some(second), None, None];
+    graph.nodes[3].children.fill(Some(cached));
+    graph.nodes[4].children.fill(Some(uncached));
+    for node in &mut graph.nodes[3..] {
+        node.parameters.insert("patterntype".into(), Value::Int(2));
+        node.parameters.insert("patternsize".into(), Value::Float2([0.015625; 2]));
+    }
+    // Both sets of leaves fall between sample centers. Only the first set can reuse its properties.
+    for node in &mut graph.nodes[5..] {
+        node.parameters.insert("frameoffset".into(), Value::Float2([0.0625; 2]));
+    }
+    let mut tint = FunctionGraph::default();
+    let gain = tint.add_constant(Value::Float(0.5));
+    tint.output = Some(tint.add("rand", &[gain], None));
+    graph.nodes[5].parameters.insert("randominherited".into(), Value::Bool(false));
+    graph.nodes[5].parameters.insert("opacity".into(), Value::Function(Box::new(tint)));
+    assert_eq!(render_with_visit_limit(&graph, 64).unwrap()[0].data(), &[0.375; 16]);
+
+    // The cached leaf still pays for every retained draw when moved onto the samples.
+    graph.nodes[5].parameters.insert("frameoffset".into(), Value::Float2([0.0; 2]));
+    assert!(render_with_visit_limit(&graph, 64).unwrap_err().contains("execution budget"));
+}
+
+#[test]
 fn repeated_terminal_properties_leave_room_for_their_visible_siblings() {
     let mut graph = PatternGraph::with_root(PatternNodeKind::Iterate);
     let marker = graph.add(PatternNodeKind::Quadrant).unwrap();
