@@ -26,12 +26,21 @@ enum QuadrantChildren {
 type PatternNodes<'a> = BTreeMap<u32, (&'a PatternNode, bool, QuadrantChildren)>;
 type PropertyPrograms<'a> = BTreeMap<(u32, &'a str), (Program, BTreeMap<String, ValueType>)>;
 
-fn reusable_leaf(node: &PatternNode, programs: &PropertyPrograms, assigned: &BTreeSet<&str>) -> bool {
-    let Some(shape @ 2..=18) = node.parameters.get("patterntype").and_then(Value::as_i32) else { return false };
+fn reusable_leaf(node: &PatternNode, programs: &PropertyPrograms, assigned: &BTreeSet<&str>, grayscale: bool) -> bool {
+    let Some(shape) = node.parameters.get("patterntype").and_then(Value::as_i32) else { return false };
+    let image = image_pattern(shape);
+    if !(2..=18).contains(&shape) && !(grayscale && image) {
+        return false;
+    }
     let mut computed = false;
     let Some(definition) = catalog::definition(node.kind) else { return false };
     for name in definition.params.iter().map(|p| p.id).filter(|name| uses_property(node.kind, name, shape)) {
         if let Some((program, _)) = programs.get(&(node.id, name)) {
+            // A fixed-image entry stores the branch offset, size and grayscale tint.
+            // Every other field, including the selected slot, must be constant for this leaf.
+            if image && !matches!(name, "branchoffset" | "patternsize" | "opacity") {
+                return false;
+            }
             if matches!(name, "patterntype" | "randomseed" | "randominherited") || !stamp_cache::reusable(program, assigned) {
                 return false;
             }
@@ -296,9 +305,10 @@ fn evaluate(context: &CookContext, base_level_only: &[bool], visit_limit: usize,
         };
         nodes.insert(node.id, (node, literal_geometry, quadrant_children));
     }
+    let grayscale = !context.b("color_mode");
     let assigned = functions.values().flat_map(|(_, names)| names.keys().map(String::as_str)).collect();
     let reusable_leaves: BTreeSet<_> =
-        graph.nodes.iter().filter(|n| terminal_nodes.contains(&n.id) && reusable_leaf(n, &functions, &assigned)).map(|n| n.id).collect();
+        graph.nodes.iter().filter(|n| terminal_nodes.contains(&n.id) && reusable_leaf(n, &functions, &assigned, grayscale)).map(|n| n.id).collect();
     let mut stamp_cache = StampCache::default();
 
     let image_slots: Vec<_> =
@@ -327,11 +337,10 @@ fn evaluate(context: &CookContext, base_level_only: &[bool], visit_limit: usize,
     let mut discard_allowance = visit_limit;
     let mut full_evaluations = visit_limit.saturating_mul(5);
     let mut cached_stream_allowance = visit_limit;
-    let mut evaluated_stamps = 0;
+    let mut accounted_stamps = 0;
     let stream_chunk = (visit_limit / 4).clamp(1, 4_096);
     let mut uniform_order = None;
     let mut raster_work = raster::RasterWork::new();
-    let grayscale = !context.b("color_mode");
     let mut repeated_roots = None;
     let mut repeated_six_level: Option<super::repeated_six_level::RepeatedSixLevelRuns> = None;
     let mut terminal_quadrants = (grayscale && opacity_depth == 8 && !context.b("cull_outside")).then(super::terminal_quadrants::TerminalQuadrants::default);
@@ -482,7 +491,9 @@ fn evaluate(context: &CookContext, base_level_only: &[bool], visit_limit: usize,
                 }
                 let offset = cached.as_ref().map_or_else(|| vector("branchoffset"), |properties| properties.branch_offset);
                 visit.center = [visit.center[0] + offset[0], visit.center[1] + offset[1]];
-                if image_pattern {
+                if let Some(properties) = &cached {
+                    pattern = properties.stamp.pattern;
+                } else if image_pattern {
                     let requested = integer("imageindex");
                     let slot = if functions.get(&(node.id, "imageindex")).is_some_and(|(program, _)| !program.uses_fixed_image_slot(&variables.drawing)) {
                         // Even a stamp with empty coverage establishes the wired order for the other image draws.
@@ -529,7 +540,11 @@ fn evaluate(context: &CookContext, base_level_only: &[bool], visit_limit: usize,
                             premultiplied: field("imagepremul").and_then(Value::as_bool).unwrap_or(false),
                         };
                         if let Some(key) = cache_key {
-                            stamp_cache.insert(key, stamp_cache::Properties { branch_offset: offset, stamp: stamp.clone() });
+                            stamp_cache.insert(
+                                key,
+                                stamp_cache::Properties { branch_offset: offset, stamp: stamp.clone() },
+                                image_pattern && raster_work.streaming,
+                            );
                         }
                         stamp
                     };
@@ -573,7 +588,9 @@ fn evaluate(context: &CookContext, base_level_only: &[bool], visit_limit: usize,
                             discarded_draw = true;
                         }
                     } else {
-                        evaluated_stamps += usize::from(!reused);
+                        // A fully evaluated quadrant schedules at most four terminal children.
+                        // Its visit bounds their cache reads when their retained draws are released.
+                        accounted_stamps += usize::from(!reused || terminal_siblings.is_some());
                         stamps.push(stamp);
                     }
                 }
@@ -690,16 +707,15 @@ fn evaluate(context: &CookContext, base_level_only: &[bool], visit_limit: usize,
             && repeated_six_level.is_none()
             && *uniform_order.get_or_insert_with(|| uniform_deep_draws(graph.root, &nodes))
         {
-            // Full property evaluations already consume cook-wide work. A cached draw instead
-            // uses a bounded credit when its retained storage is released.
-            let cached_credit = (stamps.len() - evaluated_stamps).min(cached_stream_allowance);
+            // Other cached draws, including direct repetitions, have a separate bounded allowance.
+            let cached_credit = (stamps.len() - accounted_stamps).min(cached_stream_allowance);
             raster_work.streaming = true;
             let group = [super::pattern_stamp::DrawRun::whole(&stamps)];
             let image = raster::render(context, &group, &opacities, nonfinite_gray_opacity, base_level_only, runtime_image_selector, &mut raster_work)?;
             raster_work.background = Some(image);
             cached_stream_allowance -= cached_credit;
-            remaining = remaining.saturating_add(evaluated_stamps + cached_credit);
-            evaluated_stamps = 0;
+            remaining = remaining.saturating_add(accounted_stamps + cached_credit);
+            accounted_stamps = 0;
             stamps.clear();
         }
         if children.len() + pending.len() + usize::from(repeated.is_some()) > remaining {

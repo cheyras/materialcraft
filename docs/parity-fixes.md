@@ -59,6 +59,36 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-26 root comparisons
 
+### Complete render coverage for the two fixed-image Dirt graphs
+
+Noise Dirt 1 and Noise Dirt 2 each now render all 60 originals and all 12 ordinary saves in their established series. Repeat the [two scale-3 rectangles](#expanded-image-and-save-comparisons-for-dirt-1-and-dirt-2) at 128 × 32. Use disorder .046875, non-square expansion on and all other controls at their defaults. Run each in U16 and F32. Save each graph normally and open the saved file directly in both applications. Also repeat the F32 comparison on the earlier ordinary save.
+
+| Root · seed · storage | One processor · maximum | Eight processors · maximum | Fresh ordinary save, one processor · maximum | Earlier ordinary save, one processor · maximum |
+|---|---:|---:|---:|---:|
+| Noise Dirt 1 · 433517 · U16 | 4,096/4,096 · 0 | 4,096/4,096 · 0 | 4,096/4,096 · 0 | — |
+| Noise Dirt 1 · 433517 · F32 | 4,009/4,096 · 5.96046448e−08 | 4,009/4,096 · 5.96046448e−08 | 4,010/4,096 · 5.96046448e−08 | 4,010/4,096 · 5.96046448e−08 |
+| Noise Dirt 2 · 433543 · U16 | 4,096/4,096 · 0 | 4,096/4,096 · 0 | 4,096/4,096 · 0 | — |
+| Noise Dirt 2 · 433543 · F32 | 4,096/4,096 · 0 | 4,096/4,096 · 0 | 4,096/4,096 · 0 | 4,096/4,096 · 0 |
+
+| Across the recorded passes | Whole images exact / rendered | Exact pixels / compared |
+|---|---:|---:|
+| Noise Dirt 1 · one processor | 30/60 | 779,410/785,664 |
+| Noise Dirt 1 · eight processors | 33/60 | 780,626/785,664 |
+| Noise Dirt 1 · archived ordinary saves on one | 6/12 | 147,509/149,504 |
+| Noise Dirt 2 · one processor | 50/60 | 785,652/785,664 |
+| Noise Dirt 2 · eight processors | 53/60 | 785,655/785,664 |
+| Noise Dirt 2 · archived ordinary saves on one | 10/12 | 149,502/149,504 |
+
+The two final Dirt 2 images are identical across both processor counts and MaterialCraft. Over all 60 settings the one- and eight-processor results differ on 21 pixels. MaterialCraft matches every one of the 785,643 invariant values, and matches one observed value at each of the other 21 pixels. Both roots retain their per-processor differences.
+
+In the Dirt 2 rectangle replace the first quadrant and its descendants with a marker under the original outer iteration and switch. Independently draw one unit random value for its tint and rotation and trace the 36 emitted pairs. The two [property streams](../crates/nodes/src/random.rs) distinguish the 24-bit incoming seed for each tree. Expanding the unchanged four child slots through depth nine gives 9,437,184 leaf visits but only 1,499,404 distinct leaf seeds. The earlier evaluator recalculated every image leaf. It exceeded the 5,242,880 full-evaluation allowance before producing either rectangle.
+
+A terminal grayscale image draw can reuse its properties when only its branch offset, size and tint vary with its seed, depth and immutable graph inputs. The shared evaluator retains the fixed slot, filter and other properties. Dense streams retain the five changing floats in lazily allocated pages with a 64 MiB payload ceiling. A parent quadrant schedules at most four terminal children, bounding their cached reads when a streamed group releases their storage. The existing allowances still bound full property evaluations, direct repetitions, extra tile copies and pixel visits.
+
+For an independent comparison use the [32² procedural image source](#streaming-deep-quadrants-that-draw-the-same-connected-image). After seven empty quadrants use 160 outer and 224 inner iterations. Each draws one fixed image stamp and four child stamps, for 35,840 parents and 143,360 children. Use maximum blending, fixed bilinear filtering and inherited seeds. For both drawing nodes sample independent uniform values for tint in [0,.875), size in [32,96) × [24,72), and branch offset components in [−.03125,.03125). Use seeds 19 at 16² and 113 at 32 × 16, across U8, U16, F16 and F32. All 16 original and ordinarily saved buffers reproduce the earlier release. All 6,144 pixels match the reference, maximum zero. The [96 connected image controls](#streaming-deep-quadrants-that-draw-the-same-connected-image) also reproduced every prior local raw hash and per-format comparison. A separate 4² regression with a nonzero fixed image slot failed on the preceding release. It compares the result of the same parent and four children at two traversal budgets.
+
+On the separate Dirt 2 32 × 16 F32 setting at seed 42, start four fresh single-worker release processes in old, new, new, old order. All four raw hashes agree. Mean reported cook time was 28.32 seconds before and 16.42 seconds after. Maximum process peak working set was 182.5 MiB before and 217.7 MiB after. All 564 node and evaluator release tests passed, along with formatting, strict workspace Clippy, layer checks and WebAssembly.
+
 ### Expanded image and save comparisons for Dirt 1 and Dirt 2
 
 Repeat the [Dirt 1 settings](#whole-renders-and-reopened-settings-for-two-dirt-noise-generators) and the [Dirt 2 settings](#whole-outputs-and-saved-settings-for-noise-dirt-2-and-noise-dirt-3) that previously stopped at an execution guard. Evaluate one F32 image first at each distinct geometry where available. If it returns pixels, run its other requested formats. Reopen the previously saved SBS at each recovered setting in the 12-case handoff series. The table combines unchanged historical measurements with 24 newly rendered originals and three existing ordinary saves per graph on revision `9e0d6fd`. The [additional freshly saved comparisons](#streaming-deep-quadrants-that-draw-the-same-connected-image) are recorded separately.

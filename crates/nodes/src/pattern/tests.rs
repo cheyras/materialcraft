@@ -1970,6 +1970,31 @@ fn streamed_image_draws_share_their_filter_and_source_levels() {
 }
 
 #[test]
+fn streamed_quadrant_children_reuse_fixed_image_properties() {
+    let mut graph = nested_square_draws(16);
+    graph.nodes[7].parameters.insert("numberadded".into(), Value::Int(8));
+    graph.nodes[9].parameters.insert("patterntype".into(), Value::Int(1));
+    graph.nodes[9].parameters.insert("imageindex".into(), Value::Int(1));
+    graph.nodes[9].parameters.insert("randominherited".into(), Value::Bool(false));
+    let child = graph.add(PatternNodeKind::Quadrant).unwrap();
+    graph.nodes[9].children.fill(Some(child));
+    let mut tint = FunctionGraph::default();
+    let one = tint.add_constant(Value::Float(1.0));
+    tint.output = Some(tint.add("rand", &[one], None));
+    graph.nodes[10].parameters = BTreeMap::from([
+        ("patterntype".into(), Value::Int(257)),
+        ("patternsize".into(), Value::Float2([512.0; 2])),
+        ("opacity".into(), Value::Function(Box::new(tint))),
+    ]);
+    let field = craft_texture::Image::gray(8, 8, |x, y| (1 + x + 2 * y) as f32 / 32.0);
+    let inputs = [None, None, Some(field)];
+    let expected = render_with_inputs_and_visit_limit(&graph, &inputs, false, 2_048).unwrap().remove(0);
+    let streamed = render_with_inputs_and_visit_limit(&graph, &inputs, false, 64).unwrap().remove(0);
+    assert_eq!(streamed.data(), expected.data());
+    assert!(streamed.data().iter().any(|value| *value > 1.0));
+}
+
+#[test]
 fn repeated_terminal_misses_cover_uncached_misses_in_the_next_branch() {
     let mut graph = PatternGraph::with_root(PatternNodeKind::Iterate);
     let marker = graph.add(PatternNodeKind::Quadrant).unwrap();
