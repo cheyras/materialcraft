@@ -734,8 +734,20 @@ fn fixed_image_stamps_keep_the_subtree_order_of_an_untiled_quadrant_tree() {
     }
 }
 
-#[test]
-fn unfinished_quadrant_draws_can_follow_a_draw_from_the_next_tree() {
+fn two_tree_parent_probe(negative: (i32, [i32; 2]), small: (i32, [i32; 2]), wrap_leaves: bool) -> PatternGraph {
+    fn at_parent(f: &mut FunctionGraph, (iteration, pixel): (i32, [i32; 2])) -> u32 {
+        let number = f.add("get_float1", &[], Some(Value::Text("$number".into())));
+        let phase = f.add_constant(Value::Float(iteration as f32));
+        let active = f.add("eq", &[number, phase], None);
+        let pos = f.add("get_float2", &[], Some(Value::Text("$pos".into())));
+        let center = f.add_constant(Value::Float2(pixel.map(|axis| (axis as f32 + 0.5) / 128.0)));
+        let delta = f.add("sub", &[pos, center], None);
+        let squared = f.add("dot", &[delta, delta], None);
+        let zero = f.add_constant(Value::Float(0.0));
+        let selected = f.add("eq", &[squared, zero], None);
+        f.add("and", &[active, selected], None)
+    }
+
     let mut graph = PatternGraph::with_root(PatternNodeKind::Iterate);
     graph.nodes[0].parameters.insert("numberadded".into(), Value::Int(2));
     let mut parent = graph.add(PatternNodeKind::Quadrant).unwrap();
@@ -753,28 +765,30 @@ fn unfinished_quadrant_draws_can_follow_a_draw_from_the_next_tree() {
         let pos = frame.add("get_float2", &[], Some(Value::Text("$pos".into())));
         let far = frame.add_constant(Value::Float2([0.875; 2]));
         let center = if depth == 7 {
-            // Each iteration sends a different parent to the same pixel on white.
-            let later = |f: &mut FunctionGraph| {
-                let number = f.add("get_float1", &[], Some(Value::Text("$number".into())));
-                let zero = f.add_constant(Value::Float(0.0));
-                f.add("gt", &[number, zero], None)
-            };
-            let second = later(&mut frame);
-            let first_pos = frame.add_constant(Value::Float2([79.5 / 128.0, 69.5 / 128.0]));
-            let second_pos = frame.add_constant(Value::Float2([118.5 / 128.0, 112.5 / 128.0]));
-            let selected = frame.add("ifelse", &[second, second_pos, first_pos], None);
-            let delta = frame.add("sub", &[pos, selected], None);
-            let squared = frame.add("dot", &[delta, delta], None);
-            let zero = frame.add_constant(Value::Float(0.0));
-            let hit = frame.add("eq", &[squared, zero], None);
+            let a = at_parent(&mut frame, negative);
+            let b = at_parent(&mut frame, small);
+            let hit = frame.add("or", &[a, b], None);
             let readout = frame.add_constant(Value::Float2([32.5 / 128.0, 16.5 / 128.0]));
             let mut tint = FunctionGraph::default();
-            let second = later(&mut tint);
-            let negative = tint.add_constant(Value::Float(-1.0));
-            let small = tint.add_constant(Value::Float(tiny));
-            tint.output = Some(tint.add("ifelse", &[second, negative, small], None));
+            let selected = at_parent(&mut tint, negative);
+            let minus_one = tint.add_constant(Value::Float(-1.0));
+            let increment = tint.add_constant(Value::Float(tiny));
+            tint.output = Some(tint.add("ifelse", &[selected, minus_one, increment], None));
             params.insert("opacity".into(), Value::Function(Box::new(tint)));
             frame.add("ifelse", &[hit, readout, far], None)
+        } else if wrap_leaves && depth == 9 {
+            // Eight by eight leaves in the first tree produce one extra tile copy each.
+            let number = frame.add("get_float1", &[], Some(Value::Text("$number".into())));
+            let zero = frame.add_constant(Value::Float(0.0));
+            let mut inside = frame.add("eq", &[number, zero], None);
+            let limit = frame.add_constant(Value::Float(8.0 / 512.0));
+            for axis in 0..2 {
+                let component = frame.add("swizzle1", &[pos], Some(Value::Int(axis)));
+                let below = frame.add("lr", &[component, limit], None);
+                inside = frame.add("and", &[inside, below], None);
+            }
+            let edge = frame.add_constant(Value::Float2([0.0, 0.875]));
+            frame.add("ifelse", &[inside, edge, far], None)
         } else {
             far
         };
@@ -782,10 +796,25 @@ fn unfinished_quadrant_draws_can_follow_a_draw_from_the_next_tree() {
         params.insert("frameoffset".into(), Value::Function(Box::new(frame)));
         graph.nodes[(child - 1) as usize].parameters = params;
     }
+    graph
+}
+
+#[test]
+fn unfinished_quadrant_draws_can_follow_a_draw_from_the_next_tree() {
+    let graph = two_tree_parent_probe((1, [118, 112]), (0, [79, 69]), false);
     let vars = BTreeMap::from([("$tiling".into(), Value::Int(0))]);
     let square = cook_in_regions(graph.clone(), &vars, 188119, [128; 2], [[0.0, 1.0, 0.0, 1.0]; 2], 1.0).unwrap().remove(0);
     let image = draw_white_image(graph, 2, 0);
-    assert_eq!([square.get_gray(32, 16, false), image.get_gray(32, 16, false)], [tiny; 2], "order of overlapping parents");
+    assert_eq!([square.get_gray(32, 16, false), image.get_gray(32, 16, false)], [f32::EPSILON * 0.25; 2], "order of overlapping parents");
+}
+
+#[test]
+fn extra_copies_of_leaves_can_move_a_parent_past_another_subtree() {
+    for (wrap_leaves, expected) in [(false, f32::EPSILON * 0.25), (true, 0.0)] {
+        let graph = two_tree_parent_probe((0, [49, 29]), (0, [54, 50]), wrap_leaves);
+        let image = draw_white_image(graph, 2, 3);
+        assert_eq!(image.get_gray(32, 16, false), expected, "parent order with wrapping leaves {wrap_leaves}");
+    }
 }
 
 #[test]

@@ -93,10 +93,17 @@ const FOUR_CHILDREN_AND_GRANDCHILDREN: &[(usize, usize)] = &[
     (16384, 22),
 ];
 
-// With two untiled trees, each drawing parent and its descendants submit 21 draws.
+// With two trees, each drawing parent and its descendants submit 21 draws before tiling.
 // At the end of the first 30 runs a physical batch holds 92 + 128 parents.
 // The next 40 finish that batch inside the run starting at parent 12,352.
 const CONTINUED_PARENT: usize = 12_352 + 40;
+fn continued_layout(prefix: &[(usize, usize)], common: usize, tail: &[usize]) -> Vec<(usize, usize)> {
+    let mut layout: Vec<_> = prefix.iter().filter(|(_, rank)| *rank < common).copied().collect();
+    layout.extend(tail.iter().enumerate().map(|(rank, &end)| (end, common + rank)));
+    layout.sort_unstable();
+    layout
+}
+
 static PAIRED_GRANDCHILDREN: LazyLock<Vec<(usize, usize)>> = LazyLock::new(|| {
     const COMMON_RUNS: usize = 30;
     // Exclusive parent counts in submission order. Counts above 16,384 belong
@@ -177,8 +184,28 @@ static PAIRED_GRANDCHILDREN: LazyLock<Vec<(usize, usize)>> = LazyLock::new(|| {
         29056,
         30144,
     ];
-    let mut layout: Vec<_> = FOUR_CHILDREN_AND_GRANDCHILDREN.iter().filter(|(_, rank)| *rank < COMMON_RUNS).copied().collect();
-    layout.extend(tail.into_iter().enumerate().map(|(rank, end)| (end, COMMON_RUNS + rank)));
+    continued_layout(FOUR_CHILDREN_AND_GRANDCHILDREN, COMMON_RUNS, &tail)
+});
+
+// When five physical batches fit before parent 22,528, the rest of that
+// subtree joins the two pending subtrees beginning at parent 24,640.
+// Integral subtree ends are fixed. Interior markers select a subtree and
+// the physical copy count locates the actual split inside it.
+static FIVE_BATCH_CONTINUATION: LazyLock<Vec<(usize, usize)>> = LazyLock::new(|| {
+    let tail = [
+        22465, 30720, 24640, 26497, 31744, 16448, 18369, 20480, 31873, 24576, 29761, 32768, 28737, 28672, 30913, 32256, 20865, 28800, 28928, 29184, 31105,
+        29824, 29952, 30208, 28929, 22528, 24768, 28864, 21120, 26624, 16576, 18432, 29888, 31104, 20992, 21248, 31168, 30976, 31232, 21184, 29056, 31936,
+        30080,
+    ];
+    let mut layout = continued_layout(&PAIRED_GRANDCHILDREN, 58, &tail);
+    for (end, rank) in &mut layout {
+        // Two eight-batch cuts now fall in the preceding 64-parent subtree.
+        match rank {
+            38 => *end = 24385,
+            43 => *end = 28545,
+            _ => {}
+        }
+    }
     layout.sort_unstable();
     layout
 });
@@ -197,6 +224,7 @@ pub(super) struct MixedDepthRuns {
     draws: usize,
     shape: Option<i32>,
     fixed_image: bool,
+    single_tree_window: bool,
     copies: Option<TileCopies>,
 }
 
@@ -207,9 +235,9 @@ impl MixedDepthRuns {
         }
         let axes = context.tiling_axes();
         // A common render and tiling window determines the repeated copies along its edges.
-        let window = if matches!(deepest, 8 | 10) && axes == [true; 2] { context.v4("render_region") } else { UNIT_WINDOW };
+        let window = if axes == [true; 2] { context.v4("render_region") } else { UNIT_WINDOW };
         let copies = if axes != [false; 2] || deepest == 10 { Some(TileCopies::new(context, deepest, window)?) } else { None };
-        Some(Self { copies, deepest, fixed_image, ..Self::default() })
+        Some(Self { copies, deepest, fixed_image, single_tree_window: deepest != 9 || window == UNIT_WINDOW, ..Self::default() })
     }
 
     pub(super) fn visit(&mut self, node: &PatternNode, depth: u32, retained: usize) -> bool {
@@ -221,7 +249,7 @@ impl MixedDepthRuns {
         if depth == 0 {
             if self.trees != 0 {
                 let continuation = match self.deepest {
-                    9 => self.copies.is_none() && self.children_per_parent == 4,
+                    9 => self.children_per_parent == 4 && self.copies.as_ref().is_none_or(TileCopies::tiles_both_axes),
                     10 => self.copies.as_ref().is_some_and(TileCopies::complete_inactive_tree),
                     _ => false,
                 };
@@ -255,8 +283,7 @@ impl MixedDepthRuns {
             (self.layout, self.draws_per_parent) = match (self.deepest, children) {
                 (8, 2) => (TWO_CHILDREN, 3),
                 (8, 4) => (FOUR_CHILDREN, 5),
-                (9, 4) if self.copies.is_none() => (PAIRED_GRANDCHILDREN.as_slice(), 21),
-                (9, 4) => (FOUR_CHILDREN_AND_GRANDCHILDREN, 21),
+                (9, 4) => (PAIRED_GRANDCHILDREN.as_slice(), 21),
                 (10, 4) => (&[][..], 5),
                 _ => return false,
             };
@@ -306,7 +333,10 @@ impl MixedDepthRuns {
         if self.trees == 0 || self.parents != self.trees * DEPTH_SEVEN_PARENTS + self.extra_parents || self.draws != self.parents * self.draws_per_parent {
             return None;
         }
-        if self.deepest == 9 && self.copies.is_none() && self.trees == 1 {
+        if self.deepest == 9 && self.trees == 1 {
+            if !self.single_tree_window {
+                return None;
+            }
             // Only a continuation splits this run. Rejoin the two retained
             // ranges before flushing the unfinished batches of a single tree.
             let split = self.layout.partition_point(|&(end, _)| end <= CONTINUED_PARENT);
@@ -326,8 +356,15 @@ impl MixedDepthRuns {
             if self.children_per_parent == 2 {
                 return copies.two_child_runs(stamps);
             }
-            layout = copies.layout(self.layout)?;
-            self.starts = copies.boundaries(&layout, self.draws_per_parent)?;
+            if self.trees == 1 {
+                layout = copies.layout(self.layout)?;
+                self.starts = copies.boundaries(&layout, self.draws_per_parent)?;
+            } else if let Some(bounds) = copies.boundaries(&FIVE_BATCH_CONTINUATION, self.draws_per_parent) {
+                layout = Cow::Borrowed(FIVE_BATCH_CONTINUATION.as_slice());
+                self.starts = bounds;
+            } else {
+                self.starts = copies.boundaries(&layout, self.draws_per_parent)?;
+            }
         }
         let mut groups = vec![DrawRun::whole(&[]); layout.len()];
         for ((_, rank), bounds) in layout.iter().zip(self.starts.windows(2)) {

@@ -59,6 +59,41 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-26 root comparisons
 
+### Tiled copies across two complete quadrant trees
+
+With ordinary graph tiling, two complete drawing trees can share a physical batch. Each of 16,384 parents per tree submits one draw, four child draws and sixteen grandchild draws. The sums depend on which tile copy fills a batch of 5,460. In the order with five full batches before parent 22,528, its remaining draws precede the two pending subtrees starting at parent 24,640. A separate batch ends at parent 20,352 when no stamp wraps. Additional copies move that cut into the preceding subtree.
+
+Use Noise Dirt 1 with its original graph and tiling. Keep the published defaults at 16 × 32 and use scale 1, disorder .8125 and non-square expansion at 128 × 256. Set F32 on the node feeding the output. All three single-processor images now match. The invariant column counts locations at which the one- and eight-processor captures have identical F32 words.
+
+| Dimensions · seed | Earlier on one · maximum | Corrected on one · maximum | Corrected on eight · maximum | Invariant pixels matched |
+|---|---:|---:|---:|---:|
+| 16 × 32 · 0 | 499/512 · 5.96046448e-08 | 512/512 · 0 | 494/512 · 5.96046448e-08 | 494/494 |
+| 16 × 32 · 299324 | 491/512 · 5.96046448e-08 | 512/512 · 0 | 489/512 · 5.96046448e-08 | 489/489 |
+| 128 × 256 · 433665 | 32,050/32,768 · 1.1920929e-07 | 32,768/32,768 · 0 | 31,732/32,768 · 1.1920929e-07 | 31,732/31,732 |
+
+The same 128 × 256 geometry in U16 now matches all 32,768 pixels on one processor, up from 32,764. It also matches all 32,764 locations at which the seven archived U16 reads agree, including (59,61) at 40,709 and (42,230) at 29,926. In F32 all 31,145 locations shared by those seven reads agree with the release result. [Individual overlap measurements](#five-individual-image-draws-at-one-dirt-1-pixel)
+
+Repeat the [60 settings and 12 archived ordinary saves per graph](#expanded-image-and-save-comparisons-for-dirt-1-and-dirt-2) on one release build. Each cell gives exact pixels, total pixels and maximum difference in that storage format. Integer maxima are stored levels. The archive contains its own saved settings.
+
+| Graph · storage | Earlier original on one | Corrected original on one | Corrected original on eight | Corrected archived save on one |
+|---|---:|---:|---:|---:|
+| Noise Dirt 1 · U8 | 99,840/99,840 · 0 | 99,840/99,840 · 0 | 99,840/99,840 · 0 | 26,624/26,624 · 0 |
+| Noise Dirt 1 · U16 | 338,928/338,944 · 1 | 338,932/338,944 · 1 | 338,931/338,944 · 1 | 51,712/51,712 · 0 |
+| Noise Dirt 1 · F16 | 101,888/101,888 · 0 | 101,888/101,888 · 0 | 101,888/101,888 · 0 | — |
+| Noise Dirt 1 · F32 | 239,403/244,992 · 1.1920929e-07 | 240,155/244,992 · 1.1920929e-07 | 239,337/244,992 · 1.1920929e-07 | 69,178/71,168 · 1.1920929e-07 |
+| Noise Dirt 2 · U8 | 99,840/99,840 · 0 | 99,840/99,840 · 0 | 99,840/99,840 · 0 | 26,624/26,624 · 0 |
+| Noise Dirt 2 · U16 | 338,940/338,944 · 2 | 338,940/338,944 · 2 | 338,935/338,944 · 2 | 51,712/51,712 · 0 |
+| Noise Dirt 2 · F16 | 101,887/101,888 · 6.10351562e-05 | 101,887/101,888 · 6.10351562e-05 | 101,887/101,888 · 0.000122070312 | — |
+| Noise Dirt 2 · F32 | 244,990/244,992 · 2.52053142e-05 | 244,990/244,992 · 2.52053142e-05 | 244,988/244,992 · 2.52090394e-05 | 71,167/71,168 · 2.52053142e-05 |
+
+Noise Dirt 1 improved from 37/60 to 41/60 exact originals on one processor. On eight processors 32/60 match, and 8/12 archived saves match on one processor. All four changed originals match after fresh ordinary saves in both applications, covering 66,560/66,560 pixels. Noise Dirt 2 matches 53/60 whole originals on one processor, 51/60 on eight and 11/12 archived saves.
+
+For an independent test, start a grayscale quadrant graph on white. Let outer iterations 0 and 5 each enter the same complete nine-level tree. Draw original white images or squares at depths 7, 8 and 9 with additive blending. Map pairs of depth-seven parents onto a common interior pixel, with gains −1 and 2⁻²⁵. Swap both gains and repeat the comparisons with adjacent parent pairs offset by one. The two possible results distinguish their compositing order. Hold other draws away from the readout. Move a selected terminal draw from (.875,.875) to (0,.875) to add one tile copy without touching the readout. In the regression, moving the first tree's eight-by-eight corner of terminal draws changes the order of parents 1,955 and 3,868. With no extra copies the readout is 2⁻²⁵ and with 64 it is zero.
+
+To reproduce the panel with more tile copies, distribute a requested number of extra draws among 32,768 depth-seven parents. Store each parent's count in the lower half of an original 256² RGBA field, with one 128-wide bank per tree. At depth nine, move the first requested number of leaves in the parent's four-by-four region across the tile edge, in row-major order. The upper half of the field carries the independent signed readout pairs. Use PCG64 seed 172349. For each candidate draw 64 standard normal values, exponentiate, repeat each weight for 512 consecutive parents in traversal order, and normalize the weights to sum to one. Draw the extra-copy total uniformly from integers 1,100 through 3,599, then select parents with replacement using those weights. Keep candidates 48, 49, 53 and 56. Continue the same random stream with totals 30 through 439 and keep the next four candidates. Each parent in a tree uses the seven interleaved X and Y bits of its traversal index to locate its texel. Across four fields with 37, 253, 240 and 296 extra copies and four with 2,365, 2,135, 2,389 and 2,516, all 524,272 signed comparisons agree with the physical order. Two readout frames on each of four independent fields reproduce 524,288/524,288 F32 pixels on the release build, and 524,288/524,288 after an ordinary save. Maximum error is zero on both routes. More heavily wrapped first-tree controls can cross another subtree boundary and use the existing fallback.
+
+Two alternating cold runs of the 128 × 256 case averaged 5.61 s before and 6.56 s after. Average peak process working set was 182.6 MiB and 235.8 MiB. The normal-cook regression failed on the earlier build. All 570 release node and evaluator tests passed, along with formatting, strict workspace Clippy, dependency layers and WebAssembly.
+
 ### Unfinished draws across two untiled quadrant trees
 
 Noise Dirt 1 now matches all 13 original settings with graph tiling disabled on one processor, up from 12. The ordinary save also matches all 61,440 pixels. At 64 × 128 with seed 883903, scale 1, disorder .8125 and non-square expansion enabled, match counts rose from 8,062/8,192 to 8,192/8,192 in F32. Maximum error fell from 1.1920929e−07 to zero. The same file's eight-processor capture went from 8,053/8,192 to 7,999/8,192, maximum 1.1920929e−07. For the complete 13-setting series this gives 60,901/61,440 on eight processors, with seven whole images exact. Applying the tiling property to the drawing node instead gives 61,440/61,440 on one processor and 60,906/61,440 on eight. [Four output formats and original settings](#fixed-image-draw-order-in-untiled-noise-dirt-1)

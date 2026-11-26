@@ -21,6 +21,7 @@ pub(super) const UNIT_WINDOW: [f32; 4] = [0.0, 1.0, 0.0, 1.0];
 const DEPTH_THREE_PARENTS: usize = 256;
 const DEPTH_FOUR_PARENTS: usize = 64;
 const DEPTH_FIVE_PARENTS: usize = 16;
+const TWO_DEEP_TREES: usize = 2 * 4_usize.pow(4);
 const PAIRED_SUBTREE_PARENTS: usize = 2 * DEPTH_THREE_PARENTS;
 const FIRST_PAIR_END: usize = 48 * DEPTH_THREE_PARENTS + PAIRED_SUBTREE_PARENTS;
 // Paired interior squares change order when the preceding draws fill 5,460 tile copies.
@@ -77,6 +78,10 @@ impl TileCopies {
         self.subtree_ends.len() == inactive_children::SUBTREES_PER_TREE
     }
 
+    pub(super) fn tiles_both_axes(&self) -> bool {
+        self.axes == [true; 2]
+    }
+
     pub(super) fn begin_inactive_subtree(&mut self, trees: usize) -> bool {
         if self.subtree_ends.len() >= trees * inactive_children::SUBTREES_PER_TREE {
             return false;
@@ -95,7 +100,10 @@ impl TileCopies {
             let parents = draws / draws_per_parent;
             // Count the eight pairs in the final quadrant. Their combined occupancy determines
             // whether to continue a single overflowing pair or all eight in submission order.
-            if self.parents_per_subtree == DEPTH_FOUR_PARENTS && parents >= FIRST_PAIR_END && parents.is_multiple_of(PAIRED_SUBTREE_PARENTS) {
+            if self.parents_per_subtree == DEPTH_FOUR_PARENTS
+                && (FIRST_PAIR_END..=64 * DEPTH_THREE_PARENTS).contains(&parents)
+                && parents.is_multiple_of(PAIRED_SUBTREE_PARENTS)
+            {
                 let subtrees = PAIRED_SUBTREE_PARENTS / DEPTH_FOUR_PARENTS;
                 let start = self.subtree_ends.iter().rev().nth(subtrees - 1)?;
                 if end - start >= 2 * COPIES_PER_BATCH {
@@ -469,6 +477,11 @@ impl TileCopies {
             // The prefix beginning at group 40 keeps its place when its batch fills one subtree earlier.
             return self.subtree_ends.get(42).zip(self.subtree_ends.get(44)).is_some_and(|(&before, &after)| before < cut && cut < after);
         }
+        // In a two-tree continuation the part of group 120 that is still
+        // pending can fill its batch in either of its last two subtrees.
+        if self.subtree_ends.len() == TWO_DEEP_TREES && parents == 483 * DEPTH_FOUR_PARENTS + 1 {
+            return self.subtree_ends.get(subtree - 2).zip(self.subtree_ends.get(subtree)).is_some_and(|(&lower, &upper)| lower < cut && cut < upper);
+        }
         if self.parents_per_subtree == DEPTH_FOUR_PARENTS && self.axes == [true, false] && parents % DEPTH_THREE_PARENTS < DEPTH_FOUR_PARENTS {
             let previous = match group {
                 // When the seventh batch ends early, the remaining copies join the
@@ -498,7 +511,11 @@ impl TileCopies {
             *order.get_mut(rank)? = run;
             // A repeated endpoint leaves the first part for the active batch to size.
             let split = layout.get(run + 1).is_some_and(|&(next, _)| next == parents);
-            if !split && parents.is_multiple_of(self.parents_per_subtree) {
+            // After two complete trees, submission 50 ends on a full batch.
+            // With one copy per draw this coincides with the end of subtree
+            // 318. Extra copies move the cut earlier inside that subtree.
+            let physical = self.subtree_ends.len() == TWO_DEEP_TREES && parents == 318 * DEPTH_FOUR_PARENTS;
+            if !split && !physical && parents.is_multiple_of(self.parents_per_subtree) {
                 cuts[run + 1] = self.subtree_ends.get((parents / self.parents_per_subtree).checked_sub(1)?).copied();
             }
         }
