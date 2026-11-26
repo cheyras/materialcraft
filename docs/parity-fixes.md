@@ -59,6 +59,49 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-26 root comparisons
 
+### Whole untiled Dirt relatives and the depth-seven iteration
+
+Set graph tiling to absolute with both axes off. At 16 × 32 use seed 649211 and disorder .3125. At 32 × 64 use seed 649229 and disorder .78125. Enable non-square expansion. Use scale 1 on the three graphs exposing it. For each geometry render U8, U16, F16 and F32, then save the graph normally outside the package library and open that file directly in both applications. Compare the builds immediately before and after the [two-tree untiled draw-order change](#unfinished-draws-across-two-untiled-quadrant-trees). Cells give exact settings / settings rendered and exact pixels / pixels compared.
+
+| Graph | Before on one processor | After on one | Before on eight | After on eight | Ordinary save on one |
+|---|---:|---:|---:|---:|---:|
+| Noise Dirt 1 v2 | 6/8 · 10,175/10,240 | 6/8 · 10,175/10,240 | 6/8 · 10,193/10,240 | 6/8 · 10,193/10,240 | 6/8 · 10,166/10,240 |
+| Noise Dirt 5 | 5/8 · 10,237/10,240 | 8/8 · 10,240/10,240 | 6/8 · 10,238/10,240 | 5/8 · 10,235/10,240 | 8/8 · 10,240/10,240 |
+| Noise Dirt 5 v2 | 6/8 · 10,127/10,240 | 6/8 · 10,127/10,240 | 6/8 · 10,110/10,240 | 6/8 · 10,110/10,240 | 6/8 · 10,126/10,240 |
+| Noise Dirt Gradient | 8/8 · 10,240/10,240 | 8/8 · 10,240/10,240 | 7/8 · 10,239/10,240 | 7/8 · 10,239/10,240 | 8/8 · 10,240/10,240 |
+| Noise Dirt Gradient v2 | 1/8 · 8,429/10,240 | 1/8 · 8,429/10,240 | 2/8 · 8,572/10,240 | 2/8 · 8,572/10,240 | 1/8 · 8,424/10,240 |
+
+Noise Dirt 5 gained one exact pixel in each of U16, F16 and F32 at 32 × 64 on one processor. Both sizes also match across all four ordinary saves per size. On eight processors the total moved from 10,238 to 10,235 exact pixels. Noise Dirt Gradient matches both single-processor cases in every format. At 16 × 32, its eight-processor U16 image differs at one pixel by one level. The other three graphs retain their previous local hashes.
+
+| Graph | Maximum on one, U8 / U16 / F16 / F32 | Maximum on eight | Maximum on saved graphs |
+|---|---|---|---|
+| Noise Dirt 1 v2 | 0 / 0 / 0 / 5.96046448e-08 | 0 / 0 / 0 / 5.96046448e-08 | 0 / 0 / 0 / 1.1920929e-07 |
+| Noise Dirt 5 | 0 / 0 / 0 / 0 | 0 / 4 / 6.10351562e-05 / 5.08278608e-05 | 0 / 0 / 0 / 0 |
+| Noise Dirt 5 v2 | 0 / 0 / 0 / 1.1920929e-07 | 0 / 0 / 0 / 5.96046448e-08 | 0 / 0 / 0 / 1.1920929e-07 |
+| Noise Dirt Gradient | 0 / 0 / 0 / 0 | 0 / 1 / 0 / 0 | 0 / 0 / 0 / 0 |
+| Noise Dirt Gradient v2 | 1 / 1 / 0.00048828125 / 2.38418579e-07 | 1 / 0 / 0.00048828125 / 2.38418579e-07 | 1 / 1 / 0.00048828125 / 2.98023224e-07 |
+
+To count the Noise Dirt 1 v2 iteration, retain its original outer switch, iteration, seeds and depth-seven iterate. Replace the depth-seven drawing quadrant with a childless additive square. The removed drawings write only their frame offset, which the retained control flow never reads. Set its size to (16,16), literal gray tint to 2⁻²¹ and center to (.21875 + .25 times the enclosing iteration number, .484375). Subtract the quadrant position to form the frame offset. Use a black background, zero roughness, unit opacity and a unit render and tiling region. Sample each square's center and multiply the F32 value by 2²¹.
+
+With both graph and FX-Map tiling off, the default anisotropy and explicit zero each give 147,456 draws at iteration number zero and none at one or two, at both sizes above. At anisotropy .75 the three counts are 147,456 / 121,765 / 121,765 at 16 × 32 and 147,456 / 121,793 / 121,793 at 32 × 64. The six images match 7,680/7,680 pixels on one processor, on eight and after ordinary saves, maximum zero throughout.
+
+Restore the original graph and FX-Map tiling and repeat the count. Use the original defaults at 16 × 32 with seeds 0 and 299367. At 32 × 64 with seed 105450 and 64 × 32 with seed 299446, use scale 1, zero disorder and anisotropy, zero anisotropy angle and tile offset, disorder speed 1 and non-square expansion enabled. At 128 × 256 with seed 433678, use scale 1, disorder, disorder speed and anisotropy .8125, angle .5625, offset (.46875, −.3046875) and non-square expansion enabled. The first four settings each give 32,768 / 0 / 0. The last gives 32,768 / 29,283 / 29,283. Across these five controls all three comparisons give 37,888/37,888 · 0. The count at iteration zero corresponds to two complete trees with normal tiling and nine in the two earlier untiled settings.
+
+Render the complete Noise Dirt 1 v2 graph at those same settings. Compare the checked release, including the receiving-quadrant change, against stored raw captures and fresh ordinary saves. Both local releases give the same raw hashes for these six settings.
+
+| Size · seed · format | Original on one · maximum | Original on eight · maximum | Ordinary save on one · maximum |
+|---|---:|---:|---:|
+| 16 × 32 · 0 · F32 | 512/512 · 0 | 501/512 · 5.96046448e-08 | 510/512 · 2.98023224e-08 |
+| 16 × 32 · 299367 · F32 | 512/512 · 0 | 492/512 · 1.1920929e-07 | 509/512 · 5.96046448e-08 |
+| 32 × 64 · 105450 · F16 | 2,048/2,048 · 0 | 2,048/2,048 · 0 | 2,048/2,048 · 0 |
+| 64 × 32 · 299446 · F32 | 1,981/2,048 · 1.1920929e-07 | 1,993/2,048 · 5.96046448e-08 | 1,989/2,048 · 1.1920929e-07 |
+| 128 × 256 · 433678 · U16 | 32,766/32,768 · 1 | 32,762/32,768 · 1 | 32,762/32,768 · 1 |
+| 128 × 256 · 433678 · F32 | 28,180/32,768 · 2.38418579e-07 | 28,746/32,768 · 1.1920929e-07 | 27,949/32,768 · 2.38418579e-07 |
+
+At 16 × 32 and seed 299367, the earlier catalog measurement was 495/512 · 1.1920929e-07. The current release matches 512/512 F32 pixels on one processor. The 128 × 256 F32 image still differs while all three iteration counts agree. At the earlier [32 × 16 blocked setting](#streaming-deep-quadrants-that-draw-the-same-connected-image), the complete release graph still reaches its execution guard. The reduced depth-seven readout gives 131,072 / 90,211 / 90,211. Both reference worker counts and the ordinary save match 512/512 pixels with maximum zero. The 311,494 parents have 21 drawing quadrants each, requiring 6,541,374 draws. An instrumented run reaches its 5,242,880 full property evaluations at depth seven. At that point it has 909,311 traversal credits, 2,870 retained draws and zero property-cache hits. Both discrepancies remain open.
+
+For a separate Noise Dirt 1 repeat at 64 × 32, seed 649541 and disorder .8125, the [first two captures](#the-receiving-half-of-a-quadrant-in-two-tiled-trees) agreed at 1,991 locations. Three further one-processor reads match 2,048, 2,047 and 2,044 of 2,048 pixels. Across the one- and eight-processor reads and the save, all 1,965 invariant pixels match. Each local pixel appears in at least one read. At 32 × 16 and 128 × 64, respectively, one and 25 local pixels still differ from every reference read.
+
 ### The receiving half of a quadrant in two tiled trees
 
 A batch of wrapped FX-Map draws can finish partway through a quadrant containing 256 parents. On either side of its halfway point, three unfinished subtrees return in a different order. The shared evaluator selects that order when the physical copy counts fit every measured subtree boundary.
