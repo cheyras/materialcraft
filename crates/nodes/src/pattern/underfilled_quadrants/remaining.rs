@@ -143,6 +143,18 @@ impl UnderfilledQuadrants {
         pieces.iter().try_fold(0u32, |sum, (_, _, range)| sum.checked_add(range.end.checked_sub(range.start)?))
     }
 
+    fn append_receiver_and_last(first: &[Piece<'_>; 5], full_receiver: bool, mut last: Vec<Submission>, next: &mut Vec<Submission>) -> Option<()> {
+        if full_receiver {
+            // A receiver that needs the last group's handoff submits after that group's own batch.
+            if Self::piece_count(&first[..4])? < COPIES_PER_BATCH {
+                next.append(&mut last);
+            }
+            Self::append_copy_window(first, 0, COPIES_PER_BATCH, next)?;
+        }
+        next.extend(last);
+        Some(())
+    }
+
     pub(super) fn append_remaining_pairs(
         &self,
         collecting: &[RemainingCopies<'_>],
@@ -151,20 +163,12 @@ impl UnderfilledQuadrants {
         leading: &mut Vec<Submission>,
     ) -> Option<()> {
         let [first_group, second_group, third_group] = collecting else { return Some(()) };
-        if self.visits[0] != 2 {
-            // An additional tree starts submitting before these partial batches drain.
-            return Some(());
-        }
         let mut next = Vec::new();
         let Some(lower) = self.following_pair(0, pair_offsets[0], &mut next) else { return Some(()) };
-        let lower_end = next.len();
-        let Some(last) = self.following_last_child(&mut next) else { return Some(()) };
-        let upper_start = next.len();
-        let Some(upper) = self.following_pair(1, pair_offsets[1], &mut next) else { return Some(()) };
-        if lower.deferred.iter().chain(&upper.deferred).all(Range::is_empty) {
-            // With no pending siblings in either pair, both carried batches submit before the last child.
-            next[lower_end..].rotate_left(upper_start - lower_end);
-        }
+        let mut last_batch = Vec::new();
+        let Some(last) = self.following_last_child(&mut last_batch) else { return Some(()) };
+        let mut upper_batch = Vec::new();
+        let Some(upper) = self.following_pair(1, pair_offsets[1], &mut upper_batch) else { return Some(()) };
         let [second_left, second_right] = second_group.deferred();
         let [third_left, third_right] = third_group.deferred();
         let [first_left, first_right] = first_group.deferred();
@@ -178,8 +182,24 @@ impl UnderfilledQuadrants {
         let first = [first_head, first_tail, second_left, second_right, last_left];
         let second = [second_head, second_tail, third_left, third_right];
         let third = [third_head, third_tail, lower_left, upper_left, upper_right];
-        if [&first[..], &second[..], &third[..]].into_iter().any(|pieces| Self::piece_count(pieces).is_none_or(|count| count >= COPIES_PER_BATCH)) {
-            // A full submission from the handed-off siblings can precede the last three batches.
+        let received = Self::piece_count(&first)?;
+        if received >= 2 * COPIES_PER_BATCH || Self::piece_count(&second)? >= COPIES_PER_BATCH || Self::piece_count(&third)? >= COPIES_PER_BATCH {
+            return Some(());
+        }
+
+        let more_trees = self.visits[0] > 2;
+        let full_receiver = received >= COPIES_PER_BATCH;
+        if lower.deferred.iter().chain(&upper.deferred).all(Range::is_empty) {
+            // With no pending sibling in either pair, both paired batches precede the last child.
+            next.extend(upper_batch);
+            Self::append_receiver_and_last(&first, full_receiver, last_batch, &mut next)?;
+        } else if !more_trees && !full_receiver {
+            next.extend(last_batch);
+            next.extend(upper_batch);
+        }
+        if more_trees || full_receiver {
+            // Another tree or an additional full receiver can interleave the unfinished groups.
+            leading.extend(next);
             return Some(());
         }
         let pair = &self.last_quadrant_pair[1];
@@ -211,5 +231,29 @@ impl UnderfilledQuadrants {
         }
         leading.extend(next);
         Some(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_last_handoff_can_complete_a_receiving_batch() {
+        let mut span = CopyPositions::default();
+        for _ in 0..=COPIES_PER_BATCH {
+            span.record(1, true).unwrap();
+        }
+        let position = |stamp| DrawPosition { stamp, copy: 0 };
+        let last = (position(20_000), position(20_001));
+        // The last group hands off 85 copies. Its own batch precedes a receiver that still needs them.
+        for incoming in [COPIES_PER_BATCH - 1, COPIES_PER_BATCH, COPIES_PER_BATCH + 1] {
+            let empty = (0, &span, 0..0);
+            let first = [(0, &span, 0..incoming), empty.clone(), empty.clone(), empty, (10_000, &span, 0..85)];
+            let mut runs = Vec::new();
+            UnderfilledQuadrants::append_receiver_and_last(&first, true, vec![last], &mut runs).unwrap();
+            assert_eq!(runs.first() == Some(&last), incoming < COPIES_PER_BATCH);
+            assert_eq!(runs.last() == Some(&last), incoming >= COPIES_PER_BATCH);
+        }
     }
 }

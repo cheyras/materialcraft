@@ -259,8 +259,8 @@ impl UnderfilledQuadrants {
                 let group = &mut self.collecting[slot];
                 group.pair.visit(depth, self.visits[depth as usize], group.spans[2].total);
             }
-            Some(TrackedSpan::NextCollecting(0, 1)) if depth == 3 => {
-                let group = &mut self.next_collecting[0];
+            Some(TrackedSpan::NextCollecting(slot, 1)) if depth == 3 => {
+                let group = &mut self.next_collecting[slot];
                 group.last_child_start = group.spans[1].total;
             }
             Some(TrackedSpan::NextCollecting(slot, 2)) => {
@@ -365,7 +365,7 @@ impl UnderfilledQuadrants {
     }
 
     fn preceding_sibling(&self, slot: usize) -> Option<Range<u32>> {
-        if slot != 2 || self.graph_depth != 10 || self.visits[0] != 1 {
+        if slot != 2 || self.graph_depth != 10 {
             return None;
         }
         let group = &self.collecting[slot];
@@ -491,8 +491,10 @@ impl UnderfilledQuadrants {
         }
         let total = carried.checked_add(next.total.checked_sub(gap.end.checked_sub(gap.start)?)?)?;
         let batches = total / COPIES_PER_BATCH;
-        if early_batches == 0 && batches == 1 {
-            self.append_early_collecting_batch(leading)?;
+        let early_receivers = if early_batches == 0 && batches == 1 { [0, 1, 2].map(|slot| self.early_collecting_pieces(slot)) } else { [None, None, None] };
+        if self.preceding_sibling(2).is_some() && early_receivers[2].is_none() {
+            // Without a full receiver the earlier sibling transfer can change the subsequent pairs.
+            return Some(());
         }
         let early = early_batches * COPIES_PER_BATCH;
         Self::append_copy_window(&pieces, 0, early, leading)?;
@@ -501,7 +503,12 @@ impl UnderfilledQuadrants {
             leading.extend(repeated.into_iter().take(1).flatten());
             return Some(());
         }
-        leading.extend(repeated.into_iter().flatten());
+        for (pair, receiver) in repeated.into_iter().zip(early_receivers) {
+            if let Some(pieces) = receiver {
+                Self::append_copy_window(&pieces, 0, COPIES_PER_BATCH, leading)?;
+            }
+            leading.extend(pair);
+        }
         if !(1..=2).contains(&batches) {
             return Some(());
         }
@@ -526,15 +533,12 @@ impl UnderfilledQuadrants {
         ])
     }
 
-    fn append_early_collecting_batch(&self, leading: &mut Vec<(DrawPosition, DrawPosition)>) -> Option<()> {
-        let Some(pieces) = self.next_collecting_pieces(0) else { return Some(()) };
-        let before_last_child = Self::piece_count(&pieces[..4])?.checked_add(self.next_collecting[0].last_child_start)?;
+    fn early_collecting_pieces(&self, slot: usize) -> Option<[remaining::Piece<'_>; 6]> {
+        let pieces = self.next_collecting_pieces(slot)?;
+        let before_last_child = Self::piece_count(&pieces[..4])?.checked_add(self.next_collecting[slot].last_child_start)?;
         let incoming = Self::piece_count(&pieces[..5])?;
-        // A batch filled in the last incoming child submits before the three carried pairs.
-        if before_last_child < COPIES_PER_BATCH && (COPIES_PER_BATCH..2 * COPIES_PER_BATCH).contains(&incoming) {
-            Self::append_copy_window(&pieces, 0, COPIES_PER_BATCH, leading)?;
-        }
-        Some(())
+        // A batch filled in the last incoming child submits immediately before its own carried pair.
+        (before_last_child < COPIES_PER_BATCH && (COPIES_PER_BATCH..2 * COPIES_PER_BATCH).contains(&incoming)).then_some(pieces)
     }
 
     fn append_next_collecting_batches(&self, leading: &mut Vec<(DrawPosition, DrawPosition)>, pair_offsets: [u32; 3], middle_used: u32) -> Option<()> {

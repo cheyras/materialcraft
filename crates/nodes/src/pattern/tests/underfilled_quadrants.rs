@@ -73,7 +73,7 @@ enum Continuation {
     None,
     EmptySwitch,
     InactiveBranch(u32),
-    SingleTree,
+    ActiveTrees(i32),
     RoutedIteration(PatternNodeKind),
 }
 
@@ -130,7 +130,10 @@ fn marked_tree_pixel(
     let root = graph.add(PatternNodeKind::Quadrant).unwrap();
     graph.nodes[(iterate - 1) as usize].children[1] = Some(root);
     if marker_iterations.is_some() || wrap_iteration.is_some() {
-        let count = if matches!(continuation, Continuation::SingleTree) { 1 } else { 2 };
+        let count = match continuation {
+            Continuation::ActiveTrees(count) => count,
+            _ => 2,
+        };
         graph.nodes[(iterate - 1) as usize].parameters.insert("numberadded".into(), set_then_return("tree_index", Value::Float(0.0), Value::Int(count)));
         graph.nodes[(root - 1) as usize].parameters.insert("branchoffset".into(), advance_tree_offset());
     }
@@ -178,7 +181,7 @@ fn marked_tree_pixel(
     }
     let inactive_depth = match continuation {
         Continuation::InactiveBranch(depth) => Some(depth),
-        Continuation::SingleTree | Continuation::RoutedIteration(_) => Some(10),
+        Continuation::ActiveTrees(_) | Continuation::RoutedIteration(_) => Some(10),
         _ => None,
     };
     if let Some(depth) = inactive_depth {
@@ -292,9 +295,44 @@ fn a_collecting_batch_can_fill_before_the_next_quadrant_pair_starts() {
 }
 
 #[test]
+fn receiving_groups_submit_before_their_own_carried_pair() {
+    let small = 2.0_f32.powi(-25);
+    for (negative, positive, first, count) in [(880, 671, 864, 7), (943, 169, 928, 4)] {
+        let wrapped: Vec<_> = (first..first + count).collect();
+        let sample = |wrapped: &[usize]| marked_tree_pixel((5, negative), (5, positive), Continuation::ActiveTrees(2), wrapped, Some([2, 2]), Some(2));
+        assert!(sample(&wrapped[..count - 1]) < small * 0.5);
+        assert_eq!(sample(&wrapped).to_bits(), small.to_bits());
+    }
+}
+
+#[test]
+fn a_transferred_sibling_can_fill_the_receiving_group() {
+    let sample = marked_tree_pixel((5, 939), (5, 169), Continuation::ActiveTrees(2), &[928], Some([2, 2]), Some(1));
+    assert_eq!(sample.to_bits(), 2.0_f32.powi(-25).to_bits());
+}
+
+#[test]
+fn carried_pairs_can_fill_before_the_following_tree_starts() {
+    let small = 2.0_f32.powi(-25);
+    for trees in [2, 3, 4] {
+        let sample = marked_tree_pixel((3, 56), (3, 48), Continuation::ActiveTrees(trees), &[], Some([2, 2]), None);
+        assert_eq!(sample.to_bits(), small.to_bits(), "{trees} trees");
+    }
+}
+
+#[test]
+fn earlier_sibling_transfers_keep_their_order_across_repeated_trees() {
+    let small = 2.0_f32.powi(-25);
+    for trees in [2, 3, 4] {
+        let sample = marked_tree_pixel((5, 32), (5, 30), Continuation::ActiveTrees(trees), &[928], Some([1, 1]), Some(1));
+        assert_eq!(sample.to_bits(), small.to_bits(), "{trees} trees");
+    }
+}
+
+#[test]
 fn a_full_quadrant_pair_transfers_its_pending_sibling() {
     let sample =
-        |negative, positive, wrapped: &[usize]| marked_tree_pixel((5, negative), (5, positive), Continuation::SingleTree, wrapped, Some([1, 1]), Some(1));
+        |negative, positive, wrapped: &[usize]| marked_tree_pixel((5, negative), (5, positive), Continuation::ActiveTrees(1), wrapped, Some([1, 1]), Some(1));
     let small = 2.0_f32.powi(-25);
     assert!(sample(32, 30, &[]) < small * 0.5);
     assert_eq!(sample(32, 30, &[928]).to_bits(), small.to_bits());
@@ -303,7 +341,7 @@ fn a_full_quadrant_pair_transfers_its_pending_sibling() {
 
 #[test]
 fn a_single_tree_drains_the_middle_quadrant_before_the_carried_pair() {
-    let sample = |negative, positive| marked_tree_pixel((3, negative), (3, positive), Continuation::SingleTree, &[], Some([1, 1]), None);
+    let sample = |negative, positive| marked_tree_pixel((3, negative), (3, positive), Continuation::ActiveTrees(1), &[], Some([1, 1]), None);
     assert_eq!(sample(60, 52).to_bits(), 2.0_f32.powi(-25).to_bits());
     assert_eq!(sample(52, 60).to_bits(), 0);
 }

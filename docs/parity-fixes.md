@@ -59,6 +59,43 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-25 root comparisons
 
+### Full copy batches received across repeated quadrant trees
+
+Use the [overlapping square fixture](#pending-quadrant-siblings-and-the-first-full-receiving-batch) with an outer iteration of two, three or four trees and an unselected depth-ten branch. Keep the white background, additive gains −1 and 2⁻²⁵, and ordinary square gain 2⁻⁷⁶. Number each level's quadrants from zero in traversal order within its tree. A sibling left by the first tree can fill a receiving group's next batch. When it fills in the last incoming child, the group submits immediately before its own carried pair. The three pairs begin at second-tree depth-two quadrants 6, 10 and 2. Fourteen independently generated copy fields, including 5,459, 5,460 and 5,461 copies and two or three receivers filling together, confirmed 3,832/3,832 ordering comparisons in both gain directions. Six separate fields confirmed 6,450/6,450 comparisons through the first thirteen batches after the earlier sibling transfer. [Shared quadrant traversal](../crates/nodes/src/pattern/underfilled_quadrants.rs)
+
+For a two-pass F32 check, mark second-tree depth-five quadrants 880 and 671. Move the terminal squares below second-tree quadrants 864 through 869 to the corner, then include 870. The receiver goes from 5,336 to 5,528 copies and the sample at (8,8) changes from zero to 2⁻²⁵. Repeat with markers 943 and 169, moving quadrants 928 through 930 and then including 931. This gives 5,442 and 5,634 copies and the same change. Marking second-tree quadrants 939 and 169 and moving first-tree quadrant 928 also gives 2⁻²⁵. The signed order holds with reversed gains and additional active trees. [Whole-graph regressions](../crates/nodes/src/pattern/tests/underfilled_quadrants.rs)
+
+Later in the second tree, the lower and upper paired batches can both precede the last child's batch, including with a third or fourth tree active. The ordering of a full receiver depends on when it reaches 5,460 copies. In the signed 32² field, add 192 copies under first-tree depth-three quadrant 39. Starting twelve visits into second-tree depth-three quadrant 20 in traversal order, change consecutive one-copy squares to four copies at the corner, with one extra copy on each remaining square needed to reach the stated increment. Increments of 846, 847 and 848 give 5,459, 5,460 and 5,461 total copies including the last child's handoff. The last child precedes the receiver in all nine sampled pairs per field. Increments of 931, 932 and 933 give 5,459, 5,460 and 5,461 copies *before* that handoff. The last child precedes the receiver in 9/9, 0/9 and 0/9 pairs respectively. On the separate quadrant-19 field with 1,000 extra copies, 132 of 234 first comparisons changed on reversing the gains. All 234 reproduced on a fresh capture, including the nine receiver comparisons. [Receiving ranges and boundary regression](../crates/nodes/src/pattern/underfilled_quadrants/remaining.rs)
+
+For the four-format controls, use 32² F32 at seed 41384, 16 × 32 U8 at 41484, 32 × 16 U16 at 41588 and 64 × 32 F16 at 41692. In the repeated-pair controls, compare second-tree depth-three quadrants 56 and 48 in both gain directions, compare 52 with quadrant 0 on the following tree when present, shift first-tree depth-five quadrant 624 to the tile corner, and repeat the first-tree 32/30 marker with quadrant 928 wrapped. The receiving-group controls use the three marker pairs above, with neighboring densities, reversed gains, and two to four trees. The earlier control sets keep the settings recorded in the linked fixtures.
+
+| Procedural controls | Graphs | Exact original pixels | Exact reopened pixels | Maximum in either |
+|---|---:|---:|---:|---:|
+| Receiving groups and their neighboring thresholds | 11 | 45,056/45,056 | 45,056/45,056 | 0 |
+| Carried pairs in the second through fourth trees | 15 | 61,440/61,440 | 61,440/61,440 | 0 |
+| Earlier sibling boundaries and reversals | 12 | 49,152/49,152 | 49,151/49,152 | 2.64697796e−23 |
+| Lower, upper and last depth-three pairs | 9 | 36,837/36,864 | 36,846/36,864 | 2⁻²⁵ |
+| Earlier receiving group, neighboring densities and reversals | 9 | 36,864/36,864 | 36,864/36,864 | 0 |
+
+Across the 86 Spots 1 settings, one-processor agreement increases from 824,258 to 824,569 of 841,728 pixels. Sixteen settings improve and the 64 previously exact frames stay exact. Eight-processor agreement goes from 776,866 to 776,831, with four settings improving, eleven declining and 38 exact frames. The 19 ordinary saves go from 196,191 to 196,193 of 196,352 pixels, with 16 exact frames. [Earlier whole-root procedure](#final-copy-batches-in-one-and-two-quadrant-trees)
+
+| Storage | One processor · exact pixels · maximum | Eight processors · exact pixels · maximum | Ordinary save · exact pixels · maximum |
+|---|---:|---:|---:|
+| U8 | 108,800/108,800 · 0 | 108,799/108,800 · 1 | 90,112/90,112 · 0 |
+| U16 | 328,399/328,448 · 1 | 328,244/328,448 · 1 | 93,693/93,696 · 1 |
+| F16 | 108,800/108,800 · 0 | 108,798/108,800 · 4.88281250e−4 | 6,400/6,400 · 0 |
+| F32 | 278,570/295,680 · 2.38418579e−7 | 230,990/295,680 · 3.57627869e−7 | 5,988/6,144 · 1.19209290e−7 |
+
+The independent square and rectangular F32 comparisons retain different scores on the one-processor, eight-processor and reopened captures.
+
+| Earlier whole-root F32 settings | One processor · exact pixels · maximum | Eight processors · exact pixels · maximum | Ordinary save · exact pixels · maximum |
+|---|---:|---:|---:|
+| Eight settings with changed seeds, sizes and disorder | 25,879/26,624 · 1.19209290e−7 | 19,433/26,624 · 2.38418579e−7 | 26,350/26,624 · 1.19209290e−7 |
+| Six additional rectangular settings | 20,989/21,504 · 1.78813934e−7 | 17,063/21,504 · 1.78813934e−7 | 21,187/21,504 · 1.19209290e−7 |
+| Eight scale-one settings | 11,520/11,520 · 0 | 8,609/11,520 · 2.38418579e−7 | 11,500/11,520 · 1.19209290e−7 |
+
+Of the 66 open root graph bodies, 64 contain a quadrant stage and seven have a stage with a connected depth of ten. Only this Spots 1 stage declares potential draws at every depth from two through eight, which this shared traversal path requires. Mixed copy densities, later groups and worker-dependent outputs still differ. The inventory remains 480/546. [Additional F32 settings and seeds](#pending-quadrant-siblings-and-the-first-full-receiving-batch)
+
 ### Final pattern draws above inactive quadrants in Spots 1 v2
 
 Render the second Noise BNW Spots 1 package in F32. Read the output of each of its two FX-Maps and the final output bridge in the same capture session. Repeat in the ordinary MaterialCraft save. For a background control, leave the upstream connection in place and set each authored pattern type to zero in the final FX-Map. Save and reopen this control with its function packages available through their usual relative paths.
