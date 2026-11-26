@@ -59,6 +59,70 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-26 root comparisons
 
+### Recovered Dirt 4 and Moisture renders at seed 113
+
+Repeat the earlier 32 × 32 F32 comparison at seed 113. The earlier evaluator reached its execution guard on Noise Dirt 4, Noise Moisture Noise 1 v2 and Noise Moisture Noise 2. The current release produces all three outputs. Against the archived captures, Dirt 4 matches 1,013/1,024 · 7.62939453e-05, Moisture 1 v2 matches 684/1,024 · 2.98023224e-07 and Moisture 2 matches 809/1,024 · 1.49011612e-07. Each entry gives exact pixels / pixels compared and maximum absolute error.
+
+For Dirt 4 use scale 2 and disorder .37. For both Moisture graphs also set disorder speed .6, anisotropy .3, anisotropy angle .125, pattern size (.8,1.2), tile offset (.17,.29), pattern angle .125, random angle .2 and global opacity .8. For the default comparison use 16 × 32 and seed 732011 with all exposed values at their defaults. Keep normal tiling. Assign U8, U16, F16 or F32 to the node supplying the output. Save outside the library and open the saved package in both applications. The table compares fresh reference captures. Each cell gives exact pixels / total and maximum error in its format.
+
+| Graph · size | Reference capture | U8 | U16 | F16 | F32 |
+|---|---|---:|---:|---:|---:|
+| Noise Dirt 4 · 16 × 32 | Original · one processor | 512/512 · 0 | 512/512 · 0 | 512/512 · 0 | 512/512 · 0 |
+| Noise Dirt 4 · 16 × 32 | Original · eight processors | 512/512 · 0 | 512/512 · 0 | 512/512 · 0 | 512/512 · 0 |
+| Noise Dirt 4 · 16 × 32 | Ordinary save · one processor | 512/512 · 0 | 512/512 · 0 | 512/512 · 0 | 512/512 · 0 |
+| Noise Dirt 4 · 32 × 32 | Original · one processor | 1,023/1,024 · 1 | 1,024/1,024 · 0 | 1,024/1,024 · 0 | 1,013/1,024 · 7.62939453e-05 |
+| Noise Dirt 4 · 32 × 32 | Original · eight processors | 1,024/1,024 · 0 | 1,024/1,024 · 0 | 1,024/1,024 · 0 | 1,024/1,024 · 0 |
+| Noise Dirt 4 · 32 × 32 | Ordinary save · one processor | 1,023/1,024 · 1 | 1,024/1,024 · 0 | 1,024/1,024 · 0 | 1,024/1,024 · 0 |
+| Noise Moisture Noise 1 v2 · 16 × 32 | Original · one processor | 512/512 · 0 | 512/512 · 0 | 512/512 · 0 | 313/512 · 1.78813934e-07 |
+| Noise Moisture Noise 1 v2 · 16 × 32 | Original · eight processors | 512/512 · 0 | 511/512 · 1 | 512/512 · 0 | 324/512 · 2.08616257e-07 |
+| Noise Moisture Noise 1 v2 · 16 × 32 | Ordinary save · one processor | 512/512 · 0 | 512/512 · 0 | 512/512 · 0 | 323/512 · 1.78813934e-07 |
+| Noise Moisture Noise 1 v2 · 32 × 32 | Original · one processor | 1,024/1,024 · 0 | 1,023/1,024 · 1 | 1,024/1,024 · 0 | 661/1,024 · 2.98023224e-07 |
+| Noise Moisture Noise 1 v2 · 32 × 32 | Original · eight processors | 1,024/1,024 · 0 | 1,024/1,024 · 0 | 1,024/1,024 · 0 | 662/1,024 · 2.38418579e-07 |
+| Noise Moisture Noise 1 v2 · 32 × 32 | Ordinary save · one processor | 1,024/1,024 · 0 | 1,022/1,024 · 1 | 1,024/1,024 · 0 | 656/1,024 · 2.38418579e-07 |
+| Noise Moisture Noise 2 · 16 × 32 | Original · one processor | 512/512 · 0 | 512/512 · 0 | 512/512 · 0 | 253/512 · 1.78813934e-07 |
+| Noise Moisture Noise 2 · 16 × 32 | Original · eight processors | 512/512 · 0 | 512/512 · 0 | 512/512 · 0 | 254/512 · 2.38418579e-07 |
+| Noise Moisture Noise 2 · 16 × 32 | Ordinary save · one processor | 512/512 · 0 | 512/512 · 0 | 512/512 · 0 | 253/512 · 1.78813934e-07 |
+| Noise Moisture Noise 2 · 32 × 32 | Original · one processor | 1,024/1,024 · 0 | 1,024/1,024 · 0 | 1,024/1,024 · 0 | 806/1,024 · 2.08616257e-07 |
+| Noise Moisture Noise 2 · 32 × 32 | Original · eight processors | 1,024/1,024 · 0 | 1,024/1,024 · 0 | 1,024/1,024 · 0 | 817/1,024 · 1.78813934e-07 |
+| Noise Moisture Noise 2 · 32 × 32 | Ordinary save · one processor | 1,024/1,024 · 0 | 1,024/1,024 · 0 | 1,024/1,024 · 0 | 792/1,024 · 2.08616257e-07 |
+
+All 24 local buffers reproduce their original words after the normal save. Each default and seed-113 setting rendered in all four requested storage formats. The roots remain open for the differences in this table and the earlier size and parameter comparisons. [Dirt settings](#dirt-noise-sources-and-downstream-stages) · [Moisture settings](#liquid-fiber-and-related-noise-sources)
+
+### Untiled Spots outputs and the second Dirt Gradient iteration
+
+Open each Noise BNW Spots graph shown below. Turn off graph tiling. At 16 × 32 and seed 731257 keep the exposed defaults. For Spots 1 also use 32 × 16 and seed 731279, with scale 1, disorder .4375 and non-square expansion enabled. Set the format on the last FX-Map. Compare the complete grayscale output, then save the package normally outside the library and reopen it directly in both applications. Integer errors are storage levels. The earlier build was measured in U8 and F16.
+
+| Graph · size · format | Earlier on one processor | Corrected on one | Corrected on eight | Ordinary save on one |
+|---|---:|---:|---:|---:|
+| BNW Spots 1 v2 · 16 × 32 · U8 | 404/512 · 1 | 512/512 · 0 | 512/512 · 0 | 512/512 · 0 |
+| BNW Spots 1 v2 · 16 × 32 · U16 | — | 512/512 · 0 | 512/512 · 0 | 512/512 · 0 |
+| BNW Spots 1 v2 · 16 × 32 · F16 | 353/512 · 0.00048828125 | 512/512 · 0 | 512/512 · 0 | 512/512 · 0 |
+| BNW Spots 1 v2 · 16 × 32 · F32 | — | 472/512 · 1.1920929e-07 | 475/512 · 5.96046448e-08 | 474/512 · 5.96046448e-08 |
+| BNW Spots 1 v2 · 32 × 16 · U8 | 396/512 · 1 | 512/512 · 0 | 512/512 · 0 | 512/512 · 0 |
+| BNW Spots 1 v2 · 32 × 16 · U16 | — | 512/512 · 0 | 512/512 · 0 | 512/512 · 0 |
+| BNW Spots 1 v2 · 32 × 16 · F16 | 338/512 · 0.00048828125 | 512/512 · 0 | 512/512 · 0 | 512/512 · 0 |
+| BNW Spots 1 v2 · 32 × 16 · F32 | — | 467/512 · 1.1920929e-07 | 476/512 · 1.1920929e-07 | 473/512 · 1.1920929e-07 |
+| BNW Spots 3 v2 · 16 × 32 · U8 | 329/512 · 2 | 512/512 · 0 | 512/512 · 0 | 512/512 · 0 |
+| BNW Spots 3 v2 · 16 × 32 · U16 | — | 512/512 · 0 | 512/512 · 0 | 512/512 · 0 |
+| BNW Spots 3 v2 · 16 × 32 · F16 | 96/512 · 0.00366210938 | 512/512 · 0 | 512/512 · 0 | 512/512 · 0 |
+| BNW Spots 3 v2 · 16 × 32 · F32 | — | 478/512 · 1.1920929e-07 | 476/512 · 5.96046448e-08 | 477/512 · 1.1920929e-07 |
+
+Both Spots 1 geometries and the Spots 3 default now match in U8, U16 and F16 on one processor and on ordinary saves. All 12 reopened local buffers repeat their original words. The F32 outputs still differ.
+
+For the two untiled Noise Dirt Gradient v2 graphs, retain the background connection and limit only the final FX-Map's iterators. Append an integer minimum after the existing count expression so it still initializes the drawing variables. Keep the smaller and larger geometries at seeds 649211 and 649229. Each entry compares the complete F32 output with the original on one processor. [Full graph settings](#filtering-a-resized-pattern-background-on-each-axis)
+
+| Maximum outer count | Maximum inner count | 16 × 32 · maximum | 32 × 64 · maximum |
+|---:|---|---:|---:|
+| 1 | 1 | 512/512 · 0 | 2,048/2,048 · 0 |
+| 1 | Graph value | 512/512 · 0 | 2,048/2,048 · 0 |
+| 2 | 1 | 503/512 · 5.96046448e-08 | 1,782/2,048 · 1.78813934e-07 |
+| 2 | Graph value | 512/512 · 0 | 2,047/2,048 · 5.96046448e-08 |
+| 4 | Graph value | 410/512 · 1.78813934e-07 | 1,588/2,048 · 2.38418579e-07 |
+
+One outer iteration changes 451 and 1,784 pixels from the background-only control and still matches every reference word. With two outer iterations, the two inner-count choices give identical local buffers at both sizes. Repeat each on one processor with the sizes reversed, on eight processors, and after an ordinary save. Across the resulting four reference reads for each graph, MaterialCraft matches every invariant word. With the inner count capped at one there are 398 and 1,503 invariant locations at the two sizes. With the graph's own inner count there are 410 and 1,583. Only the smaller capped case has a local value outside these four reads, at one pixel by 5.96046448e−08. Four outer iterations still differ on both original captures.
+
+In four alternating cold release runs of the full untiled 16 × 32 Gradient F16 case with one local render thread, median cook time was 70.43 seconds before the background correction and 60.00 seconds after it. Median peak working set was 182.8 and 197.8 MiB. Other comparisons were running during these timings.
+
 ### Filtering a resized pattern background on each axis
 
 An FX-Map can draw over a clamped, filtered background sample before that sample is rounded to the working texture format. This occurs for a single resize step when the source and receiver sizes are both fixed or both parameter-controlled. Check the connected source's tiling on each axis that grows. If any growing axis repeats, the background is first filtered and stored using the receiver's tiling. A reduction can take the direct path even if its axis repeats. A longer resize or a change between fixed and parameter-controlled sizing keeps the intermediate storage.
