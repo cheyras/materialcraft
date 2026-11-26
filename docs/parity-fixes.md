@@ -59,6 +59,43 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-26 root comparisons
 
+### Four full batches in two tiled quadrant trees
+
+In a pair of complete depth-nine quadrant trees, the last wrapped copy can fill the fifth physical batch before parent 22,528. When only four batches fit, two pending subtrees start earlier. The fifth batch can also end exactly at its subtree boundary. Three additional Noise Dirt 1 settings exposed this difference in the shared FX-Map evaluator.
+
+Use the original graph with ordinary tiling, scale 1 and non-square expansion enabled. Set disorder and the graph seed as shown and set the grayscale output's source to F32. Save each graph normally in MaterialCraft and reopen it in both applications. Each cell gives exact pixels / pixels compared and maximum absolute difference.
+
+| Size · seed · disorder | Earlier on one processor | Corrected on one | Corrected on eight | Ordinary save on one |
+|---|---:|---:|---:|---:|
+| 32 × 64 · 531803 · 0.34375 | 1,991/2,048 · 5.96046448e-08 | 2,048/2,048 · 0 | 1,998/2,048 · 5.96046448e-08 | 2,048/2,048 · 0 |
+| 64 × 128 · 531841 · 0.6875 | 7,993/8,192 · 1.1920929e-07 | 8,192/8,192 · 0 | 7,966/8,192 · 1.1920929e-07 | 8,192/8,192 · 0 |
+| 128 × 256 · 531901 · 0.8125 | 32,040/32,768 · 1.1920929e-07 | 32,768/32,768 · 0 | 31,754/32,768 · 1.1920929e-07 | 32,768/32,768 · 0 |
+| 64 × 32 · 649261 · 0.34375 | 1,991/2,048 · 5.96046448e-08 | 1,991/2,048 · 5.96046448e-08 | 1,990/2,048 · 5.96046448e-08 | 1,992/2,048 · 5.96046448e-08 |
+| 128 × 64 · 649277 · 0.34375 | 8,009/8,192 · 1.1920929e-07 | 8,009/8,192 · 1.1920929e-07 | 8,026/8,192 · 1.1920929e-07 | 8,009/8,192 · 1.1920929e-07 |
+
+The three tall originals moved from 42,024/43,008 · 1.1920929e-07 to 43,008/43,008 · 0 on one processor. Every local save has the original raw hash. The two wider F32 images still have differences. Repeat the four smaller geometries above in U8, U16 and F16. Each row covers four original settings and their saves. Integer maxima count stored levels.
+
+| Format | Earlier on one | Corrected on one | Corrected on eight | Ordinary save on one |
+|---|---:|---:|---:|---:|
+| U8 | 20,480/20,480 · 0 | 20,480/20,480 · 0 | 20,479/20,480 · 1 | 20,480/20,480 · 0 |
+| U16 | 20,479/20,480 · 1 | 20,480/20,480 · 0 | 20,480/20,480 · 0 | 20,480/20,480 · 0 |
+| F16 | 20,480/20,480 · 0 | 20,480/20,480 · 0 | 20,480/20,480 · 0 | 20,480/20,480 · 0 |
+
+Repeat the [established catalog panel](#expanded-image-and-save-comparisons-for-dirt-1-and-dirt-2). Each row gives exact whole settings / settings rendered and exact pixels. The maxima are reported below in U8, U16, F16 and F32 order.
+
+| Graph | Earlier originals on one | Corrected originals on one | Corrected originals on eight | Archived saves on one |
+|---|---:|---:|---:|---:|
+| Noise Dirt 1 | 41/60 · 780,815/785,664 | 41/60 · 780,815/785,664 | 32/60 · 779,996/785,664 | 8/12 · 147,514/149,504 |
+| Noise Dirt 2 | 53/60 · 785,657/785,664 | 53/60 · 785,657/785,664 | 51/60 · 785,650/785,664 | 11/12 · 149,503/149,504 |
+
+Noise Dirt 1 maxima are 0 / 1 / 0 / 1.1920929e-07 on one processor, 0 / 1 / 0 / 1.1920929e-07 on eight and 0 / 0 / — / 1.1920929e-07 on the archived saves. Noise Dirt 2 maxima are 0 / 2 / 6.10351562e-05 / 2.52053142e-05 on one processor, 0 / 2 / 0.000122070312 / 2.52090394e-05 on eight and 0 / 0 / — / 2.52053142e-05 on the archived saves.
+
+Every local raw hash in the established panel matches the preceding build. The additional rectangular settings above exercise the four-batch order.
+
+For the reduced control, use two complete nine-level quadrant trees and one additive square per node at depths seven through nine. Each of 16,384 parents in each tree accounts for 21 draws. Divide the two trees' parents into groups of 64 in traversal order. Start every terminal square inside the unit tile. For a group with q extra copies, wrap the first floor(q/64) leaves in each parent and one more leaf in the first q mod 64 parents. Order a parent's sixteen leaves by their local Y then X coordinates. Give groups 213, 217, 312, 372, 384, 419, 464 and 472 respectively 46, 67, 85, 171, 154, 85, 36 and 32 extra copies. Give group 332 successively 167, 168 and 169. On white, overlap parent 29,819 at −1 with parent 22,269 at 2⁻²⁵. Their output is 2⁻²⁵, zero and zero. The preceding build returned zero at 167. A second independent pair, parents 24,640 and 32,596, also changes order. The reference agreed with all 65,534 signed adjacent comparisons in each field.
+
+Use four further original fields generated with [the same weighted parent selection](#tiled-copies-across-two-complete-quadrant-trees), PCG64 seed 913007 and extra-copy totals drawn uniformly from 1,400 through 2,999. Keep candidates 67, then 16, 76 and 59 counted from the previous selection, restarting the candidate count at zero after each. Their totals are 1,546, 1,621, 2,384 and 1,494. All 262,136 signed adjacent comparisons match. For each of the seven fields render the even pairs with the smaller gain first and the odd pairs with the gains reversed. Render again after an ordinary save. The release matches 917,504/917,504 · 0 on the originals and 917,504/917,504 · 0 on the saves. All 571 release node and graph-evaluation tests passed with formatting, strict workspace Clippy, layers and WebAssembly checks.
+
 ### Tiled copies across two complete quadrant trees
 
 With ordinary graph tiling, two complete drawing trees can share a physical batch. Each of 16,384 parents per tree submits one draw, four child draws and sixteen grandchild draws. The sums depend on which tile copy fills a batch of 5,460. In the order with five full batches before parent 22,528, its remaining draws precede the two pending subtrees starting at parent 24,640. A separate batch ends at parent 20,352 when no stamp wraps. Additional copies move that cut into the preceding subtree.

@@ -691,15 +691,20 @@ fn single_branch_controls_keep_the_order_of_a_complete_nine_level_tree() {
 
 fn draw_white_image(mut graph: PatternGraph, filter: i32, axes: i32) -> craft_texture::Image {
     use craft_texture::Image;
-    use materialcraft_core::OutputFormat;
 
-    let definition = find("fx_map").unwrap();
     for node in &mut graph.nodes {
         if node.parameters.get("patterntype").and_then(Value::as_i32) == Some(2) {
             node.parameters.insert("patterntype".into(), Value::Int(1));
             node.parameters.insert("imagefiltering".into(), Value::Int(filter));
         }
     }
+    cook_probe_on_white(graph, axes, &[None, Some(Image::gray(8, 8, |_, _| 1.0))])
+}
+
+fn cook_probe_on_white(graph: PatternGraph, axes: i32, inputs: &[Option<craft_texture::Image>]) -> craft_texture::Image {
+    use materialcraft_core::OutputFormat;
+
+    let definition = find("fx_map").unwrap();
     let params = resolve_params(
         definition,
         &BTreeMap::from([
@@ -716,7 +721,7 @@ fn draw_white_image(mut graph: PatternGraph, filter: i32, axes: i32) -> craft_te
         format: OutputFormat::F32,
         tile: axes != 0,
         input_formats: &[OutputFormat::F32; 2],
-        inputs: &[None, Some(Image::gray(8, 8, |_, _| 1.0))],
+        inputs,
         params: &params,
         resource: &|_| None,
         vars: &BTreeMap::from([("$tiling".into(), Value::Int(axes))]),
@@ -814,6 +819,58 @@ fn extra_copies_of_leaves_can_move_a_parent_past_another_subtree() {
         let graph = two_tree_parent_probe((0, [49, 29]), (0, [54, 50]), wrap_leaves);
         let image = draw_white_image(graph, 2, 3);
         assert_eq!(image.get_gray(32, 16, false), expected, "parent order with wrapping leaves {wrap_leaves}");
+    }
+}
+
+#[test]
+fn the_last_tile_copy_in_a_batch_moves_the_following_two_tree_draws() {
+    use craft_texture::Image;
+
+    // The two banks hold one texel per terminal quadrant. Move the selected
+    // leaves to the tile boundary. All remaining leaves stay in the interior.
+    let mut frame = FunctionGraph::default();
+    let pos = frame.add("get_float2", &[], Some(Value::Text("$pos".into())));
+    let number = frame.add("get_float1", &[], Some(Value::Text("$number".into())));
+    let half = frame.add_constant(Value::Float(0.5));
+    let bank = frame.add("mul", &[number, half], None);
+    let zero = frame.add_constant(Value::Float(0.0));
+    let origin = frame.add("vector2", &[bank, zero], None);
+    let scale = frame.add_constant(Value::Float2([0.5, 1.0]));
+    let scaled = frame.add("mul", &[pos, scale], None);
+    let uv = frame.add("add", &[scaled, origin], None);
+    let x = frame.add("samplelum", &[uv], Some(Value::Int2([0, 0])));
+    let y = frame.add_constant(Value::Float(0.875));
+    let center = frame.add("vector2", &[x, y], None);
+    frame.output = Some(frame.add("sub", &[center, pos], None));
+
+    // Parent 29,819 and parent 22,269 both belong to the second iteration.
+    let mut graph = two_tree_parent_probe((1, [109, 71]), (1, [111, 30]), false);
+    graph.nodes.last_mut().unwrap().parameters.insert("frameoffset".into(), Value::Function(Box::new(frame)));
+    for (extra, expected) in [(167, f32::EPSILON * 0.25), (168, 0.0), (169, 0.0)] {
+        let field = Image::gray(1024, 512, |x, y| {
+            let parent_x = x % 512 / 4;
+            let parent_y = y / 4;
+            let mut ordinal = (x / 512) * 16384;
+            for bit in 0..7 {
+                ordinal |= ((parent_x >> bit) & 1) << (2 * bit);
+                ordinal |= ((parent_y >> bit) & 1) << (2 * bit + 1);
+            }
+            let copies = match ordinal / 64 {
+                213 => 46,
+                217 => 67,
+                312 | 419 => 85,
+                332 => extra,
+                372 => 171,
+                384 => 154,
+                464 => 36,
+                472 => 32,
+                _ => 0,
+            };
+            let leaves = copies / 64 + u32::from(ordinal % 64 < copies % 64);
+            if (y % 4) * 4 + x % 4 < leaves { 0.0 } else { 0.875 }
+        });
+        let image = cook_probe_on_white(graph.clone(), 3, &[None, Some(field)]);
+        assert_eq!(image.get_gray(32, 16, false), expected, "two-tree order with {extra} extra copies in subtree 332");
     }
 }
 

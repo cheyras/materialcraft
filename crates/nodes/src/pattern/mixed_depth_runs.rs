@@ -191,12 +191,19 @@ static PAIRED_GRANDCHILDREN: LazyLock<Vec<(usize, usize)>> = LazyLock::new(|| {
 // subtree joins the two pending subtrees beginning at parent 24,640.
 // Integral subtree ends are fixed. Interior markers select a subtree and
 // the physical copy count locates the actual split inside it.
-static FIVE_BATCH_CONTINUATION: LazyLock<Vec<(usize, usize)>> = LazyLock::new(|| {
-    let tail = [
-        22465, 30720, 24640, 26497, 31744, 16448, 18369, 20480, 31873, 24576, 29761, 32768, 28737, 28672, 30913, 32256, 20865, 28800, 28928, 29184, 31105,
-        29824, 29952, 30208, 28929, 22528, 24768, 28864, 21120, 26624, 16576, 18432, 29888, 31104, 20992, 21248, 31168, 30976, 31232, 21184, 29056, 31936,
-        30080,
-    ];
+fn tiled_pair_continuation(five_batches: bool) -> Vec<(usize, usize)> {
+    let cut = if five_batches { 22465 } else { 22273 };
+    let mut tail = vec![cut, 30720, 24640, 26497, 31744, 16448, 18369, 20480, 31873, 24576, 29761];
+    if !five_batches {
+        // After four complete batches the remaining draws fill a fifth with
+        // the first copies from the two pending subtrees.
+        tail.extend([22528, 24641]);
+    }
+    tail.extend([32768, 28737, 28672, 30913, 32256, 20865, 28800, 28928, 29184, 31105, 29824, 29952, 30208, 28929]);
+    if five_batches {
+        tail.push(22528);
+    }
+    tail.extend([24768, 28864, 21120, 26624, 16576, 18432, 29888, 31104, 20992, 21248, 31168, 30976, 31232, 21184, 29056, 31936, 30080]);
     let mut layout = continued_layout(&PAIRED_GRANDCHILDREN, 58, &tail);
     for (end, rank) in &mut layout {
         // Two eight-batch cuts now fall in the preceding 64-parent subtree.
@@ -208,7 +215,10 @@ static FIVE_BATCH_CONTINUATION: LazyLock<Vec<(usize, usize)>> = LazyLock::new(||
     }
     layout.sort_unstable();
     layout
-});
+}
+
+static FIVE_BATCH_CONTINUATION: LazyLock<Vec<(usize, usize)>> = LazyLock::new(|| tiled_pair_continuation(true));
+static FOUR_BATCH_CONTINUATION: LazyLock<Vec<(usize, usize)>> = LazyLock::new(|| tiled_pair_continuation(false));
 
 #[derive(Default)]
 pub(super) struct MixedDepthRuns {
@@ -359,11 +369,12 @@ impl MixedDepthRuns {
             if self.trees == 1 {
                 layout = copies.layout(self.layout)?;
                 self.starts = copies.boundaries(&layout, self.draws_per_parent)?;
-            } else if let Some(bounds) = copies.boundaries(&FIVE_BATCH_CONTINUATION, self.draws_per_parent) {
-                layout = Cow::Borrowed(FIVE_BATCH_CONTINUATION.as_slice());
-                self.starts = bounds;
             } else {
-                self.starts = copies.boundaries(&layout, self.draws_per_parent)?;
+                let candidates = [FIVE_BATCH_CONTINUATION.as_slice(), FOUR_BATCH_CONTINUATION.as_slice(), self.layout];
+                let (selected, bounds) =
+                    candidates.into_iter().find_map(|candidate| copies.boundaries(candidate, self.draws_per_parent).map(|bounds| (candidate, bounds)))?;
+                layout = Cow::Borrowed(selected);
+                self.starts = bounds;
             }
         }
         let mut groups = vec![DrawRun::whole(&[]); layout.len()];

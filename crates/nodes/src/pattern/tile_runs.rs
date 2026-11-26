@@ -477,10 +477,16 @@ impl TileCopies {
             // The prefix beginning at group 40 keeps its place when its batch fills one subtree earlier.
             return self.subtree_ends.get(42).zip(self.subtree_ends.get(44)).is_some_and(|(&before, &after)| before < cut && cut < after);
         }
-        // In a two-tree continuation the part of group 120 that is still
-        // pending can fill its batch in either of its last two subtrees.
-        if self.subtree_ends.len() == TWO_DEEP_TREES && parents == 483 * DEPTH_FOUR_PARENTS + 1 {
-            return self.subtree_ends.get(subtree - 2).zip(self.subtree_ends.get(subtree)).is_some_and(|(&lower, &upper)| lower < cut && cut < upper);
+        if self.subtree_ends.len() == TWO_DEEP_TREES {
+            // The fifth batch can end exactly at the last copy of group 87.
+            if parents == 351 * DEPTH_FOUR_PARENTS + 1 {
+                return self.subtree_ends.get(subtree - 1).zip(self.subtree_ends.get(subtree)).is_some_and(|(&lower, &upper)| lower < cut && cut <= upper);
+            }
+            // The preceding batch and the later cut in group 120 can each
+            // fall on either side of an interior subtree boundary.
+            if parents == 348 * DEPTH_FOUR_PARENTS + 1 || parents == 483 * DEPTH_FOUR_PARENTS + 1 {
+                return self.subtree_ends.get(subtree - 2).zip(self.subtree_ends.get(subtree)).is_some_and(|(&lower, &upper)| lower < cut && cut < upper);
+            }
         }
         if self.parents_per_subtree == DEPTH_FOUR_PARENTS && self.axes == [true, false] && parents % DEPTH_THREE_PARENTS < DEPTH_FOUR_PARENTS {
             let previous = match group {
