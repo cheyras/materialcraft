@@ -59,6 +59,30 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-26 root comparisons
 
+### Streaming deep quadrants that draw the same connected image
+
+Noise Dirt 1 and Noise Dirt 2 can now render previously blocked whole graphs that draw an upstream grayscale pattern through a fixed image slot. Each 32 × 16 setting below traverses eight full quadtrees with ten quadrant levels, or 2,796,200 quadrant visits. Only depths seven through nine draw the connected image. All three use slot zero, bilinear filtering and additive blending. The same evaluator checks that the drawing quadrants have equal raster order before it submits successive groups. Each group uses the same F32 output and the same bounded cache of reduced source images.
+
+| Original setting | One processor · maximum | Eight processors · maximum | Ordinary save on one · maximum |
+|---|---:|---:|---:|
+| Noise Dirt 1, scale 2, disorder .8125, non-square expansion on, seed 105430, F32 | 500/512 · 1.19209290e−7 | 502/512 · 5.96046448e−8 | 500/512 · 5.96046448e−8 |
+| Noise Dirt 2, scale 2, disorder .21875, non-square expansion on, seed 42, U16 | 512/512 · 0 | 512/512 · 0 | 512/512 · 0 |
+| Same Dirt 2 setting, F32 | 512/512 · 0 | 512/512 · 0 | 512/512 · 0 |
+
+Leave other parameters at their defaults. In both applications open each ordinary save directly. Each local saved render reproduced the original raw output. At 32 × 16, seed 105447, the Dirt 1 v2 setting still reached the traversal guard. Use the same exposed settings as Dirt 1 above and set disorder speed to 1.4375, anisotropy amount to .625, anisotropy angle to −.21875 and tile offset to (−.3125,.4375). Its graph adds an iteration at depth seven.
+
+In the [earlier 34 Dirt 2 renders](#whole-outputs-and-saved-settings-for-noise-dirt-2-and-noise-dirt-3), all 512,256 MaterialCraft pixels matched at least one of the one- and eight-processor reference values. The nine pixels differing from the one-processor reference and the five differing from the eight-processor reference are disjoint. The two reference images differ on exactly 14 pixels across those settings. Each processor count retains its own exact-match score.
+
+For a separate input test, start with seven empty quadrants, then 80 outer and 70 inner iterations drawing two overlapping image stamps. Select fixed slot zero as a generic image and as packed image 256. Use sizes (96,80) and (24,32), tints 2⁻¹³ and −2⁻¹⁴, gray background .125, unit opacity and disabled tiling. Run seeds 19 at 16² and 113 at 32 × 16, each at U8, U16, F16 and F32. Repeat with automatic, bilinear and nearest filtering and save normally.
+
+| Source for the two stamps | Filtering | Original and reopened exact pixels | Maximum error |
+|---|---|---:|---|
+| Independent 32² procedural grayscale pattern | Automatic, bilinear and nearest | 18,432/18,432 | 0 |
+| External 32² grayscale U8 field | Bilinear and nearest | 12,288/12,288 | 0 |
+| Same external field | Automatic | 5,964/6,144 | 0 U8 · 7,395 U16 · .113037109 F16 · .112834156 F32 |
+
+For the procedural source, start at gray .125 and draw a paraboloid of size (.921875,.6875), rotation .125 and tint .75. Connect two child squares in slots zero and three, each of size (.125,1), rotation −.0625 and tint .25. Use its ordinary SBS save as the input for the first capture, then save and reopen again. For the external U8 field use (13x + 29y + 7xy + 17) modulo 256. All 96 local buffers matched their earlier local raw hashes, including the six differing automatic-filter captures at 16². A small-budget regression compares three image filters across chunk boundaries and checks the different-filter ordering guard. It exhausted the traversal budget before the change.
+
 ### Accounting for a streamed draw and its tile copies
 
 Directional Noise 3 now renders both 128 × 512 at seed 412002 and 512 × 128 at seed 412063 in U16 and F32. Set scale, disorder, angle, angle random and non-square expansion to (2, .53125, .28125, .53125, off) and (1, .09375, −.15625, .09375, on) respectively. Keep other exposed parameters at their defaults. Save normally and open each resulting file directly in both applications. Each saved MaterialCraft output is bit-identical to its original.

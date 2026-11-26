@@ -23,11 +23,12 @@ pub(super) struct RasterWork {
     pub streaming: bool,
     samples_left: u64,
     copies_left: u64,
+    mipmaps: bitmap::Mipmaps,
 }
 
 impl RasterWork {
     pub fn new() -> Self {
-        Self { background: None, streaming: false, samples_left: MAX_SAMPLES, copies_left: MAX_STAMP_COPIES }
+        Self { background: None, streaming: false, samples_left: MAX_SAMPLES, copies_left: MAX_STAMP_COPIES, mipmaps: bitmap::Mipmaps::new() }
     }
 }
 
@@ -72,7 +73,6 @@ pub(super) fn render(
     let axes = context.tiling_axes();
     let cull_outside = context.b("cull_outside");
     let tile_region = Region::tiling(context.v4("tiling_region"), axes, cull_outside)?;
-    let mut mipmaps = bitmap::Mipmaps::new();
 
     let mut traversal = groups.iter().flat_map(DrawRun::draws);
     let mut ordered = Vec::new();
@@ -203,7 +203,7 @@ pub(super) fn render(
                         let Some(local) = local else { continue };
 
                         let (foreground, stamp_alpha) = if let Some(sampler) = &mut texture {
-                            let sample = sampler.sample(local, [x, y], planes.as_ref(), &mut mipmaps)?.map(flush_subnormal);
+                            let sample = sampler.sample(local, [x, y], planes.as_ref(), &mut work.mipmaps)?.map(flush_subnormal);
                             if kind == Kind::Gray {
                                 // Store coverage before tinting. Its zero then takes the sign of the opacity.
                                 let coverage = (sample[0] - 1.0) + 1.0;

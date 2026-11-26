@@ -1809,10 +1809,10 @@ fn center_at_roughness(graph: PatternGraph, roughness: f32) -> f32 {
 }
 
 fn render_with_visit_limit(graph: &PatternGraph, limit: usize) -> crate::CookResult {
-    render_with_tiling_and_visit_limit(graph, false, limit)
+    render_with_inputs_and_visit_limit(graph, &[], false, limit)
 }
 
-fn render_with_tiling_and_visit_limit(graph: &PatternGraph, tile: bool, limit: usize) -> crate::CookResult {
+fn render_with_inputs_and_visit_limit(graph: &PatternGraph, inputs: &[Option<craft_texture::Image>], tile: bool, limit: usize) -> crate::CookResult {
     let params = resolve_params(
         find("fx_map").unwrap(),
         &BTreeMap::from([
@@ -1826,7 +1826,7 @@ fn render_with_tiling_and_visit_limit(graph: &PatternGraph, tile: bool, limit: u
         h: 4,
         seed: 19,
         tile,
-        inputs: &[],
+        inputs,
         input_formats: &[],
         format: materialcraft_core::OutputFormat::F32,
         params: &params,
@@ -1939,11 +1939,34 @@ fn streamed_squares_charge_the_tile_copies_after_the_first() {
     let leaf = &mut graph.nodes[9].parameters;
     leaf.insert("frameoffset".into(), Value::Float2([0.0, 0.25]));
     leaf.insert("patternsize".into(), Value::Float2([12_483.0 * 128.0, 32.0]));
-    let image = render_with_tiling_and_visit_limit(&graph, true, 64).unwrap().remove(0);
+    let image = render_with_inputs_and_visit_limit(&graph, &[], true, 64).unwrap().remove(0);
     assert!(image.get_gray(1, 1, false) > 1.0);
 
     graph.nodes[9].parameters.insert("patternsize".into(), Value::Float2([12_485.0 * 128.0, 32.0]));
-    assert!(render_with_tiling_and_visit_limit(&graph, true, 64).unwrap_err().contains("pattern repetition exceeds its budget"));
+    assert!(render_with_inputs_and_visit_limit(&graph, &[], true, 64).unwrap_err().contains("pattern repetition exceeds its budget"));
+}
+
+#[test]
+fn streamed_image_draws_share_their_filter_and_source_levels() {
+    let mut graph = nested_square_draws(35);
+    let source = craft_texture::Image::gray(32, 32, |x, y| ((13 * x + 29 * y + 7 * x * y + 17) % 256) as f32 / 255.0);
+    let inputs = [None, Some(source)];
+    graph.nodes[9].parameters.insert("patterntype".into(), Value::Int(1));
+    graph.nodes[9].parameters.insert("patternsize".into(), Value::Float2([96.0, 80.0]));
+    for filter in [0, 1, 2] {
+        graph.nodes[9].parameters.insert("imagefiltering".into(), Value::Int(filter));
+        let expected = render_with_inputs_and_visit_limit(&graph, &inputs, false, 512).unwrap().remove(0);
+        let streamed = render_with_inputs_and_visit_limit(&graph, &inputs, false, 64).unwrap().remove(0);
+        assert_eq!(streamed.data(), expected.data());
+        assert!(streamed.data().iter().any(|value| *value > 0.0));
+    }
+
+    // A different filter has a different raster rank even when both quadrants use the same slot.
+    let child = graph.add(PatternNodeKind::Quadrant).unwrap();
+    graph.nodes[9].children[0] = Some(child);
+    graph.nodes[10].parameters = graph.nodes[9].parameters.clone();
+    graph.nodes[10].parameters.insert("imagefiltering".into(), Value::Int(0));
+    assert!(render_with_inputs_and_visit_limit(&graph, &inputs, false, 64).unwrap_err().contains("execution budget"));
 }
 
 #[test]

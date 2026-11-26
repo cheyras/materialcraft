@@ -62,8 +62,20 @@ fn uniform_deep_draws(root: Option<u32>, nodes: &PatternNodes) -> bool {
             if shape != 0 {
                 // A drawing first-level quadrant can require reordering across outer iterations.
                 let Some(blend @ 0..=2) = literal("blendingmode") else { return false };
-                let rank = (shape, blend != 0);
-                if depth < 2 || !(2..=16).contains(&shape) || *order.get_or_insert(rank) != rank {
+                let (pattern, filter) = if image_pattern(shape) {
+                    let Some(slot) = literal("imageindex").and_then(|index| fixed_image_slot(shape, index)) else { return false };
+                    let Some(filter @ 0..=2) = literal("imagefiltering") else { return false };
+                    if slot >= crate::MAX_IMAGE_INPUTS as i32 {
+                        return false;
+                    }
+                    (256 + slot, filter)
+                } else if (2..=16).contains(&shape) {
+                    (shape, 0)
+                } else {
+                    return false;
+                };
+                let rank = (pattern, filter, blend != 0);
+                if depth < 2 || *order.get_or_insert(rank) != rank {
                     return false;
                 }
             }
@@ -80,6 +92,11 @@ fn quadrant_mode(kind: PatternNodeKind, name: &str) -> bool {
 
 fn image_pattern(pattern: i32) -> bool {
     pattern == 1 || (256..256 + crate::MAX_IMAGE_INPUTS as i32).contains(&pattern)
+}
+
+fn fixed_image_slot(pattern: i32, requested: i32) -> Option<i32> {
+    // A fixed zero preserves the packed slot. The generic image pattern starts at slot zero.
+    (requested >= 0).then_some(if requested == 0 { pattern.max(256) - 256 } else { requested })
 }
 
 fn uses_property(kind: PatternNodeKind, name: &str, pattern: i32) -> bool {
@@ -474,8 +491,7 @@ fn evaluate(context: &CookContext, base_level_only: &[bool], visit_limit: usize,
                         let pos = image_slots.partition_point(|&i| i < requested);
                         image_slots.get(pos).or_else(|| image_slots.last()).copied()
                     } else {
-                        // A fixed zero preserves the packed slot. The generic image pattern starts at slot zero.
-                        (requested >= 0).then_some(if requested == 0 { pattern.max(256) - 256 } else { requested })
+                        fixed_image_slot(pattern, requested)
                     };
                     pattern = slot.map_or(0, |i| i.saturating_add(256));
                 }
@@ -662,8 +678,8 @@ fn evaluate(context: &CookContext, base_level_only: &[bool], visit_limit: usize,
             discard_allowance -= 1;
             remaining += 1;
         }
-        // Once every subtree ordering has been ruled out, equal-ranked analytic stamps can be
-        // composited immediately in traversal order. Reuse their storage and preserve all F32 adds.
+        // Once every subtree ordering has been ruled out, equal-ranked stamps can be composited
+        // immediately in traversal order. Reuse their storage and preserve all F32 adds.
         if stamps.len() >= stream_chunk
             && max_depth > 6
             && mixed_depth_runs.is_none()
