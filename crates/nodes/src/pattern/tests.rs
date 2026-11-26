@@ -651,8 +651,7 @@ fn depth_six_stamps_and_their_four_leaves_draw_in_the_same_grandchild_run() {
     }
 }
 
-#[test]
-fn single_branch_controls_keep_the_order_of_a_complete_nine_level_tree() {
+fn gated_nine_level_tree() -> PatternGraph {
     let (mut graph, groups) = seven_level_tree();
     let middle = graph.add(PatternNodeKind::Quadrant).unwrap();
     let leaf = graph.add(PatternNodeKind::Quadrant).unwrap();
@@ -676,11 +675,58 @@ fn single_branch_controls_keep_the_order_of_a_complete_nine_level_tree() {
     }
 
     draw_on_fourth_repetition(&mut graph);
+    graph
+}
 
+#[test]
+fn single_branch_controls_keep_the_order_of_a_complete_nine_level_tree() {
     let variables = BTreeMap::from([("$tiling".into(), Value::Int(0))]);
-    let image = cook_in_regions(graph, &variables, 188119, [128; 2], [[0.0, 1.0, 0.0, 1.0]; 2], 1.0).unwrap().remove(0);
+    let image = cook_in_regions(gated_nine_level_tree(), &variables, 188119, [128; 2], [[0.0, 1.0, 0.0, 1.0]; 2], 1.0).unwrap().remove(0);
     let samples = [(0, 0), (8, 0), (0, 16), (16, 0)].map(|(x, y)| image.get_gray(x, y, false));
+    let tiny = f32::EPSILON * 0.25;
     assert_eq!(samples, [0.0, tiny, tiny, 0.0], "one active tree through both iterators");
+}
+
+#[test]
+fn fixed_image_stamps_keep_the_subtree_order_of_an_untiled_quadrant_tree() {
+    use craft_texture::Image;
+    use materialcraft_core::OutputFormat;
+
+    let definition = find("fx_map").unwrap();
+    let tiny = f32::EPSILON * 0.25;
+    for filter in [2, 1, 0] {
+        let mut graph = gated_nine_level_tree();
+        for node in &mut graph.nodes {
+            if node.parameters.get("patterntype").and_then(Value::as_i32) == Some(2) {
+                node.parameters.insert("patterntype".into(), Value::Int(1));
+                node.parameters.insert("imagefiltering".into(), Value::Int(filter));
+            }
+        }
+        let params = resolve_params(
+            definition,
+            &BTreeMap::from([
+                ("pattern".into(), Value::PatternGraph(Box::new(graph))),
+                ("roughness".into(), Value::Float(0.0)),
+                ("color_mode".into(), Value::Bool(false)),
+                ("background".into(), Value::Color([1.0; 4])),
+            ]),
+        );
+        let context = CookContext {
+            w: 128,
+            h: 128,
+            seed: 188119,
+            format: OutputFormat::F32,
+            tile: false,
+            input_formats: &[OutputFormat::F32; 2],
+            inputs: &[None, Some(Image::gray(8, 8, |_, _| 1.0))],
+            params: &params,
+            resource: &|_| None,
+            vars: &BTreeMap::from([("$tiling".into(), Value::Int(0))]),
+        };
+        let image = (definition.cook)(&context).unwrap().remove(0);
+        let samples = [(0, 0), (8, 0), (0, 16), (16, 0)].map(|(x, y)| image.get_gray(x, y, false));
+        assert_eq!(samples, [0.0, tiny, tiny, 0.0], "filter {filter}");
+    }
 }
 
 #[test]

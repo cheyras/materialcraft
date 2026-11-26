@@ -106,11 +106,12 @@ pub(super) struct MixedDepthRuns {
     deepest: u32,
     draws: usize,
     shape: Option<i32>,
+    fixed_image: bool,
     copies: Option<TileCopies>,
 }
 
 impl MixedDepthRuns {
-    pub(super) fn new(context: &CookContext, deepest: u32) -> Option<Self> {
+    pub(super) fn new(context: &CookContext, deepest: u32, fixed_image: bool) -> Option<Self> {
         if context.b("cull_outside") {
             return None;
         }
@@ -118,7 +119,7 @@ impl MixedDepthRuns {
         // A common render and tiling window determines the repeated copies along its edges.
         let window = if matches!(deepest, 8 | 10) && axes == [true; 2] { context.v4("render_region") } else { UNIT_WINDOW };
         let copies = if axes != [false; 2] || deepest == 10 { Some(TileCopies::new(context, deepest, window)?) } else { None };
-        Some(Self { copies, deepest, ..Self::default() })
+        Some(Self { copies, deepest, fixed_image, ..Self::default() })
     }
 
     pub(super) fn visit(&mut self, node: &PatternNode, depth: u32, retained: usize) -> bool {
@@ -190,10 +191,11 @@ impl MixedDepthRuns {
 
     pub(super) fn draw(&mut self, stamp: &PatternStamp, opacities: &[f32], retained: bool) -> bool {
         let Some(weight) = opacities.get(stamp.depth as usize) else { return false };
+        let measured_shape = (2..=16).contains(&stamp.pattern) || (self.fixed_image && stamp.pattern >= 256);
         // Turning off unrelated draws changes the order even where those draws never overlap the readout.
         if !(7..=self.deepest).contains(&stamp.depth)
             || stamp.blend != 0
-            || !(2..=16).contains(&stamp.pattern)
+            || !measured_shape
             || *self.shape.get_or_insert(stamp.pattern) != stamp.pattern
             || !(stamp.color[3] * weight).is_normal()
             || stamp.size.iter().any(|axis| axis.abs() < MIN_STAMP_SIZE)

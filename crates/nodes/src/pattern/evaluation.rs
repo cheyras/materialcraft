@@ -370,7 +370,16 @@ fn evaluate(context: &CookContext, base_level_only: &[bool], visit_limit: usize,
     let mut underfilled =
         (grayscale && opacity_depth >= 8 && !context.b("cull_outside")).then(|| super::underfilled_quadrants::UnderfilledQuadrants::new(opacity_depth));
     let mut sparse_runs = if grayscale && opacity_depth == 8 { super::tile_runs::SparseQuadrantRuns::new(context) } else { None };
-    let mut mixed_depth_runs = if grayscale && matches!(opacity_depth, 8..=10) { MixedDepthRuns::new(context, opacity_depth) } else { None };
+    let mut mixed_depth_runs = if grayscale && matches!(opacity_depth, 8..=10) {
+        // One fixed slot and filter use the same subtree order as a single analytic shape.
+        let fixed_image = opacity_depth == 9
+            && context.tiling_axes() == [false; 2]
+            && !image_slots.is_empty()
+            && *uniform_order.get_or_insert_with(|| uniform_deep_draws(graph.root, &nodes));
+        MixedDepthRuns::new(context, opacity_depth, fixed_image)
+    } else {
+        None
+    };
     // A grayscale opacity expression can produce an infinity or NaN which participates in the blend.
     let opacity = context.value("opacity").and_then(Value::as_f32).unwrap_or(0.0);
     let nonfinite_gray_opacity = grayscale && !opacity.is_finite();
