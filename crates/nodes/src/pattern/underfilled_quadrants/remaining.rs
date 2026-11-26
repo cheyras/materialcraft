@@ -200,7 +200,7 @@ impl UnderfilledQuadrants {
             // With no pending sibling in either pair, both paired batches precede the last child.
             next.extend(upper_batch);
             Self::append_receiver_and_last(&first, full_receiver, last_batch, &mut next)?;
-        } else if !more_trees && full_receiver && Self::piece_count(&first[..2])? < COPIES_PER_BATCH && Self::piece_count(&first[..3])? >= COPIES_PER_BATCH {
+        } else if full_receiver && Self::piece_count(&first[..2])? < COPIES_PER_BATCH && Self::piece_count(&first[..3])? >= COPIES_PER_BATCH {
             // The first child handed over by the second group completes the receiver.
             // How many siblings the lower pair gives up determines when that batch submits.
             match self.repeated[0].branches.unvisited_subtrees(lower.before.start) {
@@ -217,7 +217,8 @@ impl UnderfilledQuadrants {
                     Self::append_copy_window(&first, 0, COPIES_PER_BATCH, &mut next)?;
                     next.extend(upper_batch);
                     next.extend(last_batch);
-                    if let Some(tail) = self.unfinished_receivers(collecting, [&lower, &upper, &last], pair_offsets[2], middle_used) {
+                    // The completed batches precede the next tree. Unfinished groups can receive its draws.
+                    if !more_trees && let Some(tail) = self.unfinished_receivers(collecting, [&lower, &upper, &last], pair_offsets[2], middle_used) {
                         next.extend(tail);
                     }
                 }

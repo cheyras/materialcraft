@@ -332,6 +332,17 @@ fn a_receiving_batch_precedes_the_upper_pair_after_a_sibling_transfer() {
 }
 
 #[test]
+fn subsequent_trees_keep_completed_quadrant_batches_ahead_of_unfinished_groups() {
+    let small = 2.0_f32.powi(-25).to_bits();
+    for trees in [3, 4] {
+        let sample =
+            |first, second| marked_tree_pixel((5, first), (5, second), Continuation::ActiveTrees(trees), &[832, 896, 897], Some([2, 2]), Some(2)).to_bits();
+        assert_eq!(sample(896, 768), small, "{trees} trees");
+        assert_eq!(sample(336, 80), small, "{trees} trees");
+    }
+}
+
+#[test]
 fn unfinished_quadrant_groups_receive_children_after_the_full_batches() {
     let sample = |first, second| marked_tree_pixel((5, first), (5, second), Continuation::ActiveTrees(2), &[832, 896, 897], Some([2, 2]), Some(2)).to_bits();
     let small = 2.0_f32.powi(-25).to_bits();
