@@ -59,6 +59,49 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-25 root comparisons
 
+### Completing partial copy batches above inactive quadrants
+
+Use the [two active drawing levels and the original edge-square field](#which-half-quadrant-completes-the-next-copy-batch). The 64 depth-three quadrants each contain 16 depth-five subtrees. After the first eleven batches fill, two receiving streams can transfer different children of the same pending sibling. Finishing those streams in traversal order changed the sum of overlapping F32 draws. MaterialCraft now splits the pending sibling at its depth-five boundaries and counts each physical tile copy when a receiving stream fills. [Shared traversal](../crates/nodes/src/pattern/tile_runs/inactive_children/completion.rs) · [Regression tests](../crates/nodes/src/pattern/tile_runs/inactive_children/tests.rs)
+
+To vary the incoming work, move draws `50 × 1280 + 2 + 23j` to one tile edge for consecutive j starting at zero. Compare zero, nineteen and twenty additional copies. Independently move forty or seventy draws at `g × 1280 + 1 + 9j` in group g = 24 or 40. At 256² F32 and seed 612671, leave the wrapped squares active. Place consecutive pairs of single-copy draws on separate pixels in two alternating sets so each draw has only one destination per render. Exchange the gains −1 and 2⁻²⁵ to verify the order in both directions. The four fields with 40/0, 0/40, 40/40 and 70/70 extra copies in groups 24/40 matched all **327,376/327,376** adjacent comparisons, maximum readout error zero. The four physical-copy densities taken from the 16² default and seeds 560971, 560983 and 561019 matched all 80,688, 80,690, 80,660 and 80,568 adjacent comparisons respectively.
+
+The stream starting in groups 60–61 can also fill a 5,460-copy batch. With twenty extra copies in group 50, add e copies to groups 60–61 by visiting draw `60 × 1280 + (211j + 17) mod 2560`. Move the first ⌊e/3⌋ squares to a corner and the next e mod 3 squares to one edge. At e = 2,580 the stream fills after the eleventh earlier batch. At 2,740 it fills after the seventh and at 2,900 after the third. Fifteen fields at and around the boundaries matched **1,214,619/1,214,619** adjacent comparisons in both gain directions. Sixteen further fields independently varied the work arriving from groups 24 and 40. Of their 1,294,534 adjacent comparisons, 1,294,516 agreed in both directions. In the remaining 18 the two gain directions returned different orders. A full stream involving groups 62–63 and 48–49 can redistribute more children and remains open.
+
+For whole images, place five disjoint marker pairs on row 5, columns 6 through 10 of the 128² field. Render each gain direction at 128² F32 with seed 560071, 64 × 128 U8 with seed 560081, 128 × 64 U16 with seed 560107 and 256 × 128 F16 with seed 560131. Open the ordinary MaterialCraft save in the reference app and repeat all 48 frames.
+
+| Extra copies | Pairs of traversal indices in column order |
+|---|---|
+| Zero | (67293,23561), (23911,72552), (18729,43941), (16934,72444), (79054,68386) |
+| 40 in group 24 | (68062,73183), (67972,72940), (67359,67445), (18729,72736), (67638,73004) |
+| 20 in group 50 | (24093,77770), (79055,73362), (18729,44010), (80854,23953), (80057,62891) |
+| 20 in group 50 and e = 2,580 | (77040,24132), (23563,8764), (23767,43954), (43972,10049), (72400,23620) |
+| 20 in group 50 and e = 2,899 | (77666,70663), (77953,47021), (76882,58343), (78376,40501), (77690,63909) |
+| 20 in group 50 and e = 2,900 | (77683,66417), (78114,25244), (78527,74433), (79257,7611), (77666,70663) |
+
+| Storage | Original, exact pixels / total | Reopened, exact pixels / total | Maximum error on either |
+|---|---:|---:|---:|
+| U8 | 98,304/98,304 | 98,304/98,304 | 0 |
+| U16 | 98,304/98,304 | 98,304/98,304 | 0 |
+| F16 | 393,216/393,216 | 393,216/393,216 | 0 |
+| F32 | 196,608/196,608 | 196,608/196,608 | 0 |
+
+Previously F32 matched 196,550/196,608 on each route with maximum error 2⁻²⁵. The [earlier eight four-format controls](#tile-copies-in-the-last-two-active-quadrant-levels) with inactive descendants also reached 131,072/131,072 on each route, up from 131,070. The eight controls with the plain tree matched 131,072/131,072 on each route.
+
+For the intact second Spots 1 root, the 16² F32 original at seed 560971 improved from 254/256 to 256/256 on one processor. The 16 × 32 original at seed 560983 improved from 507/512 to 512/512. Each ordinary save also matches every pixel, maximum zero. The explicit eight-processor captures match 227/256 and 456/512 respectively, maximum 2⁻²⁴ in both. The default 16² and independent 32² seed 561019 retain all 1,280 exact pixels on one processor and on reopening. The 32 × 16 seed 561067 has 17,389 active depth-seven draws and 69,556 depth-eight draws. It still matches 460/512 on one processor and on reopening, maximum 2⁻²³, and 470/512 on eight processors, maximum 2⁻²⁴. [Exposed settings and processor controls](#tile-copies-in-the-last-two-active-quadrant-levels)
+
+The full 87-setting one-processor comparison gained four complete frames. At 128² and seed zero, U16 rose from 16,383 to 16,384 exact pixels and F32 from 16,231 to 16,384. At 256² and seed zero, U16 rose from 65,534 to 65,536 and F32 from 65,007 to 65,536. The eight-processor captures of these same settings give 16,379 and 14,357 exact pixels at 128² and 65,514 and 58,403 at 256², in U16 and F32 respectively. These account for a net gain of 685 exact one-processor pixels and a loss of 157 exact pixels against the archived eight-processor frames. The 19 saved output digests retained their previous values. [Identical-input reference repeats](#which-half-quadrant-completes-the-next-copy-batch)
+
+| Spots 1 v2 storage | One processor · exact pixels · maximum | Eight processors · exact pixels · maximum | Ordinary save · exact pixels · maximum |
+|---|---:|---:|---:|
+| U8 | 141,568/141,568 · 0 | 141,568/141,568 · 0 | 32,768/32,768 · 0 |
+| U16 | 295,674/295,680 · 1 | 295,650/295,680 · 1 | 12,031/12,032 · 1 |
+| F16 | 108,800/108,800 · 0 | 108,797/108,800 · 2⁻¹¹ | 1,024/1,024 · 0 |
+| F32 | 293,360/296,704 · 2⁻²³ | 284,526/296,704 · 2⁻²³ | 91,892/93,184 · 2⁻²³ |
+| All formats | 839,402/842,752 | 830,541/842,752 | 137,715/139,008 |
+| Whole frames | 62/87 | 58/87 | 13/19 |
+
+In the first Spots 1 graph, all 86 original and 19 reopened output digests agree with the previous build. The counts are 824,569/841,728 on one processor, 776,831/841,728 on eight and 196,193/196,352 on reopening. Both roots remain in progress. All 539 node and evaluator release tests passed. Formatting, strict workspace Clippy, dependency layering and WebAssembly passed.
+
 ### Which half-quadrant completes the next copy batch
 
 Use the [two active drawing levels above two inactive levels](#tile-copies-in-the-last-two-active-quadrant-levels). At 128² F32 and seed 91771, number the 81,920 active draws in traversal order and divide them into 64 groups of 1,280. The incoming pairs start in groups 50, 58 and 54 and enter groups 16, 0 and 32 respectively. To add one physical copy, move a single square to the horizontal tile edge. Keep the signed markers on interior squares and repeat each comparison with the gains exchanged.

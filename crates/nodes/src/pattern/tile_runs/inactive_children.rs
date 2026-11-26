@@ -1,6 +1,7 @@
 use super::{COPIES_PER_BATCH, LEADING_SUBTREES};
 use std::ops::Range;
 
+mod completion;
 #[cfg(test)]
 mod tests;
 
@@ -36,7 +37,7 @@ fn pending_siblings(subtree: usize) -> Option<(Range<usize>, usize)> {
 struct ReceivingPair {
     runs: Vec<Range<u32>>,
     tail: Range<u32>,
-    pending: Range<u32>,
+    pending: Range<usize>,
     handoff: Option<Range<u32>>,
     split_width: usize,
 }
@@ -91,7 +92,7 @@ fn receiving_pair(ends: &[u32], partner: usize, main: usize, first: bool) -> Opt
         return None;
     }
     let tail = runs.last()?.end..boundary(ends, extent.end)?;
-    Some(ReceivingPair { runs, tail, pending: copies(ends, deferred)?, handoff, split_width: width })
+    Some(ReceivingPair { runs, tail, pending: deferred, handoff, split_width: width })
 }
 
 fn completed_half(ends: &[u32], group: usize, partner: usize) -> Option<[Range<u32>; 2]> {
@@ -105,10 +106,12 @@ fn completed_half(ends: &[u32], group: usize, partner: usize) -> Option<[Range<u
     Some([remainder, incoming.start..incoming.start + room])
 }
 
-fn following_batches(ends: &[u32], receivers: &[ReceivingPair]) -> Option<Vec<Range<u32>>> {
+fn following_batches(ends: &[u32], receivers: &[ReceivingPair], leading: &[Range<u32>]) -> Option<Vec<Range<u32>>> {
     let [first, middle, last] = receivers else { return None };
     let handoff = first.handoff.as_ref()?;
-    if first.tail.start < handoff.end || middle.tail.start < middle.pending.end || last.tail.start < last.pending.end {
+    let middle_siblings = copies(ends, middle.pending.clone())?;
+    let last_siblings = copies(ends, last.pending.clone())?;
+    if first.tail.start < handoff.end || middle.tail.start < middle_siblings.end || last.tail.start < last_siblings.end {
         return None;
     }
     let third = copies(ends, 8 * SUBTREES..16 * SUBTREES)?;
@@ -117,14 +120,18 @@ fn following_batches(ends: &[u32], receivers: &[ReceivingPair]) -> Option<Vec<Ra
     if remaining.checked_add(handoff.end - handoff.start)? >= COPIES_PER_BATCH {
         return None;
     }
-    let mut halves = [completed_half(ends, 24, 52)?, completed_half(ends, 40, 56)?];
+    let halves = [completed_half(ends, 24, 52)?, completed_half(ends, 40, 56)?];
     // Passing a depth-four sibling from the first receiver puts the other half first.
-    if first.split_width == 4 {
-        halves.swap(0, 1);
+    let [lower, upper] = &halves;
+    let order = if first.split_width == 4 { [upper, lower] } else { [lower, upper] };
+    let mut full = leading.to_vec();
+    full.extend(order.into_iter().flatten().cloned());
+    let tails = [first.tail.clone(), middle_siblings, last.tail.clone()];
+    if let Some(completed) = completion::ranges(ends, receivers, &halves, third.start + COPIES_PER_BATCH..third.end, &full, &tails) {
+        return Some(completed);
     }
-    let mut runs: Vec<_> = halves.into_iter().flatten().collect();
-    runs.extend([first.tail.clone(), middle.pending.clone(), last.tail.clone()]);
-    Some(runs)
+    full.extend(tails);
+    Some(full)
 }
 
 pub(super) fn ranges(ends: &[u32]) -> Option<Vec<Range<u32>>> {
@@ -147,8 +154,8 @@ pub(super) fn ranges(ends: &[u32]) -> Option<Vec<Range<u32>>> {
         runs.extend_from_slice(&pair.runs);
         receivers.push(pair);
     }
-    if let Some(following) = following_batches(ends, &receivers) {
-        runs.extend(following);
+    if let Some(following) = following_batches(ends, &receivers, &runs) {
+        runs = following;
     }
     // Preserve every remaining physical copy in traversal order.
     let mut submitted = runs.clone();

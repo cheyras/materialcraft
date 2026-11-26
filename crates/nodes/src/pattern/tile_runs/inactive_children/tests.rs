@@ -3,14 +3,23 @@ use super::ranges;
 // Each of the 16,384 parents draws before its four children. Move the first
 // selected draws in one incoming pair to the tile edge, adding one copy each.
 fn draw_ranks(edge_draws: usize) -> Vec<usize> {
+    ranks_with_edges(50 * 1280 + 2, 23, edge_draws)
+}
+
+fn ranks_with_edges(first: usize, stride: usize, edge_draws: usize) -> Vec<usize> {
+    ranks_for_copies(|draw| {
+        let offset = draw.checked_sub(first);
+        1 + u32::from(offset.is_some_and(|n| n.is_multiple_of(stride) && n / stride < edge_draws))
+    })
+}
+
+fn ranks_for_copies(count: impl Fn(usize) -> u32) -> Vec<usize> {
     let mut starts = Vec::new();
     let mut ends = Vec::new();
     let mut copies = 0_u32;
     for draw in 0_usize..81_920 {
         starts.push(copies);
-        let offset = draw.checked_sub(50 * 1280 + 2);
-        let wraps = offset.is_some_and(|n| n.is_multiple_of(23) && n / 23 < edge_draws);
-        copies += 1 + u32::from(wraps);
+        copies += count(draw);
         if (draw + 1).is_multiple_of(80) {
             ends.push(copies);
         }
@@ -41,5 +50,54 @@ fn receiving_tails_and_deferred_siblings_follow_the_full_batches() {
     let rank = draw_ranks(0);
     for (left, right, before) in [(29320, 59050, false), (2960, 72020, false), (50750, 18422, true), (3019, 29753, false)] {
         assert_eq!(rank[left] < rank[right], before, "draws {left}, {right}");
+    }
+}
+
+#[test]
+fn partial_streams_finish_in_the_order_their_remaining_siblings_arrive() {
+    let ranks = ranks_with_edges(50 * 1280 + 2, 23, 0);
+    for (left, right, before) in [(67293, 23561, true), (23911, 72552, false), (18729, 43941, false), (16934, 72444, false)] {
+        assert_eq!(ranks[left] < ranks[right], before, "draws {left}, {right}");
+    }
+    let ranks = ranks_with_edges(50 * 1280 + 2, 23, 20);
+    for (left, right, before) in [(24093, 77770, false), (79055, 73362, true), (18729, 44010, false), (80854, 23953, true)] {
+        assert_eq!(ranks[left] < ranks[right], before, "draws {left}, {right}");
+    }
+}
+
+#[test]
+fn an_incoming_depth_four_sibling_can_pass_its_children_to_other_runs() {
+    let ranks = ranks_with_edges(24 * 1280 + 1, 9, 40);
+    for (left, right, before) in [(68062, 73183, false), (67972, 72940, false), (67359, 67445, false), (18729, 72736, false)] {
+        assert_eq!(ranks[left] < ranks[right], before, "draws {left}, {right}");
+    }
+    let ranks = ranks_with_edges(40 * 1280 + 1, 9, 40);
+    for (left, right, before) in [(67986, 72413, false), (77734, 23491, true), (79054, 67732, true), (67742, 72985, false)] {
+        assert_eq!(ranks[left] < ranks[right], before, "draws {left}, {right}");
+    }
+}
+
+#[test]
+fn a_full_outer_pair_submits_when_its_last_required_copy_arrives() {
+    // Move squares in the outer pair to the corner (three extra copies) or a
+    // single edge (one extra copy). Twenty edge squares enter the first receiver.
+    for (extra, pairs) in [
+        (2580_usize, [(77040, 24132, true), (23563, 8764, true)]),
+        (2739_usize, [(78431, 50530, true), (23572, 8764, true)]),
+        (2899_usize, [(77666, 70663, true), (77953, 47021, true)]),
+        (2900_usize, [(77683, 66417, true), (78114, 25244, true)]),
+    ] {
+        let mut copies = vec![1; 81_920];
+        for i in 0..20 {
+            copies[50 * 1280 + 2 + 23 * i] = 2;
+        }
+        for i in 0..extra / 3 + extra % 3 {
+            let draw = 60 * 1280 + (211 * i + 17) % 2560;
+            copies[draw] = if i < extra / 3 { 4 } else { 2 };
+        }
+        let ranks = ranks_for_copies(|draw| copies[draw]);
+        for (left, right, before) in pairs {
+            assert_eq!(ranks[left] < ranks[right], before, "{extra} copies, draws {left}, {right}");
+        }
     }
 }
