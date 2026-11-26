@@ -1,6 +1,9 @@
 use super::{COPIES_PER_BATCH, LEADING_SUBTREES};
 use std::ops::Range;
 
+#[cfg(test)]
+mod tests;
+
 // A depth-three quadrant contains sixteen depth-five subtrees. A boundary can
 // split a tiled stamp, so convert subtree boundaries to physical copies before filling a batch.
 const SUBTREES: usize = 16;
@@ -30,7 +33,15 @@ fn pending_siblings(subtree: usize) -> Option<(Range<usize>, usize)> {
     None
 }
 
-fn receiving_pair(ends: &[u32], partner: usize, main: usize, first: bool) -> Option<Vec<Range<u32>>> {
+struct ReceivingPair {
+    runs: Vec<Range<u32>>,
+    tail: Range<u32>,
+    pending: Range<u32>,
+    handoff: Option<Range<u32>>,
+    split_width: usize,
+}
+
+fn receiving_pair(ends: &[u32], partner: usize, main: usize, first: bool) -> Option<ReceivingPair> {
     let partner = copies(ends, partner * SUBTREES..(partner + 2) * SUBTREES)?;
     let extent = main * SUBTREES..(main + 8) * SUBTREES;
     let start = boundary(ends, extent.start)?;
@@ -42,6 +53,7 @@ fn receiving_pair(ends: &[u32], partner: usize, main: usize, first: bool) -> Opt
     }
     let (deferred, width) = pending_siblings(subtree)?;
     let mut skips = vec![deferred.clone()];
+    let mut handoff = None;
     if first {
         // The first receiving pair hands off a second block before continuing.
         let extra = match width {
@@ -57,6 +69,7 @@ fn receiving_pair(ends: &[u32], partner: usize, main: usize, first: bool) -> Opt
             4 => deferred.end..deferred.end + 2,
             _ => return None,
         };
+        handoff = Some(copies(ends, extra.clone())?);
         skips.push(extra);
     }
     let mut runs = vec![partner];
@@ -74,7 +87,44 @@ fn receiving_pair(ends: &[u32], partner: usize, main: usize, first: bool) -> Opt
         }
         next = skip.end;
     }
-    (remaining == 0).then_some(runs)
+    if remaining != 0 {
+        return None;
+    }
+    let tail = runs.last()?.end..boundary(ends, extent.end)?;
+    Some(ReceivingPair { runs, tail, pending: copies(ends, deferred)?, handoff, split_width: width })
+}
+
+fn completed_half(ends: &[u32], group: usize, partner: usize) -> Option<[Range<u32>; 2]> {
+    let half = copies(ends, group * SUBTREES..(group + 8) * SUBTREES)?;
+    let remainder = half.start.checked_add(COPIES_PER_BATCH)?..half.end;
+    let room = COPIES_PER_BATCH.checked_sub(remainder.end.checked_sub(remainder.start)?)?;
+    let incoming = copies(ends, partner * SUBTREES..(partner + 2) * SUBTREES)?;
+    if room == 0 || room >= incoming.end - incoming.start {
+        return None;
+    }
+    Some([remainder, incoming.start..incoming.start + room])
+}
+
+fn following_batches(ends: &[u32], receivers: &[ReceivingPair]) -> Option<Vec<Range<u32>>> {
+    let [first, middle, last] = receivers else { return None };
+    let handoff = first.handoff.as_ref()?;
+    if first.tail.start < handoff.end || middle.tail.start < middle.pending.end || last.tail.start < last.pending.end {
+        return None;
+    }
+    let third = copies(ends, 8 * SUBTREES..16 * SUBTREES)?;
+    let remaining = (third.end - third.start).checked_sub(COPIES_PER_BATCH)?;
+    // Filling the third half with the transferred siblings changes the continuation.
+    if remaining.checked_add(handoff.end - handoff.start)? >= COPIES_PER_BATCH {
+        return None;
+    }
+    let mut halves = [completed_half(ends, 24, 52)?, completed_half(ends, 40, 56)?];
+    // Passing a depth-four sibling from the first receiver puts the other half first.
+    if first.split_width == 4 {
+        halves.swap(0, 1);
+    }
+    let mut runs: Vec<_> = halves.into_iter().flatten().collect();
+    runs.extend([first.tail.clone(), middle.pending.clone(), last.tail.clone()]);
+    Some(runs)
 }
 
 pub(super) fn ranges(ends: &[u32]) -> Option<Vec<Range<u32>>> {
@@ -91,9 +141,14 @@ pub(super) fn ranges(ends: &[u32]) -> Option<Vec<Range<u32>>> {
     }
     // The final root quadrant sends one pair of depth-three subtrees to each
     // receiving half. Each receiver can submit two complete batches.
+    let mut receivers = Vec::with_capacity(3);
     for (partner, main) in [(50, 16), (58, 0), (54, 32)] {
         let Some(pair) = receiving_pair(ends, partner, main, main == 16) else { break };
-        runs.extend(pair);
+        runs.extend_from_slice(&pair.runs);
+        receivers.push(pair);
+    }
+    if let Some(following) = following_batches(ends, &receivers) {
+        runs.extend(following);
     }
     // Preserve every remaining physical copy in traversal order.
     let mut submitted = runs.clone();

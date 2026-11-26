@@ -59,6 +59,46 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-25 root comparisons
 
+### Which half-quadrant completes the next copy batch
+
+Use the [two active drawing levels above two inactive levels](#tile-copies-in-the-last-two-active-quadrant-levels). At 128² F32 and seed 91771, number the 81,920 active draws in traversal order and divide them into 64 groups of 1,280. The incoming pairs start in groups 50, 58 and 54 and enter groups 16, 0 and 32 respectively. To add one physical copy, move a single square to the horizontal tile edge. Keep the signed markers on interior squares and repeat each comparison with the gains exchanged.
+
+In the first incoming pair, move draw `50 × 1280 + 2 + 23j` for consecutive j starting at zero. With 19 edge draws, the first receiver transfers a depth-five sibling and the remainder of groups 24–31 submits ahead of the remainder of groups 40–47. With 20 edge draws, the receiver transfers a depth-four sibling and the two remainders exchange places. In both cases each remainder starts after its first 5,460 copies and takes enough copies from groups 52–53 or 56–57 to complete the next batch. Five disjoint marker pairs change order at that single-copy boundary. [Measured pairs and regression tests](../crates/nodes/src/pattern/tile_runs/inactive_children/tests.rs)
+
+Vary all three incoming pairs independently over zero and twenty additional copies. Then move 19, 20 or 21 draws in just one pair, in the receiving half or after the first cut. The order calculated from the first transfer matched 12,240/12,240 signed comparisons across eighteen fields, maximum F32 readout error zero. Independently moving 39, 40 or 41 draws in the later halves or their partners produced 5,440/5,440 agreements. For a second spacing, move the second child at offset `2 + 5j` in group 50. Eleven fields with 40 through 320 extra copies matched another 7,480/7,480 comparisons. At 360, 400, 450 and 490 extra copies the first transfer was larger. Neither order accounted for all 680 comparisons on any of those four fields.
+
+After those batches, the first receiving half submits its tail, followed by the siblings deferred in the middle receiver and the last receiver's tail. This continuation also depends on whether the third leading half can fill another batch with its transferred siblings. Seven separate underfilled fields gave 660/660 signed agreements apiece around these boundaries. In a field with twenty edge squares per group, reversing the gains changed 79/660 inferred comparisons. The remaining 581 agreed. The denser fields that can fill this third batch retain the earlier traversal. [Shared copy calculation](../crates/nodes/src/pattern/tile_runs/inactive_children.rs)
+
+For an independent whole-image check, use the nine marker pairs in the two regression tests above. Split pairs sharing a draw between renders. Use zero, nineteen and twenty edge draws, both gain directions and the [four sizes, seeds and formats](#tile-copies-in-the-last-two-active-quadrant-levels). The 48 original frames match 786,432/786,432 pixels and their 48 ordinary saves also match 786,432/786,432, maximum zero. Each series previously matched 786,396 pixels with maximum error 2⁻²⁵.
+
+The earlier four-format procedural series with inactive descendants now matches 131,070/131,072 pixels on originals and again on ordinary saves, up from 131,066 on each. Each remaining difference is one F32 pixel of magnitude 2⁻²⁵ in one of the two gain directions. The corresponding series terminating at the last drawing level retained 131,072/131,072 on each pass, maximum zero.
+
+The following Noise BNW Spots 1 v2 results use the [five F32 settings and parameter values](#tile-copies-in-the-last-two-active-quadrant-levels). The seven-processor and explicitly masked eight-processor columns come from separate desktop captures.
+
+| Root size and seed | Previous one processor | Current one processor | Seven processors | Eight processors | Ordinary save | Maximum across current captures |
+|---|---:|---:|---:|---:|---:|---:|
+| 16², seed 0 | 251/256 | 256/256 | 228/256 | 233/256 | 256/256 | 2⁻²³ |
+| 16², seed 560971 | 249/256 | 254/256 | 242/256 | 225/256 | 254/256 | 2⁻²⁴ |
+| 16 × 32, seed 560983 | 503/512 | 507/512 | 507/512 | 458/512 | 507/512 | 2⁻²³ |
+| 32², seed 561019 | 1,021/1,024 | 1,024/1,024 | 1,024/1,024 | 1,003/1,024 | 1,024/1,024 | 2⁻²⁴ |
+| 32 × 16, seed 561067 | 460/512 | 460/512 | 460/512 | 470/512 | 460/512 | 2⁻²³ |
+
+To measure the reference's repeatability, submit the identical 16² seed-zero F32 graph three more times with the same output and intermediate observations and restore the original processor mask after each acquisition. All four one-processor reference frames agree at 256/256 pixels. Across four explicitly verified eight-processor frames, 220/256 pixel positions held the same value in every frame. Pairwise agreement ranged from 231/256 to 239/256, with maximum pairwise error 2⁻²⁴. MaterialCraft matches 213 of those 220 stable positions and 246/256 positions in at least one of the four frames. Ten positions differ from every eight-processor capture. These repeated reads measure separate effects from the reproducible draw-order boundary.
+
+The original one- and eight-processor reference panels also differ with identical graph inputs. In the first Spots 1 graph, the two reference captures agree at 772,695/841,728 pixels across 86 settings. In the second they agree at 829,601/842,752 across 87. For the second graph, the F32 reference captures agree at 283,592/296,704 pixels, maximum 2⁻²³. U8 agrees at 141,568/141,568, U16 at 295,644/295,680 with maximum 1, and F16 at 108,797/108,800 with maximum 2⁻¹¹.
+
+Across the [87 original settings and 19 ordinary saves](#copy-batches-from-the-final-quadrant-pair-and-the-following-group), five settings gained exact one-processor pixels, including the default 256² F32 frame, which rose from 64,012 to 65,007 of 65,536. Four settings lost exact pixels against the archived eight-processor captures. In total, 58/87 frames match in full on one processor and 58/87 on eight. All 19 saved output digests retained their previous values, with 13 complete matches. Maximum errors below use each format's stored units.
+
+| Storage | One processor · exact pixels · maximum | Eight processors · exact pixels · maximum | Ordinary save · exact pixels · maximum |
+|---|---:|---:|---:|
+| U8 | 141,568/141,568 · 0 | 141,568/141,568 · 0 | 32,768/32,768 · 0 |
+| U16 | 295,671/295,680 · 1 | 295,653/295,680 · 1 | 12,031/12,032 · 1 |
+| F16 | 108,800/108,800 · 0 | 108,797/108,800 · 2⁻¹¹ | 1,024/1,024 · 0 |
+| F32 | 292,678/296,704 · 2⁻²³ | 284,680/296,704 · 2⁻²³ | 91,892/93,184 · 2⁻²³ |
+| All formats | 838,717/842,752 | 830,698/842,752 | 137,715/139,008 |
+
+The one-processor total gained 1,258 exact pixels and the eight-processor total lost 447. In the first Spots 1 graph, all 86 original and 19 reopened output digests retained their previous values. Totals remain 824,569/841,728 pixels on one processor, 776,831/841,728 on eight and 196,193/196,352 in the saves. Both roots remain in progress. All 536 node and evaluator release tests passed, as did formatting, strict workspace Clippy, dependency layering and WebAssembly checks.
+
 ### Tile copies in the last two active quadrant levels
 
 Use the [independent additive-square graph](#final-pattern-draws-above-inactive-quadrants-in-spots-1-v2). Give every quadrant through depth six four children. Each of the 16,384 depth-seven parents and its four depth-eight children emits one square. Number those 81,920 draws in traversal order starting at zero. Set roughness to zero, use a white background and position each signed pair at one pixel center. With gains −1 and 2⁻²⁵, a result of 2⁻²⁵ means the negative square drew first. Exchange the gains for the second read. Keep all unmarked draws active.
