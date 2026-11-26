@@ -59,6 +59,28 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-26 root comparisons
 
+### Final transfers between unfinished quadrant groups
+
+At 64 × 32, seed 162172, scale 1, disorder .5625 and roughness .6015625, Noise BNW Spots 1 now matches all 2,048 F32 pixels on one processor, up from 2,045. A fresh ordinary SBS save reopened on one processor also matches 2,048/2,048. At 32 × 16, seed 161954, scale 1, disorder .34375 and roughness .46484375, both routes match 512/512. Each of the four requested formats (U8, U16, F16 and F32) matches 2,560/2,560 across the two sizes on each route, maximum zero. The four recent single-processor F32 captures agree at every position on each route.
+
+The fresh eight-processor F32 captures give 411/512 and 1,589/2,048, maxima 2⁻²³ and 3 × 2⁻²⁴. The preceding build gives 411 and 1,586 against those same captures. U8 and F16 are exact on eight processors, and U16 gives 2,558/2,560, maximum one stored level. Across four eight-processor F32 captures the references agree at 337 and 1,181 positions. MaterialCraft matches 307 and 1,067 of those positions.
+
+After [the first thirty full batches](#quadrant-batch-order-after-a-sibling-transfer), each group still owns a range of physical copies. If a batch finished inside a transferred child, a further sibling division occurs at that exact copy. The receiver completes its own part of the child and takes a pending child from the upper pair. The next two groups take the following available upper siblings. The third group also takes the lower siblings before the last two. A parent draw between two depth-five subtrees stays with its original group. The final group receives the penultimate lower subtree. The [shared renderer](../crates/nodes/src/pattern/underfilled_quadrants/remaining/transfers.rs) applies this schedule to two complete trees when the lower, upper and last pairs have respectively three or four, five or six, and two through five unvisited depth-five children, the measured transfers line up with subtree boundaries, and each receiving group stays below 5,460 copies.
+
+For an independent order measurement, use two intersecting squares per selected depth-five subtree in a 256² F32 output. Extend one horizontally and the other vertically to 15/16 of the tile. Place their centers along distinct rows and columns. On white, draw with gains −1 and 2⁻²⁵ and exchange the gains. Every intersection reads zero or 2⁻²⁵. Divide the markers into panels of at most 105 and capture both panels together for cross-panel comparisons. Vary the edge and corner copy counts in second-tree depth-three quadrants 52, 56 and 48 using the [one-copy procedure](#quadrant-batch-order-after-a-sibling-transfer). The 26 fields gave 268,043/268,043 pairwise order comparisons. One original gain-swap capture was inconsistent. Two fresh acquisitions in opposite request orders agreed at every tested position and supplied that field's count. Separate adjacent-draw and cross-batch tests, including shallower draws, agreed on 614,616/614,616 relations in both gain directions.
+
+For a complete procedural image, use the [same four output sizes, gains and seeds](#quadrant-batch-order-after-a-sibling-transfer). In the second tree wrap the terminal squares under depth-five quadrants 832, 896 and 897. In another field wrap the leaves of depth-six quadrants 3328–3333 and 3584–3593. For the third field add 3072–3073 to the second field. Use a pair of depth-five markers in both gain directions for each row.
+
+| Signed marker pair, in second-tree traversal order | First field | Second and third fields |
+|---|---|---|
+| Upper child and second receiving group | (924,624) | (922,624) |
+| Middle group and the receiver's deferred child | (972,541) | (972,541) |
+| Final group and lower child | (248,862) | (248,862) |
+
+The 72 original and 72 reopened frames each improved from 73,716 to 73,728/73,728 exact pixels, maximum zero. Each route covers 9,216 U8, 9,216 U16, 36,864 F16 and 18,432 F32 pixels. The preceding 72 controls and their ordinary saves also give 73,728/73,728 on each route. The [full-graph regression](../crates/nodes/src/pattern/tests/underfilled_quadrants.rs) failed before the fix.
+
+In the established Spots 1 panel, 66/86 originals now match completely on one processor, 38/86 on eight and 16/19 in the ordinary saves. Total agreement is 824,634/841,728, 776,818/841,728 and 196,193/196,352 respectively. The changed F32 totals are 278,635/295,680 on one and 230,977/295,680 on eight, maxima 2⁻²² and 3 × 2⁻²³. Remaining settings include larger repeated trees and the eight-processor differences above. All 551 release tests for the node and evaluation crates passed, along with formatting, strict workspace Clippy, dependency layering and WebAssembly.
+
 ### Quadrant batch order after a sibling transfer
 
 Noise BNW Spots 1 now matches 65 of its 86 established original settings on one processor, up from 64. The shared pattern renderer accounts for a full batch that finishes in a child transferred from another quadrant. The following two settings exercise different submission orders. Both use scale 1. Counts compare raw F32 pixels. [Renderer](../crates/nodes/src/pattern/underfilled_quadrants/remaining.rs) · [Regression graph](../crates/nodes/src/pattern/tests/underfilled_quadrants.rs)

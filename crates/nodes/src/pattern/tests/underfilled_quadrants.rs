@@ -332,6 +332,18 @@ fn a_receiving_batch_precedes_the_upper_pair_after_a_sibling_transfer() {
 }
 
 #[test]
+fn unfinished_quadrant_groups_receive_children_after_the_full_batches() {
+    let sample = |first, second| marked_tree_pixel((5, first), (5, second), Continuation::ActiveTrees(2), &[832, 896, 897], Some([2, 2]), Some(2)).to_bits();
+    let small = 2.0_f32.powi(-25).to_bits();
+    // The upper pair gives a child to the first group. A sibling from that
+    // group's own cut is drawn only after the middle quadrant has finished.
+    assert_eq!(sample(924, 624), small);
+    assert_eq!(sample(624, 924), 0);
+    assert_eq!(sample(972, 541), small);
+    assert_eq!(sample(541, 972), 0);
+}
+
+#[test]
 fn earlier_sibling_transfers_keep_their_order_across_repeated_trees() {
     let small = 2.0_f32.powi(-25);
     for trees in [2, 3, 4] {

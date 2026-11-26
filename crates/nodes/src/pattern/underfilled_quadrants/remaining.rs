@@ -1,5 +1,7 @@
 use super::{COLLECTING_GROUPS, COPIES_PER_BATCH, CopyPositions, DrawPosition, Range, UnderfilledQuadrants};
 
+mod transfers;
+
 pub(super) type Submission = (DrawPosition, DrawPosition);
 pub(super) type Piece<'a> = (usize, &'a CopyPositions, Range<u32>);
 
@@ -215,6 +217,9 @@ impl UnderfilledQuadrants {
                     Self::append_copy_window(&first, 0, COPIES_PER_BATCH, &mut next)?;
                     next.extend(upper_batch);
                     next.extend(last_batch);
+                    if let Some(tail) = self.unfinished_receivers(collecting, [&lower, &upper, &last], pair_offsets[2], middle_used) {
+                        next.extend(tail);
+                    }
                 }
                 _ => {}
             }
