@@ -735,6 +735,60 @@ fn fixed_image_stamps_keep_the_subtree_order_of_an_untiled_quadrant_tree() {
 }
 
 #[test]
+fn unfinished_quadrant_draws_can_follow_a_draw_from_the_next_tree() {
+    let mut graph = PatternGraph::with_root(PatternNodeKind::Iterate);
+    graph.nodes[0].parameters.insert("numberadded".into(), Value::Int(2));
+    let mut parent = graph.add(PatternNodeKind::Quadrant).unwrap();
+    graph.nodes[0].children[1] = Some(parent);
+    let tiny = f32::EPSILON * 0.25;
+    for depth in 1..=9 {
+        let child = graph.add(PatternNodeKind::Quadrant).unwrap();
+        graph.nodes[(parent - 1) as usize].children.fill(Some(child));
+        parent = child;
+        if depth < 7 {
+            continue;
+        }
+        let mut params = additive_square(0.25, [0.0; 2], [0.0; 2]);
+        let mut frame = FunctionGraph::default();
+        let pos = frame.add("get_float2", &[], Some(Value::Text("$pos".into())));
+        let far = frame.add_constant(Value::Float2([0.875; 2]));
+        let center = if depth == 7 {
+            // Each iteration sends a different parent to the same pixel on white.
+            let later = |f: &mut FunctionGraph| {
+                let number = f.add("get_float1", &[], Some(Value::Text("$number".into())));
+                let zero = f.add_constant(Value::Float(0.0));
+                f.add("gt", &[number, zero], None)
+            };
+            let second = later(&mut frame);
+            let first_pos = frame.add_constant(Value::Float2([79.5 / 128.0, 69.5 / 128.0]));
+            let second_pos = frame.add_constant(Value::Float2([118.5 / 128.0, 112.5 / 128.0]));
+            let selected = frame.add("ifelse", &[second, second_pos, first_pos], None);
+            let delta = frame.add("sub", &[pos, selected], None);
+            let squared = frame.add("dot", &[delta, delta], None);
+            let zero = frame.add_constant(Value::Float(0.0));
+            let hit = frame.add("eq", &[squared, zero], None);
+            let readout = frame.add_constant(Value::Float2([32.5 / 128.0, 16.5 / 128.0]));
+            let mut tint = FunctionGraph::default();
+            let second = later(&mut tint);
+            let negative = tint.add_constant(Value::Float(-1.0));
+            let small = tint.add_constant(Value::Float(tiny));
+            tint.output = Some(tint.add("ifelse", &[second, negative, small], None));
+            params.insert("opacity".into(), Value::Function(Box::new(tint)));
+            frame.add("ifelse", &[hit, readout, far], None)
+        } else {
+            far
+        };
+        frame.output = Some(frame.add("sub", &[center, pos], None));
+        params.insert("frameoffset".into(), Value::Function(Box::new(frame)));
+        graph.nodes[(child - 1) as usize].parameters = params;
+    }
+    let vars = BTreeMap::from([("$tiling".into(), Value::Int(0))]);
+    let square = cook_in_regions(graph.clone(), &vars, 188119, [128; 2], [[0.0, 1.0, 0.0, 1.0]; 2], 1.0).unwrap().remove(0);
+    let image = draw_white_image(graph, 2, 0);
+    assert_eq!([square.get_gray(32, 16, false), image.get_gray(32, 16, false)], [tiny; 2], "order of overlapping parents");
+}
+
+#[test]
 fn fixed_image_draws_follow_the_quadrant_runs_when_both_axes_tile() {
     for (grandchildren, axes) in [(false, 0), (false, 3), (true, 3)] {
         let mut graph = gated_mixed_depth_tree(grandchildren);

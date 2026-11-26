@@ -1,4 +1,4 @@
-use std::borrow::Cow;
+use std::{borrow::Cow, sync::LazyLock};
 
 use materialcraft_core::{PatternNode, PatternNodeKind};
 
@@ -93,6 +93,96 @@ const FOUR_CHILDREN_AND_GRANDCHILDREN: &[(usize, usize)] = &[
     (16384, 22),
 ];
 
+// With two untiled trees, each drawing parent and its descendants submit 21 draws.
+// At the end of the first 30 runs a physical batch holds 92 + 128 parents.
+// The next 40 finish that batch inside the run starting at parent 12,352.
+const CONTINUED_PARENT: usize = 12_352 + 40;
+static PAIRED_GRANDCHILDREN: LazyLock<Vec<(usize, usize)>> = LazyLock::new(|| {
+    const COMMON_RUNS: usize = 30;
+    // Exclusive parent counts in submission order. Counts above 16,384 belong
+    // to the second tree. Signed overlaps measure where its batches take the
+    // unfinished draws from the first tree, even when a parent misses the image.
+    let tail = [
+        CONTINUED_PARENT,
+        12800,
+        14528,
+        32596,
+        12416,
+        29680,
+        13824,
+        12480,
+        24452,
+        10240,
+        192,
+        30508,
+        14848,
+        28612,
+        2048,
+        13440,
+        14464,
+        31532,
+        15808,
+        13504,
+        20352,
+        15680,
+        15872,
+        4288,
+        31808,
+        32140,
+        29696,
+        20736,
+        22276,
+        30720,
+        24640,
+        26572,
+        31744,
+        16448,
+        18380,
+        24576,
+        29832,
+        22528,
+        24648,
+        32768,
+        28760,
+        28672,
+        30920,
+        32256,
+        20880,
+        18432,
+        30080,
+        31056,
+        28800,
+        28928,
+        29184,
+        31132,
+        29952,
+        30208,
+        29004,
+        24768,
+        28864,
+        21068,
+        20480,
+        31936,
+        30084,
+        21120,
+        26624,
+        16576,
+        31104,
+        20992,
+        21248,
+        31168,
+        30976,
+        31232,
+        21184,
+        29056,
+        30144,
+    ];
+    let mut layout: Vec<_> = FOUR_CHILDREN_AND_GRANDCHILDREN.iter().filter(|(_, rank)| *rank < COMMON_RUNS).copied().collect();
+    layout.extend(tail.into_iter().enumerate().map(|(rank, end)| (end, COMMON_RUNS + rank)));
+    layout.sort_unstable();
+    layout
+});
+
 #[derive(Default)]
 pub(super) struct MixedDepthRuns {
     layout: &'static [(usize, usize)],
@@ -129,15 +219,20 @@ impl MixedDepthRuns {
         // Count only repetitions that reach a quadrant. Two complete trees can
         // share a physical batch across the outer iteration.
         if depth == 0 {
-            if self.trees != 0
-                && (self.trees != 1
-                    || self.deepest != 10
+            if self.trees != 0 {
+                let continuation = match self.deepest {
+                    9 => self.copies.is_none() && self.children_per_parent == 4,
+                    10 => self.copies.as_ref().is_some_and(TileCopies::complete_inactive_tree),
+                    _ => false,
+                };
+                if !continuation
+                    || self.trees != 1
                     || self.extra_parents != 0
                     || self.parents != DEPTH_SEVEN_PARENTS
                     || self.draws != self.parents * self.draws_per_parent
-                    || !self.copies.as_ref().is_some_and(TileCopies::complete_inactive_tree))
-            {
-                return false;
+                {
+                    return false;
+                }
             }
             self.trees += 1;
         }
@@ -160,6 +255,7 @@ impl MixedDepthRuns {
             (self.layout, self.draws_per_parent) = match (self.deepest, children) {
                 (8, 2) => (TWO_CHILDREN, 3),
                 (8, 4) => (FOUR_CHILDREN, 5),
+                (9, 4) if self.copies.is_none() => (PAIRED_GRANDCHILDREN.as_slice(), 21),
                 (9, 4) => (FOUR_CHILDREN_AND_GRANDCHILDREN, 21),
                 (10, 4) => (&[][..], 5),
                 _ => return false,
@@ -207,11 +303,18 @@ impl MixedDepthRuns {
     }
 
     pub(super) fn finish(mut self, stamps: &[PatternStamp]) -> Option<Vec<DrawRun<'_>>> {
-        if self.trees == 0
-            || self.parents != self.trees * DEPTH_SEVEN_PARENTS + self.extra_parents
-            || self.draws != self.parents * self.draws_per_parent
-            || self.starts.len() != self.layout.len()
-        {
+        if self.trees == 0 || self.parents != self.trees * DEPTH_SEVEN_PARENTS + self.extra_parents || self.draws != self.parents * self.draws_per_parent {
+            return None;
+        }
+        if self.deepest == 9 && self.copies.is_none() && self.trees == 1 {
+            // Only a continuation splits this run. Rejoin the two retained
+            // ranges before flushing the unfinished batches of a single tree.
+            let split = self.layout.partition_point(|&(end, _)| end <= CONTINUED_PARENT);
+            self.starts.get(split)?;
+            self.starts.remove(split);
+            self.layout = FOUR_CHILDREN_AND_GRANDCHILDREN;
+        }
+        if self.starts.len() != self.layout.len() {
             return None;
         }
         if self.deepest == 10 {

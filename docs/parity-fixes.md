@@ -59,6 +59,38 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-26 root comparisons
 
+### Unfinished draws across two untiled quadrant trees
+
+Noise Dirt 1 now matches all 13 original settings with graph tiling disabled on one processor, up from 12. The ordinary save also matches all 61,440 pixels. At 64 × 128 with seed 883903, scale 1, disorder .8125 and non-square expansion enabled, match counts rose from 8,062/8,192 to 8,192/8,192 in F32. Maximum error fell from 1.1920929e−07 to zero. The same file's eight-processor capture went from 8,053/8,192 to 7,999/8,192, maximum 1.1920929e−07. For the complete 13-setting series this gives 60,901/61,440 on eight processors, with seven whole images exact. Applying the tiling property to the drawing node instead gives 61,440/61,440 on one processor and 60,906/61,440 on eight. [Four output formats and original settings](#fixed-image-draw-order-in-untiled-noise-dirt-1)
+
+For three additional seeds keep the graph tiling off, scale 1 and expansion on. Run U8, U16, F16 and F32 at the first two sizes and F32 at the largest. Use an ordinary save and open the resulting SBS file directly in each application. The previous build matched 5/9 whole images, 73,054/73,728 pixels, on one processor. All nine now match on one processor and after reopening, maximum zero. On eight processors the same captures give 73,017/73,728 before and 72,886/73,728 after the change.
+
+| Dimensions · seed · disorder | Format | Earlier on one · maximum | Corrected on one · maximum | Corrected on eight · maximum | Ordinary save on one · maximum |
+|---|---|---:|---:|---:|---:|
+| 32 × 64 · 531803 · 0.34375 | U8 | 2,048/2,048 · 0 | 2,048/2,048 · 0 | 2,048/2,048 · 0 | 2,048/2,048 · 0 |
+| 32 × 64 · 531803 · 0.34375 | U16 | 2,047/2,048 · 1 | 2,048/2,048 · 0 | 2,047/2,048 · 1 | 2,048/2,048 · 0 |
+| 32 × 64 · 531803 · 0.34375 | F16 | 2,048/2,048 · 0 | 2,048/2,048 · 0 | 2,048/2,048 · 0 | 2,048/2,048 · 0 |
+| 32 × 64 · 531803 · 0.34375 | F32 | 2,002/2,048 · 5.96046448e−08 | 2,048/2,048 · 0 | 1,998/2,048 · 5.96046448e−08 | 2,048/2,048 · 0 |
+| 64 × 128 · 531841 · 0.6875 | U8 | 8,192/8,192 · 0 | 8,192/8,192 · 0 | 8,192/8,192 · 0 | 8,192/8,192 · 0 |
+| 64 × 128 · 531841 · 0.6875 | U16 | 8,192/8,192 · 0 | 8,192/8,192 · 0 | 8,192/8,192 · 0 | 8,192/8,192 · 0 |
+| 64 × 128 · 531841 · 0.6875 | F16 | 8,192/8,192 · 0 | 8,192/8,192 · 0 | 8,192/8,192 · 0 | 8,192/8,192 · 0 |
+| 64 × 128 · 531841 · 0.6875 | F32 | 8,059/8,192 · 1.1920929e−07 | 8,192/8,192 · 0 | 8,043/8,192 · 1.1920929e−07 | 8,192/8,192 · 0 |
+| 128 × 256 · 531901 · 0.8125 | F32 | 32,274/32,768 · 1.1920929e−07 | 32,768/32,768 · 0 | 32,126/32,768 · 1.1920929e−07 | 32,768/32,768 · 0 |
+
+To isolate the 64 × 128 difference, retain the original outer iteration and the assignments in its switch. Gate the drawing branch on iteration 0 and then on iteration 5. Each isolated tree matches all 8,192 F32 pixels. Chain the two gated nodes with an F32 background connection. Each chain matches its corresponding reference chain at all 8,192 pixels. The forward chain matches 8,187 pixels of the original combined reference and the reverse matches 8,173. Three of the five forward-chain differences lie in pixels touched only by the second tree.
+
+For an independent order measurement, repeat a complete four-way quadrant tree through depth nine twice. Use additive grayscale on a white F32 background with both tiling axes off. Keep depths seven, eight and nine active and use a fixed connected white image for each draw. Assign each depth-seven parent a procedural address from its quadrant position and the outer iterator. At each readout pixel overlap exactly two selected parents with gains −1 and 2⁻²⁵. Other stamps draw away from the readouts. Swap the gains to check the opposite sign. Compare adjacent pairs once from the first parent and once from the second so that each parent is drawn only once per image. One tree retains all 32,766 signed comparisons of its earlier order. Two joined trees differ at 30 adjacent boundaries from the concatenated single-tree orders.
+
+On two trees, recover the order from independent pairs of fixed-image parents, then use analytic squares for the final check. All 32,767 adjacent pairs match in both sign directions. The measured order has 103 consecutive parent ranges. Its first 30 agree with the single-tree order. A batch of 5,460 draws fits 260 parents with 21 parent and descendant draws apiece. After two runs of 92 and 128 parents the remaining 40 places split the next run. The shared evaluator accounts for missed stamps when locating boundaries and submits the unfinished first-tree draws with the second tree. A single tree flushes its existing order.
+
+A repeated one-processor read of the same procedural field produced a different stored result during initial order recovery. Eleven later reads of the unchanged input agreed. Rechecking every comparison in both sign directions and testing the complete final order with the second shape gave the counts above. On the original 64 × 128 graph, independently measured contributions at 402 pixels predicted every reference value on one processor, including all 130 previous differences. At 56 pixels more than one address fit the isolated measurements. Every admissible assignment at each pixel predicted the same final value. The complete release read then matched all 8,192 pixels.
+
+The normal cook regression uses two outer iterations. With a 128² F32 readout on white, move the first tree’s depth-seven parent centered at (79.5,69.5)/128 and the second tree’s parent at (118.5,112.5)/128 to pixel (32,16). Give the first gain 2⁻²⁵ and the second −1. Use a stamp size of .875 relative to its quadrant and move all other draws to (.875,.875). The previous square and fixed white image each produced zero. The native output and corrected cook both give 2⁻²⁵, with 16,384/16,384 pixels exact for both shapes. A six-iteration switch emitting trees 0 and 5 produces the same result. One-tree and three-tree controls also match all 16,384 reference pixels apiece.
+
+Repeat at seeds 0 and 218819 with discs, paraboloids, bells and cones. The eight originals and eight ordinary saves each match 131,072/131,072 F32 pixels, maximum zero. The four 256² signed square comparison frames match 262,144/262,144 whole-image pixels. The independent untiled Noise Dirt 2 control uses scale 1, expansion on, 32 × 64 with seed 918731 and disorder .1875, and 64 × 128 with seed 918749 and disorder .75. All four output formats on one processor and all ordinary saves match 40,960/40,960, maximum zero. The eight-processor capture matches 40,959/40,960, maximum 6.10351562e−05 in F16.
+
+Four alternating cold-process release cooks of the 64 × 128 F32 setting averaged 6.01 s before and 6.04 s after. Peak process working sets were 201.2 and 231.0 MiB. All 569 release tests in the node and evaluator crates passed, together with formatting, strict workspace Clippy, layers and WebAssembly checks. Noise Dirt 1 remains open on eight processors and at its [ordinary tiled settings](#fixed-image-draws-in-tiled-dirt-graphs).
+
 ### Fixed image draws in tiled Dirt graphs
 
 Open Noise Dirt 1 and Noise Dirt 2 with their ordinary graph tiling. Run the established 60 settings for each root and reopen the 12 archived ordinary saves directly. Compare stored pixels against the same one- and eight-processor desktop captures before and after the evaluator change. Each graph renders all 72 local buffers. [Earlier 60-setting comparison](#complete-render-coverage-for-the-two-fixed-image-dirt-graphs)
@@ -154,7 +186,7 @@ Each of the three reduced U16 series matches 12,288/12,288 on one processor. Wit
 
 The evaluator now uses the existing subtree submission order when all drawing quadrants share a fixed image slot, filter and additive grayscale blend in one complete untiled depth-nine tree. Before the change the image draws followed traversal order. The normal cook regression uses a connected white image and signed overlapping draws on white. The earlier cook read zero at (8,0) and (0,16). Nearest, bilinear and automatic filtering now read 2⁻²⁵ at both locations. All 567 release node and evaluator tests passed, along with formatting, strict workspace Clippy, layer and WebAssembly checks.
 
-The two-tree 64 × 128 result still differs on one processor. Subsequent comparisons measure the same evaluator on the [60-setting panel with ordinary tiling](#fixed-image-draws-in-tiled-dirt-graphs).
+The later [two-tree comparison](#unfinished-draws-across-two-untiled-quadrant-trees) closes the 64 × 128 one-processor difference. Subsequent comparisons measure the same evaluator on the [60-setting panel with ordinary tiling](#fixed-image-draws-in-tiled-dirt-graphs).
 
 ### Drawing parents and terminal children in Directional Noise 3
 
