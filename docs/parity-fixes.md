@@ -59,6 +59,40 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-26 root comparisons
 
+### Receiving quadrant subtrees after the second pair fills
+
+Across 86 established Noise BNW Spots 1 settings, the shared renderer matches 825,314/841,728 pixels on one processor, up 175, and 776,619/841,728 on eight, down 79. Across 19 ordinary saves, 196,239/196,352 match, up 11. The seven changed original frames are listed below. Use scale 2, the stated disorder and roughness, and the graph defaults for its other parameters. At 64², disable non-square expansion. The arrows compare both releases to the same raw capture. [Preceding measurements](#carrying-unfinished-quadrant-draws-into-a-third-tree)
+
+| Dimensions, seed and format | Disorder, roughness | One processor | Eight processors | Maximum error, one / eight |
+|---|---|---:|---:|---:|
+| 32 × 16, 456654, F32 | .28125, .375 | 447 → 451/512 | 435 → 439/512 | 2⁻²³ / 2⁻²³ |
+| 32², 113, F32 | .37, .6 | 941 → 946/1,024 | 800 → 803/1,024 | 2⁻²² / 2⁻²³ |
+| 32², 162063, F32 | .78125, .73828125 | 919 → 930/1,024 | 767 → 764/1,024 | 2⁻²³ / 2⁻²² |
+| 32 × 64, 456747, F32 | .84375, 1 | 1,637 → 1,673/2,048 | 1,528 → 1,504/2,048 | 2⁻²³ / 2⁻²³ |
+| 64², 194536, F32 | .53125, .53125 | 3,793 → 3,804/4,096 | 3,257 → 3,258/4,096 | 2⁻²² / 2⁻²³ |
+| 128 × 64, 456809, U16 | .953125, .96875 | 8,187 → 8,188/8,192 | 8,188 → 8,189/8,192 | 1 / 1 |
+| 128 × 64, 456809, F32 | .953125, .96875 | 6,499 → 6,606/8,192 | 6,166 → 6,105/8,192 | 2⁻²² / 3 × 2⁻²⁴ |
+
+The 32² save at seed 162063 also rose from 919 to 930/1,024, maximum 2⁻²³. Across all settings, 66/86 original frames match completely on one processor, 38/86 on eight and 16/19 on reopening. On one processor U8 and F16 each match 108,800/108,800. U16 matches 328,401/328,448 with maximum one level. F32 matches 279,313/295,680 with maximum 2⁻²².
+
+The two reduced graphs exercise different transfers between the second and third trees. Use a white background, additive squares and the [original quadrant fixture](#carrying-unfinished-quadrant-draws-into-a-third-tree). With no pending sibling to give up in either paired group, leave three depth-five children after the cut in the first incoming depth-three quadrant. In the adjacent quadrant, number the four depth-four parents and their sixteen depth-five children from zero. The lower pair takes parent 1's draw, child 7 and then children 0 and 1. The upper pair takes parent 0's draw and children 2 and 3. These pieces precede each pair's draws in the third tree. With eight trees and the copy field of the 32 × 16 setting above, all 42,121 adjacent and cross-boundary comparisons agree in both gain directions. Three trees with one copy per draw give 42,593/42,593. [Shared renderer](../crates/nodes/src/pattern/underfilled_quadrants/remaining/next_tree.rs)
+
+When each pair transfers one sibling, the next collecting group takes the lower pair's deferred sibling and the first pending depth-five child inside the cut quadrant. If three children remain there, it also takes child 2 in the adjacent quadrant. Its own draw and the start of its first incoming quadrant in the third tree complete batch 35. The final pair takes its unfinished copies, the deferred middle branch and either parent 2's subtree (three pending children) or the first two parent subtrees (four pending children). Its third-tree draws complete batches 36 and 37. In the latter case, the adjacent depth-three parent's own draw stays with the receiver. Including it reversed two observed comparisons on the 64² copy field. Removing it gave 25,557/25,557. The 32² seed-113 field gave 25,689/25,689. [Regression graphs](../crates/nodes/src/pattern/tests/underfilled_quadrants.rs)
+
+Fresh reference renders used four output formats on each of five settings. Repeat the 32² seed 113 and 64² seed 194536 settings above, the 32 × 16 setting at seeds 456654 and 456655, and unmodified defaults at 128² seed zero. Save each in MaterialCraft and reopen it in the reference app. U8 and F16 each match all 22,528 pixels on every route. U16 gives 22,527/22,528 on one processor, 22,525 on the ordinary saves and 22,505 on eight, maximum one level. F32 gives the following counts against these specific captures.
+
+| Size and seed | One processor | Ordinary save on one | Eight processors | Maximum error, one / saved / eight |
+|---|---:|---:|---:|---:|
+| 32², 113 | 911/1,024 | 929/1,024 | 807/1,024 | 2⁻²³ / 2⁻²³ / 2⁻²³ |
+| 64², 194536 | 3,717/4,096 | 3,710/4,096 | 3,297/4,096 | 2⁻²³ / 2⁻²² / 2⁻²² |
+| 32 × 16, 456654 | 446/512 | 437/512 | 426/512 | 3 × 2⁻²⁵ / 2⁻²⁴ / 2⁻²⁴ |
+| 32 × 16, 456655 | 452/512 | 458/512 | 429/512 | 2⁻²³ / 2⁻²³ / 2⁻²³ |
+| 128², 0 | 16,384/16,384 | 16,384/16,384 | 10,092/16,384 | 0 / 0 / 2⁻²² |
+
+The [previous repeated captures](#carrying-unfinished-quadrant-draws-into-a-third-tree) distinguish changing reference pixels from differences that persisted across those reads. At 32² seed 113, 64² seed 194536 and 32 × 16 seed 456654, respectively, MaterialCraft matches 827/847, 3,405/3,471 and 363/370 of the invariant original pixels on one processor. The ordinary saves give 813/829, 3,436/3,508 and 380/391. The eight-processor originals give 591/666, 2,575/2,810 and 357/371. Later batches and the remaining differences at invariant positions are open.
+
+The four-format procedural controls match 237,568/237,568 pixels in 232 original renders and again in 232 ordinary saves, maximum error zero. Of these, 156 renders per route place signed gains on the incoming parent, its children and the receiving group on opposite sides of the measured cuts. The other 76 repeat the preceding boundary and depth controls. The second version of the stock root retained every measured output bit on its 87 original settings and 19 saves.
+
 ### Carrying unfinished quadrant draws into a third tree
 
 Noise BNW Spots 1 matches 825,139/841,728 pixels on one processor across its 86 established settings, up from 825,023. The eight-processor capture gives 776,698/841,728, down from 776,739. Ordinary saves give 196,228/196,352, up from 196,200. Whole-frame counts are 66/86, 38/86 and 16/19 respectively. Three original F32 frames changed. At 32² seed 113 and 64² seed 194536, agreement with the established single-processor captures rose from 926 to 941/1,024 and from 3,720 to 3,793/4,096. The maximum in each is 2⁻²². The third changed original and its ordinary save rose from 891 to 919/1,024, maximum 2⁻²³. [Preceding measurements and square settings](#completed-quadrant-batches-before-a-later-tree)

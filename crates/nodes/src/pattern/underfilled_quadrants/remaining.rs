@@ -201,6 +201,12 @@ impl UnderfilledQuadrants {
             // With no pending sibling in either pair, both paired batches precede the last child.
             next.extend(upper_batch);
             Self::append_receiver_and_last(&first, full_receiver, last_batch, &mut next)?;
+            if more_trees
+                && full_receiver
+                && let Some(batches) = self.carry_without_siblings(collecting, [&lower, &upper, &last])
+            {
+                next.extend(batches);
+            }
         } else if full_receiver && Self::piece_count(&first[..2])? < COPIES_PER_BATCH && Self::piece_count(&first[..3])? >= COPIES_PER_BATCH {
             // The first child handed over by the second group completes the receiver.
             // How many siblings the lower pair gives up determines when that batch submits.
@@ -216,7 +222,7 @@ impl UnderfilledQuadrants {
                     Self::append_receiver_and_last(&first, true, last_batch, &mut next)?;
                     if more_trees
                         && single_upper
-                        && let Some(batches) = self.carry_single_transfers(first_group, second_group, &lower, &upper, &last)
+                        && let Some(batches) = self.carry_single_transfers(collecting, [&lower, &upper, &last], pair_offsets[2])
                     {
                         next.extend(batches);
                     }

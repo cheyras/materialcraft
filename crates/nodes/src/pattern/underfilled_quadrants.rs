@@ -119,6 +119,7 @@ enum TrackedSpan {
     Next(usize),
     Later(usize),
     ThirdTree(usize),
+    ThirdCollecting(usize),
     LastQuadrantPair(usize),
     NextCollecting(usize, usize),
 }
@@ -161,6 +162,8 @@ pub(super) struct UnderfilledQuadrants {
     last_quadrant_pair: [CopyPositions; 2],
     next_pair_gap: Range<u32>,
     next_collecting: [LaterCollectingGroup; 4],
+    // The third collecting group can fill with its own draw and its first incoming child.
+    third_collecting: [CopyPositions; 2],
     tracked_span: Option<TrackedSpan>,
     graph_depth: u32,
     active_deep_draws: usize,
@@ -171,7 +174,7 @@ impl UnderfilledQuadrants {
         Self { graph_depth, ..Self::default() }
     }
 
-    fn tracked_span(&self, group: usize, span: usize) -> Option<TrackedSpan> {
+    fn tracked_span(&self, group: usize, span: usize, first_segment: bool) -> Option<TrackedSpan> {
         if self.graph_depth == 10 && group == LAST_QUADRANT_PAIR && (1..=2).contains(&self.visits[0]) {
             return Some(TrackedSpan::LastQuadrantPair(self.visits[0] - 1));
         }
@@ -186,12 +189,15 @@ impl UnderfilledQuadrants {
         {
             return Some(TrackedSpan::Collecting(slot, span));
         }
+        if self.graph_depth == 10 && self.visits[0] == 3 && group == COLLECTING_GROUPS[2] && span < 2 && first_segment {
+            return Some(TrackedSpan::ThirdCollecting(span));
+        }
         let pair = REPEATED_GROUPS.iter().position(|&g| g == group)?;
         match (self.visits[0], span) {
             (1, 1) => Some(TrackedSpan::Middle(pair)),
             (2, 0) => Some(TrackedSpan::Next(pair)),
             (2, 1) if self.graph_depth == 10 && pair < 2 => Some(TrackedSpan::Later(pair)),
-            (3, 0) if self.graph_depth == 10 && pair < 2 => Some(TrackedSpan::ThirdTree(pair)),
+            (3, 0) if self.graph_depth == 10 => Some(TrackedSpan::ThirdTree(pair)),
             _ => None,
         }
     }
@@ -249,7 +255,7 @@ impl UnderfilledQuadrants {
             return false;
         };
         self.group = group;
-        self.tracked_span = self.tracked_span(group, span);
+        self.tracked_span = self.tracked_span(group, span, GROUPS[group][span].0 == segment);
         if depth == 3 {
             self.visit_collecting_branch(depth);
         }
@@ -316,6 +322,7 @@ impl UnderfilledQuadrants {
                 TrackedSpan::Next(slot) => &mut self.repeated[slot].next,
                 TrackedSpan::Later(slot) => &mut self.repeated[slot].later,
                 TrackedSpan::ThirdTree(slot) => &mut self.repeated[slot].third_tree,
+                TrackedSpan::ThirdCollecting(slot) => &mut self.third_collecting[slot],
                 TrackedSpan::LastQuadrantPair(tree) => &mut self.last_quadrant_pair[tree],
                 TrackedSpan::NextCollecting(slot, index) => &mut self.next_collecting[slot].spans[index],
             };

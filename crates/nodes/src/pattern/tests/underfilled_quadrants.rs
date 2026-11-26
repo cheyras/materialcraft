@@ -375,6 +375,25 @@ fn third_tree_pairs_keep_single_sibling_transfers_ahead_of_waiting_draws() {
 }
 
 #[test]
+fn third_tree_receivers_take_children_when_neither_pair_has_a_pending_sibling() {
+    let small = 2.0_f32.powi(-25).to_bits();
+    for (negative, positive, passes) in [(551, 544, [2, 2]), (384, 80, [3, 2]), (640, 80, [3, 2])] {
+        let sample = marked_tree_pixel((5, negative), (5, positive), Continuation::ActiveTrees(3), &[], Some(passes), None);
+        assert_eq!(sample.to_bits(), small);
+    }
+}
+
+#[test]
+fn third_tree_receivers_continue_a_collecting_group_before_the_final_pair() {
+    let wrapped: Vec<_> = (3328..3331).chain(3584..3587).collect();
+    let small = 2.0_f32.powi(-25).to_bits();
+    for (negative, positive) in [(3712, 1008), (512, 2494)] {
+        let sample = marked_tree_pixel((6, negative), (6, positive), Continuation::ActiveTrees(4), &wrapped, Some([3, 2]), Some(2));
+        assert_eq!(sample.to_bits(), small);
+    }
+}
+
+#[test]
 fn unfinished_quadrant_groups_receive_children_after_the_full_batches() {
     let sample = |first, second| marked_tree_pixel((5, first), (5, second), Continuation::ActiveTrees(2), &[832, 896, 897], Some([2, 2]), Some(2)).to_bits();
     let small = 2.0_f32.powi(-25).to_bits();
