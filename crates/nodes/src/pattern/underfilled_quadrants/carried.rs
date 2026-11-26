@@ -12,8 +12,9 @@ impl UnderfilledQuadrants {
         let tail = &group.spans[2];
         let pair = &group.pair;
         let fourth = &pair.fourth_child_branches;
-        let mut skipped = pair.fourth_child.checked_sub(pair.third_child)?;
-        let mut last = pair.fourth_child;
+        let handoff = self.collecting_handoff(slot);
+        let mut skipped = handoff.end.checked_sub(handoff.start)?;
+        let mut last = handoff.end;
         if slot == 0 {
             skipped = skipped.checked_add(fourth[3].checked_sub(fourth[0])?)?;
             last = fourth[3];
@@ -27,7 +28,7 @@ impl UnderfilledQuadrants {
         let extra = match slot {
             0 => {
                 let other = &self.collecting[2];
-                (self.span_start(0, COLLECTING_GROUPS[2], 2)?, &other.spans[2], other.pair.third_child..other.pair.fourth_child)
+                (self.span_start(0, COLLECTING_GROUPS[2], 2)?, &other.spans[2], self.collecting_handoff(2))
             }
             2 => {
                 let children = &first.pair.third_child_branches;

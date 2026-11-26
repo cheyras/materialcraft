@@ -59,6 +59,24 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-25 root comparisons
 
+### Pending quadrant siblings and the first full receiving batch
+
+Use the [overlapping square fixture](#final-copy-batches-in-one-and-two-quadrant-trees) with one active pass and a connected, inactive depth-ten branch. Put the two signed marks at depth-five quadrants 32 and 30, counting from zero in traversal order. Moving the 64 terminal squares under quadrant 928 to the tile corner adds 192 physical copies. The first batch fills with two pending siblings under the same parent. The first sibling moves to the receiving group and the second stays with the submitting pair. At pixel (8,8) the unwrapped F32 control reads zero, the wrapped version reads 2⁻²⁵, and exchanging the gains gives zero again. The independent one-pass ordering replay agrees with 2,036/2,036 signed comparisons for the 32² spot field and 2,043/2,043 at 64 × 32. [Copy ranges](../crates/nodes/src/pattern/underfilled_quadrants/carried.rs)
+
+For the two-pass boundary, mark depth-five quadrant 32 on the first pass and 384 on the second. Move the final squares under first-pass quadrants 32 through 35 to the tile corner, then also move the squares under quadrant 36. The extra quadrant raises the receiving group's incoming count past 5,460. The reference sample changes from below 2⁻²⁶ to 2⁻²⁵. Independent 32² fields allocate 933 or 934 extra copies to second-pass depth-three quadrant 50, or 935 to quadrant 51. This gives 5,459, 5,460 and 5,461 incoming copies. All 285 signed comparisons per field place the full receiving batch after 20, 13 and 13 preceding batches respectively. Adding copies on the first pass can also change an earlier sibling transfer. The same total alone leaves that order unresolved. Both Rust regressions failed before the corrections. [Shared traversal](../crates/nodes/src/pattern/underfilled_quadrants.rs) · [Procedural regression tests](../crates/nodes/src/pattern/tests/underfilled_quadrants.rs)
+
+Each graph below was rendered in U8, U16, F16 and F32. The previous and current exact counts apply independently to the originals and to their ordinary saves. The maximum is the largest current absolute error on either side.
+
+| Procedural comparison | Graphs | Previous exact pixels per side | Current exact pixels per side | Maximum |
+|---|---:|---:|---:|---:|
+| One-pass sibling transfer, reversed markers and neighboring wrap controls | 8 | 32,764/32,768 | 32,768/32,768 | 0 |
+| Same markers with two, three or four passes | 4 | 16,380/16,384 | 16,380/16,384 | 2⁻²⁵ |
+| Earlier collecting batch, neighboring densities and reversed gains | 9 | 36,860/36,864 | 36,864/36,864 | 0 |
+
+Two additional complete Spots 1 originals and their ordinary saves now match on one processor. Set scale 1, disable non-square expansion, and use (width, height, seed, disorder, roughness) of (32,32,395435,.375,.875) and (64,32,395572,.8125,.4375). The exact counts increase from 968/1,024 and 1,991/2,048 to 1,024/1,024 and 2,048/2,048, maximum zero. Against the eight-processor captures the same frames fall from 706 to 697 and from 1,603 to 1,585 exact pixels. Their combined maximum is 1.78813934e−07.
+
+For eight further F32 settings, keep scale 1 and non-square expansion off. Use seeds 920633 + 163 × i for i = 0 through 7, with (width, height, disorder, roughness) in order (16,16,.8125,.625), (16,32,.375,.9375), (32,16,.9375,.25), (32,32,.625,.375), (32,64,.8125,.125), (64,32,.25,.6875), (64,64,.5,.9375) and (64,16,1,.5). The one-processor originals match 11,520/11,520, maximum zero. The eight-processor originals match 8,609/11,520, maximum 2.38418579e−07. The reopens match 11,500/11,520, maximum 1.19209290e−07, with all 20 differences at seed 921448. The 86 original settings and 19 saves in the established panel retain all their earlier scores and per-format maxima. The inventory remains 480/546. [Full panel by storage format](#final-copy-batches-in-one-and-two-quadrant-trees)
+
 ### Final copy batches in one and two quadrant trees
 
 Start with the [eight-level overlapping squares](#remaining-siblings-at-a-full-quadrant-copy-batch) and keep the inactive depth-ten branch. Give ordinary squares gain 2⁻⁷⁶ on a white background. Move two selected squares to the center of pixel (8,8) at 32² with gains −1 and 2⁻²⁵. For one pass, use depth-three quadrants 60 and 52 in traversal order. The reference value is 2⁻²⁵. Exchanging the gains gives zero. Once the last full batch submits, each producer with a partially filled batch keeps its remaining draw ranges together. The previous traversal separated the middle producer's ranges from the later pair. [Shared copy ranges](../crates/nodes/src/pattern/underfilled_quadrants/carried.rs)

@@ -284,6 +284,24 @@ fn later_full_batches_reach_subsequent_collecting_quadrants() {
 }
 
 #[test]
+fn a_collecting_batch_can_fill_before_the_next_quadrant_pair_starts() {
+    let sample = |wrapped: &[usize]| marked_tree_pixel((5, 32), (5, 384), Continuation::InactiveBranch(10), wrapped, Some([1, 2]), Some(1));
+    let small = 2.0_f32.powi(-25);
+    assert!(sample(&[32, 33, 34, 35]) < small * 0.5);
+    assert_eq!(sample(&[32, 33, 34, 35, 36]).to_bits(), small.to_bits());
+}
+
+#[test]
+fn a_full_quadrant_pair_transfers_its_pending_sibling() {
+    let sample =
+        |negative, positive, wrapped: &[usize]| marked_tree_pixel((5, negative), (5, positive), Continuation::SingleTree, wrapped, Some([1, 1]), Some(1));
+    let small = 2.0_f32.powi(-25);
+    assert!(sample(32, 30, &[]) < small * 0.5);
+    assert_eq!(sample(32, 30, &[928]).to_bits(), small.to_bits());
+    assert!(sample(30, 32, &[928]) < small * 0.5);
+}
+
+#[test]
 fn a_single_tree_drains_the_middle_quadrant_before_the_carried_pair() {
     let sample = |negative, positive| marked_tree_pixel((3, negative), (3, positive), Continuation::SingleTree, &[], Some([1, 1]), None);
     assert_eq!(sample(60, 52).to_bits(), 2.0_f32.powi(-25).to_bits());
