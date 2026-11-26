@@ -178,12 +178,46 @@ fn final_pair_location(draw: u32) -> (u32, u32) {
     if child == 0 { (512 + x, y) } else { (2 * x + (child - 1) % 2, 2 * y + (child - 1) / 2) }
 }
 
-fn check_final_pair_markers(inactive_children: bool, wrapped: bool, origin: [f32; 2], markers: &[(u32, u32, bool)]) {
+enum FinalPairTree {
+    Plain,
+    InactiveChildren,
+    RepeatedChildren,
+}
+
+fn first_quadrant_repeat_offset() -> Value {
+    let mut graph = FunctionGraph::default();
+    let pos = graph.add("get_float2", &[], Some(Value::Text("$pos".into())));
+    let x = graph.add("swizzle1", &[pos], Some(Value::Int(0)));
+    let y = graph.add("swizzle1", &[pos], Some(Value::Int(1)));
+    let furthest = graph.add("max", &[x, y], None);
+    let boundary = graph.add_constant(Value::Float(1.0 / 64.0));
+    let first = graph.add("lr", &[furthest, boundary], None);
+    let two = graph.add_constant(Value::Int(2));
+    let one = graph.add_constant(Value::Int(1));
+    let count = graph.add("ifelse", &[first, two, one], None);
+    let set = graph.add("set", &[count], Some(Value::Text("child_repeat".into())));
+    let offset = graph.add_constant(Value::Float2([0.0; 2]));
+    graph.output = Some(graph.add("sequence", &[set, offset], None));
+    Value::Function(Box::new(graph))
+}
+
+fn check_final_pair_markers(tree: FinalPairTree, wrapped: bool, origin: [f32; 2], markers: &[(u32, u32, bool)]) {
+    let inactive_children = !matches!(tree, FinalPairTree::Plain);
     let mut graph = PatternGraph::with_root(PatternNodeKind::Quadrant);
     let mut parent = graph.root.unwrap();
     for depth in 1..=8 {
         let child = graph.add(PatternNodeKind::Quadrant).unwrap();
         graph.nodes[(parent - 1) as usize].children.fill(Some(child));
+        if depth == 7 && matches!(tree, FinalPairTree::RepeatedChildren) {
+            // Only the first depth-six quadrant submits each of its children twice.
+            let relay = graph.add(PatternNodeKind::Iterate).unwrap();
+            let mut count = FunctionGraph::default();
+            count.output = Some(count.add("get_integer1", &[], Some(Value::Text("child_repeat".into()))));
+            graph.nodes[(relay - 1) as usize].parameters.insert("numberadded".into(), Value::Function(Box::new(count)));
+            graph.nodes[(relay - 1) as usize].children[1] = Some(child);
+            graph.nodes[(parent - 1) as usize].parameters.insert("branchoffset".into(), first_quadrant_repeat_offset());
+            graph.nodes[(parent - 1) as usize].children.fill(Some(relay));
+        }
         if depth >= 7 {
             let offset = [if depth == 7 { 0.5 } else { 0.0 }, 0.0];
             let mut parameters = additive_square(0.25, [0.0; 2], [0.0; 2]);
@@ -256,7 +290,7 @@ fn check_final_pair_markers(inactive_children: bool, wrapped: bool, origin: [f32
 #[test]
 fn final_pair_batches_precede_the_next_subtree_above_inactive_children() {
     check_final_pair_markers(
-        true,
+        FinalPairTree::InactiveChildren,
         false,
         [0.0; 2],
         &[
@@ -276,20 +310,35 @@ fn final_pair_batches_precede_the_next_subtree_above_inactive_children() {
             (40959, 44109, false),
         ],
     );
-    check_final_pair_markers(true, true, [0.0; 2], &[(64000, 20559, true), (23599, 24029, false), (76101, 7902, true), (69817, 48750, true)]);
-    check_final_pair_markers(true, false, [0.125, -0.25], &[(36180, 51209, false), (30717, 30722, false), (56659, 10240, true)]);
+    check_final_pair_markers(
+        FinalPairTree::InactiveChildren,
+        true,
+        [0.0; 2],
+        &[(64000, 20559, true), (23599, 24029, false), (76101, 7902, true), (69817, 48750, true)],
+    );
+    check_final_pair_markers(FinalPairTree::InactiveChildren, false, [0.125, -0.25], &[(36180, 51209, false), (30717, 30722, false), (56659, 10240, true)]);
+}
+
+#[test]
+fn inactive_quadrants_count_repeated_draws_in_their_own_subtree() {
+    check_final_pair_markers(
+        FinalPairTree::RepeatedChildren,
+        false,
+        [0.0; 2],
+        &[(30719, 2880, true), (49479, 36180, true), (63999, 23520, true), (67359, 8980, true)],
+    );
 }
 
 #[test]
 fn final_pair_batches_keep_the_four_child_order_with_one_tiling_axis() {
     check_final_pair_markers(
-        false,
+        FinalPairTree::Plain,
         true,
         [0.0; 2],
         &[(43841, 15684, true), (2893, 41170, false), (7078, 57951, false), (27212, 9738, false), (28838, 38806, false), (46736, 72040, false)],
     );
     check_final_pair_markers(
-        false,
+        FinalPairTree::Plain,
         false,
         [0.0; 2],
         &[

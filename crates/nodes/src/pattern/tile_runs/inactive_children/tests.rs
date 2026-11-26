@@ -46,6 +46,36 @@ fn a_full_receiving_pair_reorders_the_following_two_batches() {
 }
 
 #[test]
+fn inactive_quadrants_submit_a_second_full_batch_from_the_same_half() {
+    // Place 679 or 680 independent squares across the same tile edge. The last
+    // extra copy fills the second batch before the next half starts drawing.
+    for (extra, before) in [(679, false), (680, true)] {
+        let mut copies = vec![1; 81_920];
+        for i in 0..extra {
+            copies[24 * 1280 + (1777 * i + 31) % 10240] = 2;
+        }
+        let ranks = ranks_for_copies(|draw| copies[draw]);
+        for (left, right) in [(36173, 15446), (37269, 12312), (36456, 11047)] {
+            assert_eq!(ranks[left] < ranks[right], before, "{extra} extra copies, draws {left}, {right}");
+        }
+    }
+}
+
+#[test]
+fn inactive_quadrants_submit_a_full_outer_pair_before_the_receivers() {
+    for (extra, before) in [(339, false), (340, true)] {
+        let mut copies = vec![1; 81_920];
+        for i in 0..extra {
+            copies[62 * 1280 + (233 * i + 71) % 2560] = 2;
+        }
+        let ranks = ranks_for_copies(|draw| copies[draw]);
+        for (left, right) in [(80736, 65485), (80128, 65100), (63952, 66509)] {
+            assert_eq!(ranks[left] < ranks[right], before, "{extra} extra copies, draws {left}, {right}");
+        }
+    }
+}
+
+#[test]
 fn receiving_tails_and_deferred_siblings_follow_the_full_batches() {
     let rank = draw_ranks(0);
     for (left, right, before) in [(29320, 59050, false), (2960, 72020, false), (50750, 18422, true), (3019, 29753, false)] {

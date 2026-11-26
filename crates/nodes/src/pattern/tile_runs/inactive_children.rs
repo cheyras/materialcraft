@@ -106,7 +106,19 @@ fn completed_half(ends: &[u32], group: usize, partner: usize) -> Option<[Range<u
     Some([remainder, incoming.start..incoming.start + room])
 }
 
-fn following_batches(ends: &[u32], receivers: &[ReceivingPair], leading: &[Range<u32>]) -> Option<Vec<Range<u32>>> {
+fn full_outer_pair(ends: &[u32]) -> Option<[Range<u32>; 2]> {
+    let preceding = copies(ends, 60 * SUBTREES..62 * SUBTREES)?;
+    let own = copies(ends, 62 * SUBTREES..64 * SUBTREES)?;
+    let incoming = copies(ends, 48 * SUBTREES..50 * SUBTREES)?;
+    let room = COPIES_PER_BATCH.checked_sub(own.end - own.start)?;
+    // An independently full outer pair has a different submission boundary.
+    if preceding.end - preceding.start >= COPIES_PER_BATCH || room == 0 || !(room..COPIES_PER_BATCH).contains(&(incoming.end - incoming.start)) {
+        return None;
+    }
+    Some([own, incoming.start..incoming.start + room])
+}
+
+fn following_batches(ends: &[u32], receivers: &[ReceivingPair], leading: &[Range<u32>], outer_submitted: bool) -> Option<Vec<Range<u32>>> {
     let [first, middle, last] = receivers else { return None };
     let handoff = first.handoff.as_ref()?;
     let middle_siblings = copies(ends, middle.pending.clone())?;
@@ -127,7 +139,7 @@ fn following_batches(ends: &[u32], receivers: &[ReceivingPair], leading: &[Range
     let mut full = leading.to_vec();
     full.extend(order.into_iter().flatten().cloned());
     let tails = [first.tail.clone(), middle_siblings, last.tail.clone()];
-    if let Some(completed) = completion::ranges(ends, receivers, &halves, third.start + COPIES_PER_BATCH..third.end, &full, &tails) {
+    if !outer_submitted && let Some(completed) = completion::ranges(ends, receivers, &halves, third.start + COPIES_PER_BATCH..third.end, &full, &tails) {
         return Some(completed);
     }
     full.extend(tails);
@@ -141,10 +153,18 @@ pub(super) fn ranges(ends: &[u32]) -> Option<Vec<Range<u32>>> {
     let mut runs = Vec::new();
     for group in LEADING_SUBTREES {
         let half = copies(ends, group * SUBTREES..(group + 8) * SUBTREES)?;
-        if !(COPIES_PER_BATCH..2 * COPIES_PER_BATCH).contains(&(half.end - half.start)) {
+        let batches = (half.end - half.start) / COPIES_PER_BATCH;
+        if !(1..=2).contains(&batches) {
             return None;
         }
-        runs.push(half.start..half.start + COPIES_PER_BATCH);
+        runs.push(half.start..half.start + batches * COPIES_PER_BATCH);
+    }
+    // The last two depth-three subtrees continue into the first two of the same
+    // root quadrant. A complete batch submits before work reaches the receivers.
+    let outer = full_outer_pair(ends);
+    let outer_submitted = outer.is_some();
+    if let Some(pair) = outer {
+        runs.extend(pair);
     }
     // The final root quadrant sends one pair of depth-three subtrees to each
     // receiving half. Each receiver can submit two complete batches.
@@ -154,7 +174,7 @@ pub(super) fn ranges(ends: &[u32]) -> Option<Vec<Range<u32>>> {
         runs.extend_from_slice(&pair.runs);
         receivers.push(pair);
     }
-    if let Some(following) = following_batches(ends, &receivers, &runs) {
+    if let Some(following) = following_batches(ends, &receivers, &runs, outer_submitted) {
         runs = following;
     }
     // Preserve every remaining physical copy in traversal order.

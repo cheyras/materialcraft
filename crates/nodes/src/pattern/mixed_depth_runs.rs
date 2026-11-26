@@ -9,6 +9,8 @@ use super::{
 };
 use crate::CookContext;
 
+const DEPTH_SEVEN_PARENTS: usize = 4_usize.pow(7);
+
 // Each pair is the exclusive end in depth-seven parent visits and its compositing position.
 // The boundaries come from overlapping original squares. A prefix can end inside a grandchild.
 const TWO_CHILDREN: &[(usize, usize)] = &[
@@ -97,6 +99,7 @@ pub(super) struct MixedDepthRuns {
     starts: Vec<DrawPosition>,
     next_boundary: usize,
     parents: usize,
+    extra_parents: usize,
     saw_root: bool,
     children_per_parent: usize,
     draws_per_parent: usize,
@@ -131,6 +134,7 @@ impl MixedDepthRuns {
         }
         if depth != 7 {
             return match depth {
+                5 if self.deepest == 10 => node.children.iter().all(Option::is_some) && self.copies.as_mut().is_some_and(TileCopies::begin_inactive_subtree),
                 0..=6 => node.children.iter().flatten().count() == 4,
                 8 if self.deepest == 9 => node.children.iter().all(Option::is_some),
                 // Connected child routes can terminate without visiting another quadrant.
@@ -164,6 +168,16 @@ impl MixedDepthRuns {
         true
     }
 
+    // A second visit to a drawing parent belongs to the same depth-five subtree.
+    // An iteration at another level changes which subtrees can submit together.
+    pub(super) fn repeat_parent(&mut self, depth: u32, repeats_left: u32) -> bool {
+        if self.deepest != 10 || depth != 7 || repeats_left != 1 || self.extra_parents == DEPTH_SEVEN_PARENTS {
+            return false;
+        }
+        self.extra_parents += 1;
+        true
+    }
+
     pub(super) fn draw(&mut self, stamp: &PatternStamp, opacities: &[f32], retained: bool) -> bool {
         let Some(weight) = opacities.get(stamp.depth as usize) else { return false };
         // Turning off unrelated draws changes the order even where those draws never overlap the readout.
@@ -181,7 +195,10 @@ impl MixedDepthRuns {
     }
 
     pub(super) fn finish(mut self, stamps: &[PatternStamp]) -> Option<Vec<DrawRun<'_>>> {
-        if self.parents != 16384 || self.draws != self.parents * self.draws_per_parent || self.starts.len() != self.layout.len() {
+        if self.parents != DEPTH_SEVEN_PARENTS + self.extra_parents
+            || self.draws != self.parents * self.draws_per_parent
+            || self.starts.len() != self.layout.len()
+        {
             return None;
         }
         if self.deepest == 10 {

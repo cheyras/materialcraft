@@ -57,6 +57,70 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 - **2026-11-13 - Unconnected output images:** Unconnected output bridges now produce transparent RGBA instead of grayscale. The importer separately retains each output's declared image type so saving an unconnected output preserves the graph interface. Both material templates match all 1,179,648 RGBA8 pixels across six recorded cases. All 2,560 direct grayscale/color declaration probe pixels also match, and both declared image types survive save/reload.
 
+## 2026-11-26 root comparisons
+
+### Repeated drawing quadrants and full batches in the outer pair
+
+Start with the [original additive-square graph and its traversal numbering](#tile-copies-in-the-last-two-active-quadrant-levels). Keep both tiling axes and the connected, inactive descendants through depth ten. Between each depth-six quadrant and its children, insert an Iterate with an empty initial branch. On the depth-six branch offset, read the red channel of a 1024² procedural field at texel (256 + x, 512 + y). Here x and y are the 64² quadrant coordinates. Write an integer child count of two for a marked texel or one otherwise, then return a zero offset. Read that count in the Iterate. Each marked depth-six quadrant adds four depth-seven parents and sixteen depth-eight draws.
+
+Number depth-six quadrants in traversal order, starting at zero. Use six fields with these marked indices.
+
+| Field | Marked quadrants |
+|---|---|
+| Control | None |
+| First | 0 |
+| Receiver | 50 × 64 + 10 |
+| Middle | 24 × 64 + 21 and 40 × 64 + 19 |
+| Later | 60 × 64 + 12, 62 × 64 + 31 and 48 × 64 + 9 |
+| Spread | (211j + 17) mod 4096 for j from 0 through 11 |
+
+Place a separate square of gain −0.25 in a marked and an unmarked branch. From white, the marked square leaves 0.5 and the unmarked square leaves 0.75. The signed draw-order markers outside the repeated branches agree in both gain directions on all 686 pairs. Previously an inner repeat selected traversal order for the tree. Recording the physical copies at each actual depth-five boundary lets the renderer retain batch order when a subtree contains more than sixteen drawing parents.
+
+For each field, render both marker directions at 256² F32 with seed 613117, 64 × 128 U8 with seed 613139, 128 × 64 U16 with seed 613141 and 256 × 128 F16 with seed 613163. Reopen the ordinary MaterialCraft save in the reference app and repeat all 48 frames.
+
+| Output | Original exact pixels | Reopened exact pixels | Maximum error on either |
+|---|---:|---:|---:|
+| U8 | 98,304/98,304 | 98,304/98,304 | 0 |
+| U16 | 98,304/98,304 | 98,304/98,304 | 0 |
+| F16 | 393,216/393,216 | 393,216/393,216 | 0 |
+| F32 | 786,432/786,432 | 786,432/786,432 | 0 |
+
+The previous release missed 142 F32 pixels on each route, maximum 2⁻²⁵. All three other formats retained their previous bits.
+
+To isolate two submission boundaries separately, leave the Iterate count at one. Number 64 depth-three groups of 1,280 draws each. In a leading half starting at group 24, 40 or 8, move draw `1280g + (1777j + 31) mod 10240` to one tile edge for consecutive j starting at zero. At 679 extra copies the half contains 10,919 copies. At 680 it contains 10,920 and submits its second complete batch before the next half starts. Adding a 681st copy leaves that copy pending. Vary each half independently and then fill two or three halves together.
+
+For the outer pair, group 62 and its following group continue into groups 48 and 49. In either two-group interval move draw `1280g + (233j + 71) mod 2560` to one tile edge. With 339 extra copies in groups 62–63, the outer pair follows the first receiver. At 340 extras it fills a batch of 5,460 and precedes that receiver. The same threshold holds when the extra copies are in groups 48–49 or alternate between the two intervals. A dense field with 5,537 outer copies matched all 537 signed comparisons against the leading halves, receivers and later draws. The final 77 copies were outside that full batch. Separate, underfilled fields still have differences in the order of their later draws. [Boundary regressions](../crates/nodes/src/pattern/tile_runs/inactive_children/tests.rs) · [Repeated Iterate regression](../crates/nodes/src/pattern/tests/terminal_quadrants.rs)
+
+For whole-image checks, use five disjoint pairs on row 5 in columns 6 through 10 of the 128² marker field. Render both gain directions at 128² F32, 64 × 128 U8, 128 × 64 U16 and 256 × 128 F16 with seeds 614131, 614159, 614171 and 614189 respectively. In the last two fields put 680 extra copies in each leading half starting at group 24 or 40. Alternate the outer extras between groups 62 and 48, advancing the local index after each pair.
+
+| Placement and extra copies | Traversal indices for the five marker pairs |
+|---|---|
+| Leading half, 679 | (38865,51618), (36173,15446), (36836,55838), (37269,12312), (39867,54119) |
+| Leading half, 680 | (38865,51618), (36173,15446), (36836,55838), (37269,12312), (39868,54119) |
+| Outer group 62, 339 | (63311,64861), (62714,66424), (61880,65431), (81655,64132), (63326,64047) |
+| Outer group 62, 340 | (63312,64861), (62715,66424), (61881,65431), (81656,64132), (63327,64047) |
+| Alternating, 339 | (63266,65301), (62624,64826), (61727,65835), (81486,64277), (63281,66203) |
+| Alternating, 340 | (63267,65301), (62625,64826), (61727,65835), (81486,64277), (63282,66203) |
+
+The 48 originals and their 48 ordinary saves each match 786,432/786,432 pixels, maximum zero. Each route gives 98,304 exact U8, 98,304 exact U16, 393,216 exact F16 and 196,608 exact F32 pixels. The previous release gave 786,408/786,432 on each route with a maximum F32 error of 2⁻²⁵.
+
+In the second Spots 1 graph, set scale to 1, roughness to 0.875, disorder to 0.1875, speed to 0.5, anisotropy to 0.25, non-square expansion to false and tile offset to (−0.1875, 0.0625). In a MaterialCraft trace, a diagnostic draw on the initial branch of each depth-seven Iterate distinguished one visit from two. Removing the diagnostic stamps from the trace left every original stamp's geometry unchanged. At 32 × 16 and seed 561067, 15,379 parents drew once and 1,005 drew twice. Their 1,024 depth-five subtrees contained 16 through 22 drawing parents. The first three leading halves, in submission order, contained 10,949, 11,084 and 10,849 physical copies.
+
+| Size and seed, F32 | One processor, before → after | Fresh eight processors, before → after | Ordinary save, before → after | Maximum error after, one / eight / save |
+|---|---:|---:|---:|---:|
+| 32 × 16, 561067 | 460 → 497/512 | 472 → 467/512 | 460 → 497/512 | 2⁻²⁴ / 2⁻²⁴ / 2⁻²⁴ |
+| 32 × 16, 614019 | 465 → 497/512 | 465 → 477/512 | 465 → 497/512 | 2⁻²⁴ / 2⁻²³ / 2⁻²⁴ |
+| 16 × 32, 614041 | 462 → 500/512 | 475 → 473/512 | 462 → 500/512 | 2⁻²⁴ / 2⁻²⁴ / 2⁻²⁴ |
+| 32², 614063 | 940 → 989/1,024 | 927 → 945/1,024 | 940 → 989/1,024 | 2⁻²⁴ / 2⁻²³ / 2⁻²⁴ |
+
+Across the three new seeds U8, U16 and F16 each matched all 2,048/2,048 pixels on one processor, on eight and on reopening, maximum zero. The archived eight-processor F32 capture at seed 561067 gives 459/512, previously 470/512. Its maximum error rose from 2⁻²⁴ to 2⁻²³. The other three [earlier F32 settings](#completing-partial-copy-batches-above-inactive-quadrants) stayed at 256/256, 512/512 and 1,024/1,024 on one processor and on reopening.
+
+Repeat the 32 × 16 F32 at seed 561067 in four separate reference renders per processor count. All 512 positions were identical across the four one-processor renders. On eight processors, 435/512 positions were identical across the four, and MaterialCraft matched 428 of those 435. It matched at least one of the four values at 505/512 positions. Against individual renders it matched 460, 463, 480 and 471 pixels, maximum 2⁻²⁴ in each. Two eight-processor reference renders differed by as much as 2⁻²³. The seven stable positions that differ from MaterialCraft remain open.
+
+Across the established 87 Spots 1 v2 settings and 19 ordinary saves, all 106 output digests match the previous release. The counts remain 839,402/842,752 on one processor, 830,541/842,752 on eight and 137,715/139,008 after reopening. Whole-frame counts remain 62/87, 58/87 and 13/19 respectively. [Counts and maximum errors by output format](#completing-partial-copy-batches-above-inactive-quadrants)
+
+The first Spots 1 graph retained all 86 original and 19 reopened frame digests. It matches 824,569/841,728 on one processor, 776,831/841,728 on eight and 196,193/196,352 after reopening. Both roots remain in progress. The three new regressions failed against the previous implementation. All 542 node and evaluator release tests passed with the changes. Formatting, strict workspace Clippy, dependency layering and WebAssembly passed.
+
 ## 2026-11-25 root comparisons
 
 ### Completing partial copy batches above inactive quadrants

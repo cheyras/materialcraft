@@ -73,8 +73,20 @@ impl TileCopies {
         self.positions.record(count, retained)
     }
 
+    pub(super) fn begin_inactive_subtree(&mut self) -> bool {
+        if self.subtree_ends.len() == 4_usize.pow(5) {
+            return false;
+        }
+        self.subtree_ends.push(self.positions.total);
+        true
+    }
+
     pub(super) fn record(&mut self, stamp: &PatternStamp, retained: bool, draws: usize, draws_per_parent: usize) -> Option<()> {
         let end = self.count_stamp(Some(stamp), retained)?.end;
+        if self.parents_per_subtree == DEPTH_FIVE_PARENTS {
+            *self.subtree_ends.last_mut()? = end;
+            return Some(());
+        }
         if draws.is_multiple_of(draws_per_parent * self.parents_per_subtree) {
             let parents = draws / draws_per_parent;
             // Count the eight pairs in the final quadrant. Their combined occupancy determines
