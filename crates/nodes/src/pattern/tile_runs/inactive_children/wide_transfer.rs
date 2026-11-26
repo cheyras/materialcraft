@@ -1,11 +1,5 @@
-use super::{COPIES_PER_BATCH, ReceivingPair, SUBTREES, copies};
+use super::{COPIES_PER_BATCH, ReceivingPair, SUBTREES, copies, finish_partial_streams, remainder};
 use std::ops::Range;
-
-fn remainder(ends: &[u32], group: usize, submitted: &Range<u32>, batches: u32) -> Option<Range<u32>> {
-    let half = copies(ends, group * SUBTREES..(group + 8) * SUBTREES)?;
-    (submitted.start == half.start && submitted.end - submitted.start == batches * COPIES_PER_BATCH && submitted.end <= half.end)
-        .then_some(submitted.end..half.end)
-}
 
 pub(super) fn ranges(ends: &[u32], receivers: &[ReceivingPair], leading: &[Range<u32>], outer_tail: &Range<u32>) -> Option<Vec<Range<u32>>> {
     let [first, middle, last] = receivers else { return None };
@@ -57,12 +51,5 @@ pub(super) fn ranges(ends: &[u32], receivers: &[ReceivingPair], leading: &[Range
         vec![lower, copies(ends, 52 * SUBTREES..54 * SUBTREES)?],
         vec![cut..donor.end, children(quarter, 3..4)?, children(half, returned_half)?],
     ];
-    for stream in streams {
-        let length = stream.iter().try_fold(0_u32, |sum, range| sum.checked_add(range.end.checked_sub(range.start)?))?;
-        if length >= COPIES_PER_BATCH {
-            return None;
-        }
-        runs.extend(stream.into_iter().filter(|range| !range.is_empty()));
-    }
-    Some(runs)
+    finish_partial_streams(runs, streams)
 }

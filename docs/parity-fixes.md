@@ -59,6 +59,35 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-26 root comparisons
 
+### Returning the cut child of a completed outer quadrant
+
+At 16 × 32 and seed 614041, Noise BNW Spots 1 v2 now matches all 512 raw F32 pixels on one processor and after an ordinary SBS save reopened on one. The previous release matched 500/512 on both routes. The eight-processor capture moved from 473 to 469/512, with maximum error 2⁻²⁴ on both revisions. Use scale 1, roughness .875, disorder .1875, speed .5, anisotropy .25, non-square expansion off and tile offset (−.1875, .0625). The three independent sizes at these settings give the following results. [Preceding measurements](#filling-a-quadrant-batch-from-two-transferred-children)
+
+| Size and seed | Original F32 on one processor | Reopened F32 on one processor | Original F32 on eight processors | Maximum F32 error, one / eight |
+|---|---:|---:|---:|---:|
+| 32 × 16, 614019 | 512/512 | 512/512 | 483/512 | 0 / 2⁻²⁴ |
+| 16 × 32, 614041 | 512/512 | 512/512 | 469/512 | 0 / 2⁻²⁴ |
+| 32², 614063 | 1,024/1,024 | 1,024/1,024 | 950/1,024 | 0 / 2⁻²³ |
+
+U8, U16 and F16 each match 2,048/2,048 pixels on all three routes, maximum zero. The four earlier F32 cases still match 2,304/2,304 on one processor and on reopening and 2,146/2,304 on eight, maximum 2⁻²³. The difference at seed 614041 arises when a 5,460-copy batch cuts inside depth-five subtree 797. Four physical copies of that subtree remain. Its next sibling transfers and its final sibling resumes with the cut child. This changes which pair fills the next batch. The renderer uses the subtree copy boundaries and checks that every final stream fits a partial batch. [Renderer](../crates/nodes/src/pattern/tile_runs/inactive_children/outer_transfer.rs) · [Regression tests](../crates/nodes/src/pattern/tile_runs/inactive_children/tests.rs)
+
+To reproduce the boundary with original inputs, use the [additive square tree, edge placement and signed marker gains](#drawing-the-children-of-a-transferred-quadrant). Number the 81,920 draws from zero. In groups 24, 40, 8, 50, 58, 54 and 62 use widths (8, 8, 8, 2, 2, 2, 2) and move (700 + 17i, 730 + 21i, 702 + 25i, 500 + 9i, 530 + 6i, 341 + 7i, 501 + 8i) squares to the tile edge. Within each group g of width w place extra copy j at draw 1280g + (1777j + 32 + i) mod (1280w). For i = 0, 1 and 2 use 368, 380 and 394 extra copies respectively in group 54. For the boundary controls start at i = 3 and replace the count in group 62 with 499, 500 or 501. At 499, draw 69208 follows 64124. At 500 and 501 it precedes 64124 in both gain directions.
+
+For the full images use the three boundary fields, unmodified fields i = 3, 5 and 7, and a field carrying the 1,024 subtree copy counts of the 16 × 32 seed. For the last field, if a subtree has c copies, move c − 80 of its squares to the edge at local draw (23j + 7) mod 80. Starting at texel (6, 5), mark (69208,64124), (69214,74376), (64145,74362), (51199,43680) and (43839,2400) in consecutive texels. Use the first three pairs at 499. If a selected draw has an edge copy, advance its index to the next single-copy draw. Render both gain directions and reopen ordinary SBS saves of the same seven fields.
+
+| Storage, size and seed | Exact original pixels | Exact reopened pixels | Maximum error, original / reopened |
+|---|---:|---:|---:|
+| U8, 64 × 128, 619499 | 114,688/114,688 | 114,688/114,688 | 0 / 0 |
+| U16, 128 × 64, 619521 | 114,688/114,688 | 114,688/114,688 | 0 / 0 |
+| F16, 256 × 128, 619541 | 458,752/458,752 | 458,752/458,752 | 0 / 0 |
+| F32, 128², 619477 | 229,374/229,376 | 229,370/229,376 | 2⁻²⁵ / 2⁻²⁵ |
+
+The 56 original frames improved from 917,466 to 917,502 of 917,504 exact pixels. The 56 reopens improved from 917,466 to 917,498. At 499, the second pair still draws in the opposite order on the reference. Change the seed, restore 619477 and repeat fields 499 and 501 in three separate one-processor acquisitions on each route. The one-pixel difference at 499 persists in both gain directions on every repeat. The additional four differences in the first reopened capture disappear in all three repeat acquisitions. Both preceding 48-setting panels also reproduce their earlier exact counts on originals and reopens.
+
+At 256² compare adjacent single-copy draws in both gain directions for fields i = 0 through 8 and the seed-derived field. Of 772,860 relations, 772,829 agreed in both directions and 31 changed with the gain exchange. For the copies left in the cut subtree, compare against each of the 24 other measured ranges in fields 2, 3, 4, 5, 6, 7, 8 and the seed-derived field. Of 192 relations, 177 agreed in both directions and 15 changed. At 500, 501, i = 3, 5, 7 and in the seed-derived field, a separate 14-pair check agreed in both directions on all 84 relations. Both new regressions failed on the preceding revision. All 548 release tests for the node and evaluation crates passed, together with formatting, strict workspace Clippy, dependency layering and WebAssembly.
+
+The established 86 original settings for Spots 1, 87 for Spots 1 v2 and 19 ordinary saves of each reproduce all 211 previous output digests. Spots 1 remains at 64/86 exact original frames on one processor and 38/86 on eight. Spots 1 v2 remains at 62/87 and 58/87. The inventory is 480/546.
+
 ### Filling a quadrant batch from two transferred children
 
 Two more Noise BNW Spots 1 v2 settings match every raw F32 pixel on one processor and after an ordinary SBS save reopened in the reference app. Use scale 1, roughness .875, disorder .1875, speed .5, anisotropy .25, non-square expansion off and tile offset (−.1875, .0625). Counts compare the shared renderer before and after the change. [Previous measurements](#drawing-the-children-of-a-transferred-quadrant)

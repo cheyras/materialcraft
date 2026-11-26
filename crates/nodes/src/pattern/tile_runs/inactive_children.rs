@@ -2,6 +2,7 @@ use super::{COPIES_PER_BATCH, LEADING_SUBTREES};
 use std::ops::Range;
 
 mod completion;
+mod outer_transfer;
 #[cfg(test)]
 mod tests;
 mod wide_transfer;
@@ -16,6 +17,24 @@ fn boundary(ends: &[u32], subtree: usize) -> Option<u32> {
 
 fn copies(ends: &[u32], subtrees: Range<usize>) -> Option<Range<u32>> {
     Some(boundary(ends, subtrees.start)?..boundary(ends, subtrees.end)?)
+}
+
+fn remainder(ends: &[u32], group: usize, submitted: &Range<u32>, batches: u32) -> Option<Range<u32>> {
+    let half = copies(ends, group * SUBTREES..(group + 8) * SUBTREES)?;
+    (submitted.start == half.start && submitted.end.checked_sub(submitted.start)? == batches * COPIES_PER_BATCH && submitted.end <= half.end)
+        .then_some(submitted.end..half.end)
+}
+
+fn finish_partial_streams(mut submitted: Vec<Range<u32>>, streams: impl IntoIterator<Item = Vec<Range<u32>>>) -> Option<Vec<Range<u32>>> {
+    for stream in streams {
+        // A stream that fills submits earlier than the partial streams still waiting for siblings.
+        let length = stream.iter().try_fold(0_u32, |sum, range| sum.checked_add(range.end.checked_sub(range.start)?))?;
+        if length >= COPIES_PER_BATCH {
+            return None;
+        }
+        submitted.extend(stream.into_iter().filter(|range| !range.is_empty()));
+    }
+    Some(submitted)
 }
 
 // At a full batch, half the pending siblings can pass to a later run. When the
@@ -177,16 +196,20 @@ pub(super) fn ranges(ends: &[u32]) -> Option<Vec<Range<u32>>> {
     } else {
         None
     };
-    // The final root quadrant sends one pair of depth-three subtrees to each
-    // receiving half. Each receiver can submit two complete batches.
-    let mut receivers = Vec::with_capacity(3);
-    for (partner, main) in [(50, 16), (58, 0), (54, 32)] {
-        let Some(pair) = receiving_pair(ends, partner, main, main == 16) else { break };
-        runs.extend_from_slice(&pair.runs);
-        receivers.push(pair);
-    }
-    if let Some(following) = following_batches(ends, &receivers, &runs, outer_tail.as_ref()) {
+    if let Some(following) = outer_tail.as_ref().and_then(|tail| outer_transfer::ranges(ends, &runs, tail)) {
         runs = following;
+    } else {
+        // The final root quadrant sends one pair of depth-three subtrees to each
+        // receiving half. Each receiver can submit two complete batches.
+        let mut receivers = Vec::with_capacity(3);
+        for (partner, main) in [(50, 16), (58, 0), (54, 32)] {
+            let Some(pair) = receiving_pair(ends, partner, main, main == 16) else { break };
+            runs.extend_from_slice(&pair.runs);
+            receivers.push(pair);
+        }
+        if let Some(following) = following_batches(ends, &receivers, &runs, outer_tail.as_ref()) {
+            runs = following;
+        }
     }
     // Preserve every remaining physical copy in traversal order.
     let mut submitted = runs.clone();

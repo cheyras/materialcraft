@@ -192,3 +192,43 @@ fn the_last_receiver_can_return_one_or_two_smaller_subtrees() {
         }
     }
 }
+
+fn ranks_with_outer_cut(field: usize, outer: usize) -> Vec<usize> {
+    let mut copies = vec![1; 81_920];
+    let regions = [
+        (24, 8, 700 + 17 * field),
+        (40, 8, 730 + 21 * field),
+        (8, 8, 702 + 25 * field),
+        (50, 2, 500 + 9 * field),
+        (58, 2, 530 + 6 * field),
+        (54, 2, 341 + 7 * field),
+        (62, 2, outer),
+    ];
+    for (group, width, amount) in regions {
+        for i in 0..amount {
+            copies[group * 1280 + (1777 * i + 32 + field) % (width * 1280)] = 2;
+        }
+    }
+    ranks_for_copies(|draw| copies[draw])
+}
+
+#[test]
+fn a_deferred_outer_child_changes_which_pair_submits_first() {
+    // The extra edge copy moves the cut across the boundary between two depth-five siblings.
+    for (outer, before) in [(499, false), (500, true), (501, true)] {
+        let ranks = ranks_with_outer_cut(3, outer);
+        assert_eq!(ranks[69208] < ranks[64124], before, "{outer} extra copies");
+    }
+}
+
+#[test]
+fn the_cut_outer_child_resumes_between_two_transferred_siblings() {
+    for (field, pairs) in
+        [(3, [(63874, 63822), (44118, 63836), (63820, 63951), (63826, 44577)]), (7, [(63906, 63818), (44109, 63806), (63838, 63962), (63791, 44740)])]
+    {
+        let ranks = ranks_with_outer_cut(field, 501 + 8 * field);
+        for (left, right) in pairs {
+            assert!(ranks[left] < ranks[right], "field {field}, draws {left}, {right}");
+        }
+    }
+}
