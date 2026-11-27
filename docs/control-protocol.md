@@ -416,7 +416,7 @@ still coalesce until release. `material_export` uses the headless write-root cap
 expose unrestricted engine file paths.
 
 SBS image inputs store the package resource URL in the input bridge's `bitmapresourcepath`.
-On import, an image bound by this field uses the resource file's color interpretation.
+Both imported bindings and newly bound images use the resource file's color interpretation by default.
 `graph.input.bind` accepts `linear: true` to keep the original levels of normal, height and other
 data maps, or `linear: false` for sRGB color. MaterialCraft preserves its explicit preview
 interpretations in graph options and reads bindings from older files that use those options.

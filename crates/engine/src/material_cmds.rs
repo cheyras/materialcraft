@@ -44,7 +44,7 @@ pub(crate) fn specs() -> Vec<CommandSpec> {
             "Set input preview image",
             [],
             None,
-            "{identifier, resource? | path?, linear?} shows a bitmap resource (or an image file, embedded) on the graph's input node `identifier`, e.g. a mesh map baked in TextureCraft",
+            "{identifier, resource? | path?, linear?} shows a bitmap on the graph's input node using its file color interpretation. Set linear to true for data or false for sRGB",
             has_graph,
             bind
         ),
@@ -233,14 +233,18 @@ fn bind(s: &mut Session, p: &J) -> Result<J> {
             Some((name, bytes)) => crate::file_cmds::push_resource(&mut s.pkg, &name, bytes, Some(&id)),
             None => strp(p, "resource").unwrap_or_default().to_string(),
         };
-        let linear = p.get("linear").and_then(J::as_bool).unwrap_or(false);
         let g = s.graph_mut()?;
         g.input_images.insert(id.clone(), res.clone());
+        g.input_images_linear.remove(&id);
         g.input_images_from_file.remove(&id);
-        if linear {
-            g.input_images_linear.insert(id.clone());
-        } else {
-            g.input_images_linear.remove(&id);
+        match p.get("linear") {
+            None => {
+                g.input_images_from_file.insert(id.clone());
+            }
+            Some(J::Bool(true)) => {
+                g.input_images_linear.insert(id.clone());
+            }
+            _ => {}
         }
         Ok(json!({"identifier": id, "resource": res}))
     })

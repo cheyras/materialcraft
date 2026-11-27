@@ -56,10 +56,16 @@ fn bitmap_nodes_read_default_colors_from_the_file_and_keep_explicit_data_reads()
         assert_eq!(pixel(bitmap), expected);
         assert_eq!(pixel(data), [64, 128, 192, 97]);
         assert_eq!(pixel(input), expected);
-        crate::execute(&mut session, "graph.input.bind", &serde_json::json!({"identifier":"input", "resource":"field", "linear":true})).unwrap();
-        assert!(!session.graph().unwrap().input_images_from_file.contains("input"));
-        let rebound = session.cook().image(input, 0).unwrap().get(0, 0, false).map(|v| (v * 255.0).round() as u8);
-        assert_eq!(rebound, [64, 128, 192, 97]);
+        for (linear, levels) in [(Some(true), [64, 128, 192, 97]), (None, expected), (Some(false), [13, 55, 134, 97]), (None, expected)] {
+            let mut params = serde_json::json!({"identifier": "input", "resource": "field"});
+            if let Some(value) = linear {
+                params["linear"] = value.into();
+            }
+            crate::execute(&mut session, "graph.input.bind", &params).unwrap();
+            assert_eq!(session.graph().unwrap().input_images_from_file.contains("input"), linear.is_none());
+            let rebound = session.cook().image(input, 0).unwrap().get(0, 0, false).map(|v| (v * 255.0).round() as u8);
+            assert_eq!(rebound, levels);
+        }
     }
 }
 
