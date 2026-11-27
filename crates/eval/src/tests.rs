@@ -1089,6 +1089,48 @@ fn unchanged_size_after_read(getter: &str, variable: &str) -> materialcraft_core
 }
 
 #[test]
+fn half_levels_convert_the_input_before_the_curve_when_only_one_size_depends_on_a_parameter() {
+    use materialcraft_core::{BaseParameter, OutputFormat, SizeMode};
+
+    let mut graph = Graph::new("Levels sizing");
+    graph.size = [4, 4];
+    graph.format = OutputFormat::U8;
+    let input = graph.add_node("input_grayscale", [0.0; 2]);
+    let source = graph.node_mut(input).unwrap();
+    source.params.insert("identifier".into(), Value::Text("source".into()));
+    source.base.size_mode = SizeMode::RelativeToParent;
+    let levels = graph.add_node("levels", [64.0, 0.0]);
+    let curve = graph.node_mut(levels).unwrap();
+    curve.base.size_mode = SizeMode::RelativeToParent;
+    curve.base.format = OutputFormat::F16;
+    curve.params.insert("in_low".into(), Value::Float4([0.21875; 4]));
+    curve.params.insert("in_high".into(), Value::Float4([0.46875; 4]));
+    graph.connect(input, "output", levels, "input").unwrap();
+    let mut package = Package::new("Input precision");
+    package.graphs.push(graph);
+    let mut options = Options::new(&no_res);
+    options.inputs.insert("source".into(), Image::filled(16, 16, Kind::Gray, [58.0 / 255.0; 4]));
+    options.overrides.insert("gain".into(), Value::Float(0.375));
+    let cache = Mutex::new(Cache::default());
+    let runtime = unchanged_size_after_read("get_float1", "gain");
+    for (source_dynamic, output_dynamic, expected) in
+        [(false, false, 0x3d0e8000), (true, false, 0x3d0e0000), (false, true, 0x3d0e0000), (true, true, 0x3d0e8000)]
+    {
+        for (id, dynamic) in [(input, source_dynamic), (levels, output_dynamic)] {
+            let functions = &mut package.graphs[0].node_mut(id).unwrap().base.functions;
+            if dynamic {
+                functions.insert(BaseParameter::OutputSize, runtime.clone());
+            } else {
+                functions.remove(&BaseParameter::OutputSize);
+            }
+        }
+        let cooked = cook(&package, 0, &options, &cache);
+        assert_eq!(cooked.nodes[&levels].error, None);
+        assert_eq!(cooked.image(levels, 0).unwrap().get_gray(0, 0, false).to_bits(), expected);
+    }
+}
+
+#[test]
 fn half_blends_store_integer_inputs_on_different_size_paths() {
     use materialcraft_core::{BaseParameter, OutputFormat, SizeMode};
 
