@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 
 use craft_font_catalog::{FontOutline, RunGlyph, RunInput, ShapePlanCache, shape_run};
 use harfrust::{Direction, Shaper};
-use read_fonts::TableProvider;
+use read_fonts::{TableProvider, tables::glyf::Glyph as StoredGlyph, types::GlyphId};
 use vello_cpu::{
     Pixmap, RenderContext, Resources,
     color::palette::css::WHITE,
@@ -22,9 +22,18 @@ struct Glyph {
 }
 
 impl Glyph {
-    fn new(path: BezPath, pixels_per_unit: f64, remaining: &mut usize) -> Result<Self, String> {
+    fn new(mut path: BezPath, simple_contour: bool, pixels_per_unit: f64, remaining: &mut usize) -> Result<Self, String> {
         let budget_error = "font exceeds the outline storage budget";
         *remaining = remaining.checked_sub(path.elements().len()).ok_or(budget_error)?;
+        if simple_contour {
+            // Stored TrueType points have integer design coordinates. The join between
+            // adjacent controls, including a contour's starting join, uses the lower unit.
+            for element in path.elements_mut() {
+                if let PathEl::MoveTo(join) | PathEl::QuadTo(_, join) = element {
+                    *join = join.floor();
+                }
+            }
+        }
         let bounds = path.bounding_box();
         if !path.elements().iter().any(|element| matches!(element, PathEl::QuadTo(..))) {
             return Ok(Self { path, bounds });
@@ -160,6 +169,7 @@ pub fn text_with_font(context: &CookContext<'_>, bytes: &[u8]) -> CookResult {
         return Err("font has no design units per em".into());
     }
     let font = harfrust::FontRef::from_index(bytes, 0).map_err(|e| e.to_string())?;
+    let contours = font.glyf().ok().zip(font.loca(None).ok());
     let header = font.hhea().map_err(|e| e.to_string())?;
     let ascent = f64::from(header.ascender().to_i16());
     let descent = f64::from(header.descender().to_i16());
@@ -205,7 +215,9 @@ pub fn text_with_font(context: &CookContext<'_>, bytes: &[u8]) -> CookResult {
         for glyph in glyphs {
             if let std::collections::btree_map::Entry::Vacant(entry) = cache.entry(glyph.glyph_id) {
                 let path = face.outline(glyph.glyph_id).map_err(|e| e.to_string())?;
-                entry.insert(Glyph::new(path, pixels_per_unit, &mut outline_budget)?);
+                let simple_contour =
+                    contours.as_ref().is_some_and(|(glyf, loca)| matches!(loca.get_glyf(GlyphId::new(glyph.glyph_id), glyf), Ok(Some(StoredGlyph::Simple(_)))));
+                entry.insert(Glyph::new(path, simple_contour, pixels_per_unit, &mut outline_budget)?);
             }
             let ink = cache.get(&glyph.glyph_id).ok_or("missing glyph outline")?;
             let x = cursor + f64::from(glyph.x_offset);

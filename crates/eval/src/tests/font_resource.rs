@@ -22,9 +22,13 @@ fn outline_font(metrics: [i16; 3], contour: &[(i16, i16, bool)]) -> Vec<u8> {
     head[..4].copy_from_slice(&0x10000u32.to_be_bytes());
     head[12..16].copy_from_slice(&0x5f0f3cf5u32.to_be_bytes());
     head[18..20].copy_from_slice(&1024i16.to_be_bytes());
-    let width = contour.iter().map(|p| p.0).max().unwrap();
-    let height = contour.iter().map(|p| p.1).max().unwrap();
-    head[40..44].copy_from_slice(&words(&[width, height]));
+    let bounds = [
+        contour.iter().map(|p| p.0).min().unwrap(),
+        contour.iter().map(|p| p.1).min().unwrap(),
+        contour.iter().map(|p| p.0).max().unwrap(),
+        contour.iter().map(|p| p.1).max().unwrap(),
+    ];
+    head[36..44].copy_from_slice(&words(&bounds));
     let mut hhea = vec![0; 36];
     hhea[..4].copy_from_slice(&0x10000u32.to_be_bytes());
     hhea[4..12].copy_from_slice(&words(&[metrics[0], metrics[1], metrics[2], 640]));
@@ -35,7 +39,7 @@ fn outline_font(metrics: [i16; 3], contour: &[(i16, i16, bool)]) -> Vec<u8> {
     maxp[4..10].copy_from_slice(&words(&[2, count, 1]));
     let mut cmap = words(&[0, 1, 3, 1, 0, 12]);
     cmap.extend(words(&[4, 32, 0, 4, 4, 1, 0, 65, -1, 0, 65, -1, -64, 1, 0, 0]));
-    let mut glyf = words(&[1, 0, 0, width, height, count - 1, 0]);
+    let mut glyf = words(&[1, bounds[0], bounds[1], bounds[2], bounds[3], count - 1, 0]);
     glyf.extend(contour.iter().map(|p| u8::from(p.2)));
     for axis in 0..2 {
         let mut previous = 0;
@@ -176,6 +180,36 @@ fn package_font_quadratic_detail_tracks_the_text_scale() {
         for (pixel, (a, b)) in ink.data().iter().zip(expected.data()).enumerate() {
             assert_eq!(a, b, "pixel {pixel} at size {size}");
         }
+    }
+}
+
+#[test]
+fn adjacent_quadratic_controls_place_their_join_in_whole_design_units() {
+    let metrics = [768, -256, 0];
+    let (mut package, id) = text_sample(
+        [7, 6],
+        metrics,
+        &[
+            ("text", Value::Text("A".into())),
+            ("fontsize", Value::Float(0.5)),
+            ("alignment", Value::Int(0)),
+            ("position", Value::Float2([-0.1875, 1.0 / 256.0])),
+        ],
+    );
+    let implicit = [(0, 0, true), (55, -385, false), (492, 126, false), (675, 612, false), (1010, 0, true)];
+    let explicit = [implicit[0], implicit[1], (273, -130, true), implicit[2], (583, 369, true), implicit[3], implicit[4]];
+    let cache = Mutex::new(Cache::default());
+    let mut render = |contour: &[(i16, i16, bool)]| {
+        package.resources[0].bytes = ResourceBytes::new(outline_font(metrics, contour));
+        let result = cook(&package, 0, &Options::new(&no_res), &cache);
+        assert_eq!(result.nodes[&id].error, None);
+        result.image(id, 0).unwrap().clone()
+    };
+    let expected = render(&explicit);
+    assert!(expected.data().contains(&1.0));
+    let actual = render(&implicit);
+    for (pixel, (a, b)) in actual.data().iter().zip(expected.data()).enumerate() {
+        assert_eq!(a, b, "pixel {pixel} at the implicit join");
     }
 }
 
