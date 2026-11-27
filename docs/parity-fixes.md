@@ -59,6 +59,23 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-27 root comparisons
 
+### Saving older linked packages at their existing paths
+
+An ordinary Save in MaterialCraft can update an older linked SBS at the same relative path. Both callers below then reopen in the reference app with their original connections. Saving just the caller leaves the older linked files at version `0.1.3`. The reference compiler rejected both configured callers in that state. After saving the linked files, it accepted the same caller bytes. All counts below compare whole pixels at native storage precision on both one and eight reference processors.
+
+| Root | Settings applied after opening the caller | Configured files opened directly | Maximum channel error |
+|---|---:|---:|---:|
+| Points Preview | 17,920/17,920 across 30 settings | 2,048/2,048 across 4 saves | 0 U8 levels |
+| Waveform v2 | 179,968/179,968 across 43 settings | 8,448/8,448 across 4 saves | 0 in U8, U16, F16 and F32 |
+
+For Points Preview, bind the generated two-row ellipse field and place the same licensed monospace face at `resources/LiberationMono-Regular.ttf` relative to the spline package. Use counts 4, 8 and 12 with points only, labels only and both, plus count 0 with both. Use 16² at seed 0, 32² at seed 42 and 32 × 16 at seed 507031. Open and save `blend_switch.sbs`, `quad_transform.sbs`, `spline_tools.sbs`, `uv_mapper.sbs` and `value_get_size.sbs` in place. Leave the already compatible `functions.sbs` as supplied. For the four-point, labels-only compiler control, all 31 proper subsets of the five saves failed to compile. Saving all five succeeded. The new package versions read `1.1.0.202401`. The spline package retains 51 graphs, 39 functions and the relative font resource. All 30 renders also match the earlier compatible-library buffers. [Settings, inputs and matched fonts](#overlapping-glyphs-and-points-preview-file-handoff)
+
+To check that the link stays live, use the four-point points-only, eight-point labels-only, twelve-point combined and zero-point combined callers. In the linked graph, connect a grayscale Uniform set to .375 and U8 to the output, then save. The four callers kept their original bytes. Across the three sizes every one of their 7,168 pixels changed, and both applications returned 96 at each pixel. Reconnect the original Pixel Processor and save again. The reference session's already-loaded callers still returned 96, with 0/7,168 matching the restored computation and a maximum difference of 159 U8 levels. Loading the same four caller paths afresh reproduced the original **7,168/7,168** in both applications, maximum zero.
+
+For Waveform v2, keep the existing relative `curve_lookup.sbs` filename and the `sbs://functions.sbs` library link. Open the older relative file in MaterialCraft and save it at its own path. All seven function identifiers survive. The three caller files retained their bytes. Reuse the seven sizes, seeds, changed parameters and fixed fields of the earlier waveform series. The three groups respectively reproduce 109,056/109,056, 44,288/44,288 and 26,624/26,624 pixels of their earlier compatible-file captures. [Full waveform settings](#reopened-starburst-symmetry-tile-and-waveform-graphs)
+
+For the direct-open column, configure and save the callers **before** saving their dependencies. For points, use counts 4, 8, 12 and 0 with the four views above at 16², 32², 32 × 16 and 16² respectively. For waveform, use U8 at 64 × 32, seed 725259, U16 at 16², seed 725048, F16 at 32 × 64, seed 769164, and F32 at 32 × 128, seed 725470. Save the linked files in place, verify the eight caller hashes still match, and open the callers directly with their stored inputs, sizes, seeds and parameters. Both applications reproduced the previous same-setting buffers. The two roots remain in progress for caller-only saves where the external packages keep their older encoding.
+
 ### Half-precision inputs to Sharpen
 
 Sharpen reads equal-sized normalized integer inputs at half precision when it writes F16 and exactly one of the two sizes depends on a graph parameter. The shared evaluator now applies that conversion before the four-neighbor filter. The 55 grayscale and RGBA probes improved from **23,181/30,976** to **30,976/30,976** pixels on both reference processor counts. The maximum component error fell from .001953125 to zero.
