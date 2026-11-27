@@ -59,6 +59,21 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-27 root comparisons
 
+### Reference repeatability across 31 open noise roots
+
+Compare the archived original outputs directly between one and eight allowed reference processors. Pair the same graph, output, parameter values, dimensions, seed, input bindings and storage format. Both captures restored the graph settings and recorded the requested processor count. The 31 roots are inventory indices 236–239, 244–247, 251–258, 261–271, 279–280 and 285–286. All 31 have at least one measured difference. The first eleven unresolved roots precede this group and also have differing reference captures. [Whole noise series](#whole-and-saved-outputs-for-the-two-gaussian-spots-2-noise-generators) · [Directional series](#directional-noise-and-scratch-pattern-sources) · [Earlier reference processor comparisons](#patterns-with-an-explicit-reference-worker-count)
+
+| Stored output | Paired renders | Renders with differing pixels | Equal reference pixels / compared | Maximum difference |
+|---|---:|---:|---:|---:|
+| U8 | 324 | 15 | 3,902,947/3,902,976 | 4 levels |
+| U16 | 591 | 336 | 8,984,706/8,991,744 | 446 levels |
+| F16 | 306 | 54 | 3,007,771/3,008,000 | .00439453125 |
+| F32 | 656 | 524 | 6,759,290/7,924,480 | .00408181176 |
+
+At 16² F32 with default exposed parameters, compare the two reference buffers for `noise_bnw_spots_1.sbs` at seed 0, `noise_dirt_4.sbs` at seed 105509 and `noise_fur_2.sbs` at seed 75892. The counts are 171/256, 238/256 and 203/256, with maxima 1.19209290e−7, 6.103515625e−5 and 1.19209290e−7, respectively. For a U16 example, open `noise_directional_noise_3_v2.sbs` at 32², seed 103867. Set scale 1, disorder .3125, disorder speed .6875, anisotropy .25, anisotropy angle .3125, angle .15625, random angle .21875 and tile offset (.125,−.1875). Disable non-square expansion. The two reference images agree at 1,023/1,024 pixels, with a 446-level difference at the remaining pixel.
+
+These are reference-to-reference counts. On the 32 × 16 F32 Spots 1 setting at seed 456654, MaterialCraft still differs at seven of 370 pixels that stayed constant across repeated one-processor reads. The inventory retains the measured cross-processor and implementation differences. [Whole-root and invariant-pixel measurements](#receiving-quadrant-subtrees-after-the-second-pair-fills)
+
 ### Saved image inputs and automatic filtering in Tile Random
 
 Bind generated gray and color images to graph inputs and use an ordinary **Save As**. The two tile roots previously stored the resource names only in editor options. Opening the saved 32² F32 files in the reference app gave 0/4,096 exact pixels across the four files. For a 1 × 1 grid with both images connected, the maximum errors were .501960814 grayscale and .937254906 color. With only the pattern connected to a regular 2 × 2 grid, they were .694605947 and .854413688. An independently authored one-input package shows the resource URL on the image bridge's `bitmapresourcepath` parameter. Adding that field to the four test files recovered 4,096/4,096 on one and eight processors, maximum zero.
