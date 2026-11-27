@@ -452,6 +452,31 @@ For each of U8, U16, F16 and F32, set the connected background bridge to that pr
 
 The seven measured roots with an input-relative pattern and a connected background retain their recorded results. Bevel Smooth's position helper retains 354,560/354,560 pixels on both original and saved paths. Paths Trace retains 73,984/73,984 original and 28,928/28,928 saved pixels, and the irradiance UV helper retains 16,384/16,384 on each route. The two newer Tile Random roots retain 180,224/180,224 and the two older roots retain 484,864/484,864 on the originals and again on ordinary saves.
 
+### A one-level pattern change before Sharpen in Dirt 4 v2
+
+At 128 × 32, seed 433595, the graph renders a U8 pattern at 64 × 16 before Sharpen produces the full-size output. Alternate the changed rectangular setting with 32² at seed 113 and read each node directly on three returns at one processor and three at eight. The six pattern buffers have two distinct images. They agree at 1,023/1,024 texels, with 142 or 143 at (52,6). The six F32 graph outputs also have two distinct images. They agree at 4,064/4,096 pixels, with a maximum difference of .00407773256. The word returned by a separate node read can vary between evaluations. [Whole-root seeds and parameters](#repeated-f32-captures-of-28-noise-roots)
+
+To isolate the filter, retain its original properties and the drawing input’s size function. Use a 64 × 16 U8 field with value ((17x + 37y + 3xy + 29) mod 211) + 12. Compare center values 142 and 143 at (52,6). In a second pair place the following five-by-five neighborhood around that texel, varying only the center. Coordinates start at the first row and column in the raw buffer.
+
+```text
+51  140  62  142   31
+173 136  96    0    0
+78  185 142   93    0
+104  47  86   18    0
+0   105 136   66  110
+```
+
+All sixteen procedural outputs match **65,536/65,536** pixels in each reference processor configuration, maximum zero. Their U8 input reads match the supplied fields at **16,384/16,384** texels. Configure and save the two neighborhood inputs separately in each storage format. Both applications reopen the eight saved callers at their stored settings with **32,768/32,768** exact output pixels and maximum zero.
+
+| Output storage | Pixels unchanged when 142 becomes 143 | Maximum change |
+|---|---:|---:|
+| U8 | 4,086/4,096 | 3 |
+| U16 | 4,067/4,096 | 267 |
+| F16 | 4,065/4,096 | 0.0048828125 |
+| F32 | 4,064/4,096 | 0.00407773256 |
+
+The F32 difference covers 32 pixels from (102,10) to (107,15). At (104,12) the values are .678542137 and .682619870. Each isolated input reproduces **32/32** affected whole-root values for its respective observed output. Subtracting the two complete isolated buffers reproduces the whole-root difference at **4,096/4,096** pixels, maximum error zero. MaterialCraft’s measured release still reaches its execution budget drawing the intact 128 × 32 root. The isolated filter comparisons use complete renders.
+
 ### Dense seeded quadrants in Moisture Noise and Dirt 4
 
 Moisture Noise at 128 × 32, seed 433959, now renders under the existing execution limits. The intact root matches **16,384/16,384 stored pixels** across U8, U16, F16 and F32 on both one and eight reference processors. Saving each configured format and reopening it before any edit gives another **16,384/16,384** on each processor count. Maximum error is zero. Each of the two U16 pattern stages independently matches 4,096/4,096 pixels in the same graph. Both stages previously stopped before producing an image.
