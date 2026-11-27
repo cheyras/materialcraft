@@ -1975,6 +1975,37 @@ fn iterate_sets_number_and_switch_selects_one_child() {
 }
 
 #[test]
+fn an_iterators_seed_settings_apply_to_its_repeated_branch() {
+    let mut graph = PatternGraph::with_root(PatternNodeKind::Iterate);
+    let initial = graph.add(PatternNodeKind::Quadrant).unwrap();
+    let repeated = graph.add(PatternNodeKind::Quadrant).unwrap();
+    graph.nodes[0].children = vec![Some(initial), Some(repeated)];
+    graph.nodes[0].parameters.insert("randomseed".into(), Value::Int(17));
+    let mut tint = FunctionGraph::default();
+    let half = tint.add_constant(Value::Float(0.5));
+    tint.output = Some(tint.add("rand", &[half], None));
+    for (square, x) in graph.nodes[1..].iter_mut().zip([-0.25, 0.25]) {
+        square.parameters = BTreeMap::from([
+            ("patterntype".into(), Value::Int(2)),
+            ("patternsize".into(), Value::Float2([0.5, 1.0])),
+            ("frameoffset".into(), Value::Float2([x, 0.0])),
+            ("opacity".into(), Value::Function(Box::new(tint.clone()))),
+        ]);
+    }
+    let variables = BTreeMap::from([("$tiling".into(), Value::Int(0))]);
+    for (inherit, seed, left, right) in [(true, 42, 0x3e2a_2edc, 0x3e37_d570), (false, 42, 0x3e2a_2edc, 0x3ec2_59fa), (false, 329779, 0x3f14_0041, 0x3ec2_59fa)]
+    {
+        graph.nodes[0].parameters.insert("randominherited".into(), Value::Bool(inherit));
+        let image = cook_in_regions(graph.clone(), &variables, seed, [16; 2], [[0.0, 1.0, 0.0, 1.0]; 2], 0.125).unwrap().remove(0);
+        for y in 0..16 {
+            for x in 0..16 {
+                assert_eq!(image.get_gray(x, y, false).to_bits(), if x < 8 { left } else { right });
+            }
+        }
+    }
+}
+
+#[test]
 fn a_nested_iterators_initial_branch_inherits_the_callers_number() {
     let mut graph = PatternGraph::with_root(PatternNodeKind::Iterate);
     let inner = graph.add(PatternNodeKind::Iterate).unwrap();

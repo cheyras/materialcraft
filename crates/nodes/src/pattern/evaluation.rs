@@ -490,9 +490,10 @@ fn evaluate(context: &CookContext, base_level_only: &[bool], visit_limit: usize,
             Ok(Some(value))
         };
         // The seed expression reads the incoming stream before its offset applies to this stamp and its descendants.
-        let offset = evaluate("randomseed", &mut FunctionRandom::uniform(visit.seed))?.and_then(|v| v.as_i32()).unwrap_or(0) as u32;
-        let inherits = evaluate("randominherited", &mut FunctionRandom::image(visit.seed))?.and_then(|v| v.as_bool()).unwrap_or(true);
-        visit.seed = if inherits { visit.seed.wrapping_add(offset) } else { offset };
+        let incoming_seed = visit.seed;
+        let offset = evaluate("randomseed", &mut FunctionRandom::uniform(incoming_seed))?.and_then(|v| v.as_i32()).unwrap_or(0) as u32;
+        let inherits = evaluate("randominherited", &mut FunctionRandom::image(incoming_seed))?.and_then(|v| v.as_bool()).unwrap_or(true);
+        visit.seed = if inherits { incoming_seed.wrapping_add(offset) } else { offset };
         parameter_values.clear();
         let mut random = FunctionRandom::image(visit.seed);
         let mut pattern = if node.kind == PatternNodeKind::Quadrant { evaluate("patterntype", &mut random)?.and_then(|v| v.as_i32()).unwrap_or(0) } else { 0 };
@@ -702,7 +703,7 @@ fn evaluate(context: &CookContext, base_level_only: &[bool], visit_limit: usize,
                 }
                 if let Some(Some(child)) = node.children.first() {
                     // The initial branch keeps the enclosing iteration's number and seed.
-                    children.push(PatternVisit { node: *child, ..visit.clone() });
+                    children.push(PatternVisit { node: *child, seed: incoming_seed, ..visit.clone() });
                 }
                 if let Some(repeats_left) = count.checked_sub(1)
                     && let Some(Some(child)) = node.children.get(1)

@@ -59,6 +59,52 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-26 root comparisons
 
+### The incoming seed on the initial branch of an Iterate
+
+An Iterate passes its incoming random seed to its initial branch. Its seed offset and inheritance setting determine the random stream for its repeated branch. MaterialCraft previously passed the adjusted seed on both connections. The correction is in the shared pattern traversal.
+
+For the single-branch controls, use a 16 × 16 grayscale F32 buffer, a .125 background and an additive square at unit size with luminosity Rand(.5). Render at seeds 0, 42 and 329779. On the node under test use defaults, inherited seed with offset 17, and inheritance disabled with offsets 0 and 17. For the ordinary save, reopen the disabled, offset-17 case in both applications. Connect the square directly, through either output of an Iterate with count 1, through the first output of a Switch, or to the first subdivision of an empty Quadrant. In the direct case apply the seed settings to the square.
+
+| Node and connection | Earlier original · one processor | Corrected original · one | Earlier ordinary save · one | Corrected ordinary save · one |
+|---|---:|---:|---:|---:|
+| Drawing Quadrant | 3,072/3,072 · 0 | 3,072/3,072 · 0 | 768/768 · 0 | 768/768 · 0 |
+| Initial branch of Iterate | 1,024/3,072 · 0.451604903 | 3,072/3,072 · 0 | 0/768 · 0.337485671 | 768/768 · 0 |
+| Repeated branch of Iterate | 3,072/3,072 · 0 | 3,072/3,072 · 0 | 768/768 · 0 | 768/768 · 0 |
+| Switch | 3,072/3,072 · 0 | 3,072/3,072 · 0 | 768/768 · 0 | 768/768 · 0 |
+| Subdivision of Quadrant | 3,072/3,072 · 0 | 3,072/3,072 · 0 | 768/768 · 0 | 768/768 · 0 |
+
+Each entry gives exact pixels / total and maximum absolute error. With parent seed 42 and offset 17, the initial square reads 0.166194379, including the .125 background, for either inheritance setting. The repeated square reads 0.179525137 with inheritance enabled and 0.379592717 with inheritance disabled.
+
+In the two-branch control, place half-width squares at horizontal offsets −.25 and .25 on the initial and repeated connections. Give both squares the same Rand(.5) luminosity. First use one repeat, seed inheritance and a literal offset 17. Then use two repeats, disable inheritance and compute the offset by adding integers 8 and 9. For each construction compare 16 × 16 at seed 0, 32 × 16 at seed 42 and 16 × 32 at seed 329779 in all four storage formats. Reopen an ordinary save.
+
+A second control uses four outer iterations and then seven. An inner Iterate records the enclosing repetition number as a float and publishes a gain of (1 + number) × .25 in the four-iteration case and × .125 in the seven-iteration case. Disable seed inheritance on this inner Iterate. Connect a .625 × .375 additive square to its initial branch. In its luminosity expression set a two-component offset from two successive Rand(.25) draws. Then take .0625 + Rand(.125), multiplying by the gain when the published number exceeds 1.5. Read the assigned offset for the square. Connect four .375 × .25 child squares with .125 luminosity and the negative of the published offset. Use the same background, three dimensions, seeds and four formats.
+
+| Construction · format | Earlier original · one | Corrected original · one | Corrected original · eight | Ordinary save · one |
+|---|---:|---:|---:|---:|
+| Two-branch squares · U8 | 1,280/2,560 · 86 | 2,560/2,560 · 0 | 2,560/2,560 · 0 | 2,560/2,560 · 0 |
+| Two-branch squares · U16 | 1,280/2,560 · 22117 | 2,560/2,560 · 0 | 2,560/2,560 · 0 | 2,560/2,560 · 0 |
+| Two-branch squares · F16 | 1,280/2,560 · 0.337402344 | 2,560/2,560 · 0 | 2,560/2,560 · 0 | 2,560/2,560 · 0 |
+| Two-branch squares · F32 | 1,280/2,560 · 0.337485671 | 2,560/2,560 · 0 | 2,560/2,560 · 0 | 2,560/2,560 · 0 |
+| Nested squares with a published offset · U8 | 878/2,560 · 223 | 2,560/2,560 · 0 | 2,560/2,560 · 0 | 2,560/2,560 · 0 |
+| Nested squares with a published offset · U16 | 878/2,560 · 57343 | 2,560/2,560 · 0 | 2,560/2,560 · 0 | 2,560/2,560 · 0 |
+| Nested squares with a published offset · F16 | 871/2,560 · 1.61206055 | 2,560/2,560 · 0 | 2,560/2,560 · 0 | 2,560/2,560 · 0 |
+| Nested squares with a published offset · F32 | 871/2,560 · 1.61208928 | 2,560/2,560 · 0 | 2,560/2,560 · 0 | 2,560/2,560 · 0 |
+
+Both corrected constructions match all 10,240 pixels on each of the three comparison routes. The ordinary saves reproduce the original local words. Integer errors are stored levels.
+
+Of the inventory graphs, the two Tile Random roots have a reachable Iterate with an initial connection and a nonzero seed property. Both set its offset to 2. Their initial connection enters another Iterate that disables seed inheritance and sets its own seed from a drawing variable. Repeat the [19 established whole settings and procedural inputs](#tile-weave-splatter-and-fiber-stage-comparisons) for each root on one and eight processors, then reopen an ordinary save. The initial-branch change leaves all 38 local originals and all 38 saves byte-identical to the prior evaluator.
+
+| Whole graph · comparison | Exact pixels / total | Maximum U8 / U16 / F16 / F32 error |
+|---|---:|---:|
+| Tile Random · One processor | 111,364/142,592 | 223 / 57311 / 1 / 1.00000006 |
+| Tile Random · Eight processors | 111,364/142,592 | 223 / 57311 / 1 / 1.00000006 |
+| Tile Random · Ordinary save · one | 111,364/142,592 | 223 / 57311 / 1 / 1.00000006 |
+| Tile Random Color · One processor | 111,228/142,592 | 250 / 65535 / 1 / 2.00000003 |
+| Tile Random Color · Eight processors | 111,228/142,592 | 250 / 65535 / 1 / 2.00000003 |
+| Tile Random Color · Ordinary save · one | 111,228/142,592 | 250 / 65535 / 1 / 2.00000003 |
+
+Both roots retain the whole-output differences shown above.
+
 ### Untiled Spots, Clouds, Directional Noise and Dirt at two rectangular sizes
 
 Release `0f01b25` includes the [per-axis background sampling change](#filtering-a-resized-pattern-background-on-each-axis). Open each Noise graph with tiling disabled. Use 16 × 32, seed 731257 and exposed defaults. At 32 × 16 use seed 731279, scale 1, disorder .4375 and non-square expansion enabled. Keep the other parameters at their defaults. Set output storage on the node connected to the graph output. Read the whole grayscale buffer, then save the package normally and reopen it in both applications. The [earlier Spots table](#untiled-spots-outputs-and-the-second-dirt-gradient-iteration) covers the 16 × 32 Spots 3 v2 setting.
