@@ -59,6 +59,31 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-27 root comparisons
 
+### Dense seeded quadrants in Moisture Noise and Dirt 4
+
+Moisture Noise at 128 × 32, seed 433959, now renders under the existing execution limits. The intact root matches **16,384/16,384 stored pixels** across U8, U16, F16 and F32 on both one and eight reference processors. Saving each configured format and reopening it before any edit gives another **16,384/16,384** on each processor count. Maximum error is zero. Each of the two U16 pattern stages independently matches 4,096/4,096 pixels in the same graph. Both stages previously stopped before producing an image.
+
+Set scale to 3, disorder to .046875, pattern size to (.47265625,1.4677734375), angle to −.203125, angle randomness to .046875, global opacity to .462890625 and non-square expansion on. Each branch emits 36 trees from 169 iterations. A tree visits 349,525 quadrants. On the 64² control at seed 433922, the F32 root matches 4,092/4,096 against each processor count in the latest pair, maximum 1.52587891e−5. The reference pair agrees at 4,094/4,096. [Iteration counts, smaller depth controls and repeated captures](#repeated-noise-pixels-and-the-moisture-noise-iteration-count)
+
+A grayscale procedural quadrant can reuse its branch offset, frame offset, size, rotation and tint for the same node, depth and seed when its expressions read only fixed graph inputs and traversal state represented in that key. The two translations retain their separate F32 additions. The expanded terminal records share the existing 96 MiB budget with the other analytic records. A fully evaluated parent that misses every sample can use one previously skipped terminal evaluation to account for that miss. Cached parents still spend a streaming credit. The traversal still evaluates every connected child in order, and the full-property, retained-draw and raster limits still apply.
+
+For a reduced regression at 4², put four outer repetitions around 41 inner draws with reset seed inheritance. Give each narrow parent four square children. Use a seeded random rotation up to .125 turns, a branch offset of (.03125,−.015625) and a frame offset of (−.015625,.03125). At an allowance of 128 the previous evaluator stops. The corrected cook agrees with the complete 1,024-allowance image. The independent 64-allowance negative control still stops.
+
+For Dirt 4 at 32 × 16, seed 105515, set scale to 2, disorder to .8125 and non-square expansion on. The previous build stopped before producing F32 pixels. The current evaluator finishes in all four formats. Each entry gives exact pixels and maximum error. Integer errors are storage levels.
+
+| Format | Original, one processor | Original, eight processors | Ordinary save, one processor | Ordinary save, eight processors |
+|---|---:|---:|---:|---:|
+| U8 | 512/512 · 0 | 512/512 · 0 | 512/512 · 0 | 512/512 · 0 |
+| U16 | 501/512 · 3 | 512/512 · 0 | 501/512 · 3 | 501/512 · 3 |
+| F16 | 512/512 · 0 | 509/512 · 0.00048828125 | 512/512 · 0 | 512/512 · 0 |
+| F32 | 512/512 · 0 | 512/512 · 0 | 512/512 · 0 | 512/512 · 0 |
+
+Read the Dirt 4 pattern, sharpen and graph output after the same cook. Run U8, U16, F16, F32, U16 and F16 in sequence, once per reference processor count. Across these 12 captures the MaterialCraft pattern matches all 1,536/1,536 U16 pixels and its output matches all 6,144/6,144 sharpen pixels, maximum error zero. On the first eight-processor U16 capture the reference output matches its own sharpen at 501/512, maximum three levels. On the one-processor F32 capture it matches at 500/512, maximum 5.34057617e−5. The other ten output reads match their sharpen exactly. The repeated U16 capture also matches on both processor counts.
+
+Dirt 4 and Moisture Noise remain in progress. The second Dirt 4 also still reaches its full-property limit at 32 × 16, seed 105532. Use the same scale and disorder, speed 1.4375, anisotropy .625, anisotropy angle −.21875 and tile offset (−.3125,.4375). The original F32 reference and the ordinary save agree at all 512 pixels on the recorded one- and eight-processor reads.
+
+In that second graph, take the minimum of the original Iterate count and a fixed integer so its expression still publishes its variables. Cap only the outer count at one or four, only the inner count at zero, then the outer at two and the inner at one. All four full outputs match MaterialCraft at **2,048/2,048 F32 pixels** on both processor counts. The 16 × 8 U8 pattern stage also agrees between reference processors in all four controls. The uncapped reference control reproduces all 512 original pixels.
+
 ### Input-relative dimensions on a child image bridge
 
 An image bridge inside a graph instance now resolves its input-relative dimensions against the image wired to that port on the caller. Across 120 bridge outputs, 36 previously had the wrong dimensions. All **203,264/203,264 pixels** now match on both one and eight reference processors. The previous 84 comparable outputs matched 179,200/179,200. Maximum error is zero wherever dimensions agree.

@@ -2475,6 +2475,30 @@ fn cached_parents_that_miss_still_draw_their_terminal_children() {
 }
 
 #[test]
+fn repeated_quadrants_keep_both_translations_when_reusing_a_draw() {
+    let mut graph = nested_square_draws(41);
+    graph.nodes[8].parameters.insert("randominherited".into(), Value::Bool(false));
+    let leaf = graph.add(PatternNodeKind::Quadrant).unwrap();
+    graph.nodes[9].children.fill(Some(leaf));
+    graph.nodes[10].parameters = graph.nodes[9].parameters.clone();
+    graph.nodes[9].parameters.insert("patternsize".into(), Value::Float2([0.015625; 2]));
+    for node in &mut graph.nodes[9..] {
+        let mut angle = FunctionGraph::default();
+        let eighth = angle.add_constant(Value::Float(0.125));
+        angle.output = Some(angle.add("rand", &[eighth], None));
+        node.parameters.insert("patternrotation".into(), Value::Function(Box::new(angle)));
+        for (field, offset) in [("branchoffset", [0.03125, -0.015625]), ("frameoffset", [-0.015625, 0.03125])] {
+            node.parameters.insert(field.into(), Value::Function(Box::new(FunctionGraph::constant(Value::Float2(offset)))));
+        }
+    }
+    let expected = render_with_visit_limit(&graph, 1_024).unwrap().remove(0);
+    assert!(expected.data().iter().any(|value| *value > 0.0));
+    // A smaller budget still stops the four repetitions of 41 parent draws.
+    assert!(render_with_visit_limit(&graph, 64).unwrap_err().contains("execution budget"));
+    assert_eq!(render_with_visit_limit(&graph, 128).unwrap()[0].data(), expected.data());
+}
+
+#[test]
 fn repeated_terminal_misses_cover_uncached_misses_in_the_next_branch() {
     let mut graph = PatternGraph::with_root(PatternNodeKind::Iterate);
     let marker = graph.add(PatternNodeKind::Quadrant).unwrap();

@@ -45,6 +45,7 @@ fn reusable_properties(
     }
     let mut computed = false;
     let mut placement = grayscale && (2..=16).contains(&shape);
+    let mut geometry = placement;
     let mut branch_tint = placement && programs.contains_key(&(node.id, "branchoffset"));
     let definition = catalog::definition(node.kind)?;
     for name in definition.params.iter().map(|p| p.id).filter(|name| uses_property(node.kind, name, shape)) {
@@ -58,6 +59,7 @@ fn reusable_properties(
                 return None;
             }
             placement &= matches!(name, "frameoffset" | "patternrotation" | "opacity");
+            geometry &= matches!(name, "branchoffset" | "frameoffset" | "patternsize" | "patternrotation" | "opacity");
             branch_tint = branch_tint && matches!(name, "branchoffset" | "opacity") && stamp_cache::independent_of_depth(program);
             computed = true;
         }
@@ -65,13 +67,15 @@ fn reusable_properties(
     if branch_tint && let Some(storage) = groups.storage(node) {
         return Some(storage);
     }
-    if !computed || children == QuadrantChildren::Other || (children == QuadrantChildren::AllTerminal && !placement) {
+    if !computed || children == QuadrantChildren::Other || (children == QuadrantChildren::AllTerminal && !placement && !geometry) {
         return None;
     }
     Some(if image {
         Storage::FixedImage
     } else if placement {
         Storage::Placement
+    } else if geometry {
+        Storage::Geometry { terminal: children == QuadrantChildren::None }
     } else {
         Storage::Full
     })
@@ -539,7 +543,9 @@ fn evaluate(context: &CookContext, base_level_only: &[bool], visit_limit: usize,
         // A streamed parent still visits each connected child in its original position and order.
         let cache = reusable
             .get(&node.id)
-            .filter(|storage| quadrant_children == QuadrantChildren::None || raster_work.streaming || matches!(storage, Storage::BranchTint { .. }))
+            .filter(|storage| {
+                quadrant_children == QuadrantChildren::None || raster_work.streaming || matches!(storage, Storage::BranchTint { .. } | Storage::Geometry { .. })
+            })
             .map(|&storage| {
                 let (node, depth) = match storage {
                     Storage::BranchTint { group, .. } => (group, u32::MAX),
@@ -685,6 +691,7 @@ fn evaluate(context: &CookContext, base_level_only: &[bool], visit_limit: usize,
                         terminal_quadrants = None;
                     }
                     if missed {
+                        let reusable_parent = scale.is_some() || matches!(cache, Some((_, Storage::BranchTint { .. } | Storage::Geometry { .. })));
                         // These siblings have no children. Each has already evaluated its own
                         // properties and failed the sample-grid test in the original draw order.
                         if let Some(siblings) = &mut terminal_siblings {
@@ -692,15 +699,15 @@ fn evaluate(context: &CookContext, base_level_only: &[bool], visit_limit: usize,
                             reused_terminal_misses = reused_terminal_misses.saturating_add(usize::from(reused));
                             remaining += 1;
                         } else if quadrant_children == QuadrantChildren::AllTerminal
-                            && cached_stream_allowance > 0
-                            && (reused || ((scale.is_some() || matches!(cache, Some((_, Storage::BranchTint { .. })))) && reused_terminal_misses > 0))
+                            && ((reused && cached_stream_allowance > 0) || (!reused && reused_terminal_misses > 0 && reusable_parent))
                         {
-                            // A skipped terminal evaluation can pay for an invisible parent once.
-                            // Its children still run and both the cache allowance and full evaluation limit apply.
-                            if !reused {
+                            // A full evaluation already paid for this parent. One skipped leaf
+                            // covers its missed draw. A cached parent uses a streaming credit.
+                            if reused {
+                                cached_stream_allowance -= 1;
+                            } else {
                                 reused_terminal_misses -= 1;
                             }
-                            cached_stream_allowance -= 1;
                             remaining += 1;
                         } else {
                             discarded_draw = true;
