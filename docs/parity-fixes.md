@@ -59,6 +59,26 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-27 root comparisons
 
+### Compile-time conditions before a shared pattern draw
+
+A quadrant can use the same random value in an optional assignment and in a later calculation. With a compile-time condition, the discarded arm consumes no draws. If the condition reads an exposed variable, the reference can schedule the shared value while it evaluates the assignment. An unwired argument of a called function behaves as a constant in this comparison. MaterialCraft now keeps this distinction when compiling pattern branches.
+
+Use a full-coverage additive square over black at 16² F32. Give its opacity function three separate Random(1) nodes A, T and E. Form L = A + (inner ? T : .3125). In the first input of a Sequence, store S = outer ? L : .1875. In the second, return (E × .5 + L × .25) + S × .125. Render both inner switch values at seeds 0, 113 and 137. Keep the pattern seed offset at its default. For the direct and called forms of T use Random(1) and a zero-argument function returning that draw. For the packed form, pack A and the inner result as Float2, then sum X and Y.
+
+| F32 cases | Settings | Earlier exact pixels | Earlier max error | Current exact pixels on each route | Current max error |
+|---|---:|---:|---:|---:|---:|
+| Folded condition on a direct or called draw | 12 | 1,536/3,072 | 0.143974781 | 3,072/3,072 | 0 |
+| Reversed literal, negation and constant comparison | 18 | 0/4,608 | 0.143974781 | 4,608/4,608 | 0 |
+| Literal wire, open argument and constant-returning call | 18 | 0/4,608 | 0.143974781 | 4,608/4,608 | 0 |
+| Exposed or partly exposed condition | 24 | 3,072/6,144 | 0.151002526 | 3,072/6,144 | 0.151002526 |
+| Nested exposed conditions | 48 | 7,680/12,288 | 0.151002526 | 7,680/12,288 | 0.151002526 |
+
+For the fixed conditions, use literal false, swap arms with literal true, negate literal true, or compare .25 > .5. In a called function test its scalar outer argument with > .5 and pass literal zero, leave it open at its zero default, or wire a function returning literal zero. For exposed controls use a public outer value, or AND it with false in each operand order. Exercise both exposed switches in the direct, called and packed forms. The originals on one processor, on eight and the one-processor reopens of ordinary MaterialCraft saves gave identical reference words.
+
+At seed 113, with the inner switch off, a fixed outer condition yields F32 word `3ee92f65`. An outer condition reading a public value yields `3f19b678` when it takes the same arm. With the inner switch on, the words are `3f171545` and `3f3bbfde`. The 48 fixed settings rose from 1,536 to **12,288/12,288** pixels. Both exposed series still have differences in the order of draws across nested choices.
+
+The two older circular roots retained 190,720/190,720 pixels apiece in 62 settings per root. The two roots in `pattern_splatter_circular.sbs` retained 13/54 exact settings each. The 221 grayscale Tile Generator settings and 175 archived settings on 35 other qualified roots retained 1,350,656/1,350,656 pixels. The 141 stored-vector cases, 90 pure-call controls and raw output words of 56 Pixel Processor programs also held. [Whole circular comparisons](#circular-splatter-geometry-and-the-order-of-random-draws) · [Older circular color settings](#splatter-circular-color-and-assignments-before-a-later-function-call)
+
 ### Splatter Circular Color and assignments before a later function call
 
 Splatter Circular Color in `splatter_circular.sbs` matches all **190,720/190,720** pixels in **62 distinct whole settings**, up from 185,121 pixels and 31 complete settings at `4080c38`. Both reference processor counts and the one-processor reopen of the ordinary MaterialCraft SBS save gave the counts below. The 19 established reference captures reproduced their archives in 142,592/142,592 pixels. The grayscale root retained 190,720/190,720 across its own 62 settings on all three routes.

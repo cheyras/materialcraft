@@ -230,3 +230,78 @@ fn a_later_random_call_preserves_the_draws_in_a_sequence_assignment() {
         }
     }
 }
+
+#[test]
+fn a_pattern_conditional_with_a_literal_test_leaves_unused_draws_for_later() {
+    // A stored choice shares an expression with a later use. Only the inner switch is exposed.
+    for (reversed, unwired) in [(false, false), (true, false), (false, true)] {
+        let mut graph = FunctionGraph::default();
+        let name = Some(Value::Text("chosen".into()));
+        let inner = graph.add("get_bool", &[], Some(Value::Text("inner".into())));
+        let one = graph.add_constant(Value::Float(1.0));
+        let [a, t, e] = std::array::from_fn(|_| graph.add("rand", &[one], None));
+        let fallback = graph.add_constant(Value::Float(0.3125));
+        let theta = graph.add("ifelse", &[inner, t, fallback], None);
+        let shared = graph.add("add", &[a, theta], None);
+        let fixed = graph.add_constant(Value::Float(0.1875));
+        let choice = if reversed {
+            let yes = graph.add_constant(Value::Bool(true));
+            graph.add("ifelse", &[yes, fixed, shared], None)
+        } else {
+            let low = if unwired { graph.add("get_float1", &[], Some(Value::Text("outer".into()))) } else { graph.add_constant(Value::Float(0.25)) };
+            let high = graph.add_constant(Value::Float(0.5));
+            let no = graph.add("gt", &[low, high], None);
+            graph.add("ifelse", &[no, shared, fixed], None)
+        };
+        let saved = graph.add("set", &[choice], name.clone());
+        let read = graph.add("get_float1", &[], name);
+        let half = graph.add_constant(Value::Float(0.5));
+        let quarter = graph.add_constant(Value::Float(0.25));
+        let eighth = graph.add_constant(Value::Float(0.125));
+        let next = graph.add("mul", &[e, half], None);
+        let later = graph.add("mul", &[shared, quarter], None);
+        let value = graph.add("mul", &[read, eighth], None);
+        let sum = graph.add("add", &[next, later], None);
+        let result = graph.add("add", &[sum, value], None);
+        graph.output = Some(graph.add("sequence", &[saved, result], None));
+        if unwired {
+            let callee = std::mem::take(&mut graph);
+            let inner = graph.add("get_bool", &[], Some(Value::Text("inner".into())));
+            graph.output = Some(graph.add("instance", &[inner], None));
+            let call = graph.nodes.last_mut().unwrap();
+            call.inputs.insert(0, None);
+            call.instance = Some(materialcraft_core::GraphInstance {
+                graph: "nested_choice".into(),
+                label: String::new(),
+                package: String::new(),
+                inputs: vec![
+                    materialcraft_core::GraphPort { identifier: "outer".into(), type_code: 256 },
+                    materialcraft_core::GraphPort { identifier: "inner".into(), type_code: 4 },
+                ],
+                outputs: Vec::new(),
+                defaults: BTreeMap::from([("outer".into(), Value::Float(0.0)), ("inner".into(), Value::Bool(false))]),
+            });
+            call.source = Some(Ok(std::sync::Arc::new(callee)));
+        }
+        for (seed, words) in [(11_038_009, [0x3e570414, 0x3e64b294]), (9_766_418, [0x3ee92f65, 0x3f171545]), (22_858_730, [0x3f30619c, 0x3f365b11])] {
+            let program = compile(&graph, seed).unwrap();
+            for (flag, word) in [false, true].into_iter().zip(words) {
+                let variables = BTreeMap::from([("inner".into(), Value::Bool(flag))]);
+                let context = EvaluationContext {
+                    scope: FunctionScope::FxMap,
+                    position: [0.5; 2],
+                    size: [16.0; 2],
+                    images: &[],
+                    image_formats: &[],
+                    tile: true,
+                    variables: &variables,
+                };
+                assert_eq!(
+                    program.evaluate(&context, &mut EvaluationState::default()).unwrap(),
+                    Value::Float(f32::from_bits(word)),
+                    "{seed}, {flag}, {reversed}, {unwired}"
+                );
+            }
+        }
+    }
+}

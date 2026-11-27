@@ -62,7 +62,11 @@ fn shared_inputs(
     let mut effects = Vec::new();
     let mut plans = BTreeMap::new();
     for (branch, op) in instructions.iter().enumerate().filter(|(i, op)| op.definition.id == "ifelse" && !excluded.contains(i)) {
-        let &[_, yes, no] = op.inputs.as_slice() else { continue };
+        let &[condition, yes, no] = op.inputs.as_slice() else { continue };
+        // A branch folded before a stamp runs cannot schedule draws from its discarded arm.
+        if components.is_some() && instructions[condition].pattern_literal {
+            continue;
+        }
         paths.fill(0);
         effects.clear();
         // Record the order of first use through each arm.

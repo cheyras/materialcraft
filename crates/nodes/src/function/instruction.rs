@@ -9,6 +9,8 @@ pub(crate) struct Instruction {
     pub type_code: u32,
     /// Pure expression with only literal inputs. Its arithmetic rounds before pixel evaluation.
     pub literal: bool,
+    /// A pattern condition also folds when its inputs come from unwired function arguments.
+    pub(super) pattern_literal: bool,
     /// A constant denominator folds to its rounded reciprocal even with a varying numerator.
     pub(super) literal_divisor: bool,
     /// Original scalar divisor retained when a pixel expression divides by its reciprocal.
@@ -30,6 +32,7 @@ impl Instruction {
             value,
             type_code,
             literal: false,
+            pattern_literal: false,
             literal_divisor: false,
             reciprocal_factor: None,
             pixel_product_sum: None,

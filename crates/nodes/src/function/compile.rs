@@ -19,7 +19,7 @@ pub(super) fn compile_program(
 ) -> Result<Program, String> {
     let mut remaining = super::MAX_EXPANDED_NODES;
     let mut program = compile_nested(graph, seed, 0, &mut remaining)?;
-    mark_literals(&mut program, literal_inputs.iter().map(|name| (name.as_str(), ())).collect());
+    mark_literals(&mut program, literal_inputs.iter().map(|name| (name.as_str(), Constant::Literal)).collect());
     super::reciprocal::identify_products(&mut program, BTreeMap::new());
     plan_pixel_operations(&mut program, pixel, true);
     super::assigned_product::identify(&mut program);
@@ -127,6 +127,7 @@ fn compile_nested(graph: &FunctionGraph, seed: u32, depth: usize, remaining: &mu
                             value: Some(value),
                             type_code,
                             literal: true,
+                            pattern_literal: true,
                             literal_divisor: false,
                             reciprocal_factor: None,
                             pixel_product_sum: None,
@@ -267,24 +268,43 @@ pub(super) fn remove_written_arguments<T>(program: &Program, arguments: &mut BTr
     }
 }
 
-fn mark_literals(program: &mut Program, mut arguments: BTreeMap<&str, ()>) {
+// A pure expression is fixed only as far as its least constant operand.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum Constant {
+    Varying,
+    PatternDefault,
+    Literal,
+}
+
+fn mark_literals(program: &mut Program, mut arguments: BTreeMap<&str, Constant>) -> Constant {
     remove_written_arguments(program, &mut arguments);
     let mut literals = Vec::with_capacity(program.instructions.len());
     for op in &mut program.instructions {
-        let literal = |index: &usize| literals.get(*index) == Some(&true);
+        let source = |index: &usize| literals.get(*index).copied().unwrap_or(Constant::Varying);
         let id = op.definition.id;
-        op.literal_divisor = id == "div" && op.inputs.get(1).is_some_and(literal);
-        if let Some(call) = &mut op.call {
-            let bound = call.inputs.iter().zip(&op.inputs).filter(|(_, index)| literal(index)).map(|(name, _)| (name.as_str(), ())).collect();
-            mark_literals(&mut call.program, bound);
-            op.literal = call.program.output_is_literal();
+        op.literal_divisor = id == "div" && op.inputs.get(1).is_some_and(|i| source(i) == Constant::Literal);
+        let constant = if let Some(call) = &mut op.call {
+            let mut bound: BTreeMap<_, _> = call.defaults.keys().map(|name| (name.as_str(), Constant::PatternDefault)).collect();
+            for (name, input) in call.inputs.iter().zip(&op.inputs) {
+                bound.insert(name.as_str(), source(input));
+            }
+            mark_literals(&mut call.program, bound)
+        } else if id.starts_with("const_") {
+            Constant::Literal
+        } else if id.starts_with("get_")
+            && let Some(materialcraft_core::Value::Text(name)) = &op.value
+        {
+            arguments.get(name.as_str()).copied().unwrap_or(Constant::Varying)
+        } else if op.depends_only_on_operands() {
+            op.inputs.iter().map(source).min().unwrap_or(Constant::Varying)
         } else {
-            op.literal = id.starts_with("const_")
-                || (id.starts_with("get_") && matches!(&op.value, Some(materialcraft_core::Value::Text(name)) if arguments.contains_key(name.as_str())))
-                || (op.depends_only_on_operands() && op.inputs.iter().all(literal));
-        }
-        literals.push(op.literal);
+            Constant::Varying
+        };
+        op.literal = constant == Constant::Literal;
+        op.pattern_literal = constant != Constant::Varying;
+        literals.push(constant);
     }
+    literals.get(program.output).copied().unwrap_or(Constant::Varying)
 }
 
 fn plan_pixel_operations(program: &mut Program, pixel: Option<&super::EvaluationContext<'_>>, root: bool) -> super::returned_product::Lanes {
