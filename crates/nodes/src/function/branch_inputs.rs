@@ -81,7 +81,7 @@ fn shared_inputs(program: &Program, ranges: &[bool], components: Option<&BTreeMa
                     continue;
                 }
                 match components.and_then(|components| components.get(&index)) {
-                    Some(PatternComponent::Scalar(source)) => stack.push(*source),
+                    Some(PatternComponent::Register(source)) => stack.push(*source),
                     Some(PatternComponent::Zero) => {}
                     None => {
                         let inputs = node

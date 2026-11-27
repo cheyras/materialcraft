@@ -304,9 +304,11 @@ fn plan_pixel_operations(program: &mut Program, pixel: Option<&super::Evaluation
     let readers = pixel.and_then(|context| super::pixel_condition::live_readers(program, context));
     super::product_sum::identify(&mut program.instructions, readers.as_deref());
     super::branch_assignments::identify(program);
+    // Only pixel consumers can force a product to round before a later sum. The pattern
+    // channel pass appends its own reads, which the pixel evaluator never visits.
+    let exported = super::returned_product::identify(program, returned, root);
     super::vector::identify_pattern_components(program);
     super::branch_inputs::identify(program);
-    let exported = super::returned_product::identify(program, returned, root);
     program.loop_sums =
         program.instructions.iter().enumerate().filter_map(|(index, op)| super::loop_sum::LoopSum::identify(program, op).map(|sum| (index, sum))).collect();
     exported

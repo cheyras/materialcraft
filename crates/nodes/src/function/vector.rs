@@ -3,14 +3,21 @@ use materialcraft_core::Value;
 
 #[derive(Clone, Copy)]
 pub(super) enum PatternComponent {
-    Scalar(usize),
+    Register(usize),
     Zero,
 }
 
-/// A pattern that selects one packed channel visits only the expressions that supply it.
+/// Evaluate packed pattern components in the order their consumers read them.
 pub(super) fn identify_pattern_components(program: &mut super::Program) {
     let instructions = &program.instructions;
-    if !instructions.iter().any(|op| op.definition.id == "swizzle1" || op.call.is_some())
+    let assigned: std::collections::BTreeSet<_> = instructions
+        .iter()
+        .filter_map(|op| match (op.definition.id, op.inputs.as_slice()) {
+            ("set", &[source]) if super::returned_product::float_width(op.type_code) > 1 => Some(source),
+            _ => None,
+        })
+        .collect();
+    if (assigned.is_empty() && !instructions.iter().any(|op| op.definition.id == "swizzle1" || op.call.is_some()))
         || !instructions.iter().any(|op| matches!(op.definition.id, "rand" | "set") || op.call.is_some())
     {
         return;
@@ -38,16 +45,24 @@ pub(super) fn identify_pattern_components(program: &mut super::Program) {
             }
         } else if let Some(projected) = super::pattern_channel_operations::project(op, instructions, &sources, &mut generated) {
             lanes = projected;
+            // A complete conditional still owns its branch effects. For arithmetic, finish the
+            // operands of the first stored component before drawing those of the next component.
+            if assigned.contains(&index)
+                && op.definition.id != "ifelse"
+                && let Some(packed) = super::pattern_channel_operations::pack(op, instructions.len(), &lanes, &mut generated)
+            {
+                program.pattern_components.insert(index, PatternComponent::Register(packed));
+            }
         } else if let Some(call) = &op.call {
             if let Some(arguments) = &call.pattern_arguments {
-                lanes = arguments.channels.map(|register| register.map(PatternComponent::Scalar));
+                lanes = arguments.channels.map(|register| register.map(PatternComponent::Register));
             } else if let Some(projection) = call.packed_projection(&op.inputs, &sources) {
-                lanes = projection.channels.map(|register| register.map(PatternComponent::Scalar));
+                lanes = projection.channels.map(|register| register.map(PatternComponent::Register));
                 projections.push((index, projection));
             }
         }
         if op.type_code == 256 && lanes[0].is_none() {
-            lanes[0] = Some(PatternComponent::Scalar(index));
+            lanes[0] = Some(PatternComponent::Register(index));
         }
         sources.push(lanes);
         ranges.push(start..instructions.len() + generated.len());

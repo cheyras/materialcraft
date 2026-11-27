@@ -218,7 +218,7 @@ impl Program {
                         && let Some(source) = self.pattern_components.get(&index)
                     {
                         match source {
-                            super::vector::PatternComponent::Scalar(source) => state.steps.push(Enter(*source)),
+                            super::vector::PatternComponent::Register(source) => state.steps.push(Enter(*source)),
                             super::vector::PatternComponent::Zero => state.values.push(Value::Float(0.0)),
                         }
                         continue;

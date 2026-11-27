@@ -110,7 +110,7 @@ impl FunctionCall {
                     }
                     let slot = self.inputs.iter().position(|input| input == name)?;
                     sources.get(*registers.get(slot)?)?.map(|component| match component {
-                        Some(super::vector::PatternComponent::Scalar(register)) => Some(register),
+                        Some(super::vector::PatternComponent::Register(register)) => Some(register),
                         _ => None,
                     })
                 }

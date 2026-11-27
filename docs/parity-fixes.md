@@ -59,6 +59,23 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-26 root comparisons
 
+### Grayscale Splatter Circular across four output formats
+
+The grayscale root in `splatter_circular.sbs` now matches all **62 distinct whole settings**, including the ordinary SBS saves. Its 19 established settings improved from 6 to 19 exact images and from 139,334 to 142,592/142,592 pixels. The one-processor reference reproduced all 142,592 archived pixels. The graph stores a randomized vector size and position. The shared quadrant evaluator now preserves the random draws that feed each stored component. [Stored-vector controls](#storing-computed-vectors-in-a-quadrant-function) · [Established inputs and settings](#tile-weave-splatter-and-fiber-stage-comparisons)
+
+| Storage | Distinct settings | Exact pixels on one processor | Exact pixels on eight processors | Exact pixels after ordinary save | Maximum error on each route |
+|---|---:|---:|---:|---:|---:|
+| U8 | 5 | 9,216/9,216 | 9,216/9,216 | 9,216/9,216 | 0 |
+| U16 | 10 | 124,416/124,416 | 124,416/124,416 | 124,416/124,416 | 0 |
+| F16 | 6 | 11,264/11,264 | 11,264/11,264 | 11,264/11,264 | 0 |
+| F32 | 41 | 45,824/45,824 | 45,824/45,824 | 45,824/45,824 | 0 |
+
+For the additional rectangles, keep the 16² source and background of the established default. Render 64 × 16 at seed 724381. At 32 × 64 and seed 724412 use the two 32² fields from the first changed setting. Set Number to 2, Radius to .25, Pattern to 2, PatternSize to (.25,.25) and image input filtering to 2. Set radius, size and mask randomness to zero, with rotation zero and center orientation off. Render each rectangle in all four storage formats.
+
+For the separate 35-setting series, start at 32² F32 and seed 113 with the two 32² procedural F32 fields from the established changed setting. Use Number 5, Radius .375, Radius_Random .21875, Pattern 1, PatternSize (.1875,.3125), PatternSize_Random .15625, Rotation 22.5, image input filtering 1, center orientation on and RandomMask .1875. Compare the exposed defaults, the changed values, all three random amounts zero and each random amount alone. With the pins open, use Pattern 2, rotation zero and center orientation off. Repeat with 1, 2, 5 and 7 patterns, all three random amounts zero and each alone. With both pins supplied, use Pattern 1 and repeat the zero-randomness and changed settings at 1, 2 and 5 patterns. Also disconnect each pin separately and both together, try U8, U16 and F16, and render 16 × 64 at seed 0 and 64 × 16 at seed 137. The repeated five-pattern setting counts once.
+
+Splatter Circular Color remains open. The same 35-setting series used its rotation .21875 and its original color input fields. All three routes gave 17/35 exact settings and 32,615/35,840 exact pixels. Maximum errors were 165 U8 levels, 42,524 U16 levels, .648803711 in F16 and 1 in F32. With one analytic stamp and only radius randomness enabled, 1,004/1,024 pixels matched, maximum 1.
+
 ### Whole caustic, scratch, splatter, tile and vertical noise comparisons
 
 At `67ee598`, MaterialCraft rendered the 19 established whole outputs for each of seven roots using their original inputs, seeds, parent sizes and storage formats. The first comparison uses archived raw buffers. The caustic graph uses the height, normal and noise fields from its original comparison. The two splatter roots and two tile roots in this table are from `splatter_circular.sbs` and `tile_random.sbs`. [Caustic settings and input formulas](#paths-caustics-and-cell-fields-after-pattern-sampling) · [Scratch, splatter, tile and vertical noise settings](#tile-weave-splatter-and-fiber-stage-comparisons) · [Four-format inventory comparison](#four-format-inventory-comparison)
@@ -95,7 +112,7 @@ Take one case per storage format from first-pass controls, the precision matrix 
 | Tile Random Color | 1,619/3,584 · 187 / 48,014 / 0.732543945 / 2.00000003 | 1,619/3,584 · 187 / 48,014 / 0.732543945 / 2.00000003 | 1,619/3,584 · 187 / 48,014 / 0.732543945 / 2.00000003 |
 | Vertical Noise | 4,080/4,096 · 0 / 1 / 0 / 1.75237656e-05 | 4,085/4,096 · 0 / 1 / 0 / 1.75237656e-05 | 4,080/4,096 · 0 / 1 / 0 / 1.75237656e-05 |
 
-MaterialCraft reproduced every original pixel on its own reopens. All seven roots remain in progress.
+MaterialCraft reproduced every original pixel on its own reopens. At `67ee598` all seven roots were in progress.
 
 | Root | Fresh one vs archive · maxima U8 / U16 / F16 / F32 | One vs eight · maxima | One vs reopened · maxima |
 |---|---:|---:|---:|
@@ -117,6 +134,24 @@ Repeat the full 19-setting series at both processor counts and on ordinary reope
 | Additional rectangles | 8/8 · 12,288/12,288 · 0 / 0 / 0 / 0 | 6/8 · 12,016/12,288 · 0 / 0 / 0 / 1.78813934e-07 | 8/8 · 12,288/12,288 · 0 / 0 / 0 / 0 |
 
 A second eight-processor render of 64 × 64 at seed 42 matched 3,696/4,096 pixels of the first, maximum 2.38418579e-07. Repeating the new F32 rectangle at 32 × 64 at seed 727920 matched 1,887/2,048, maximum 1.78813934e-07. The original and reopened local buffers agreed for all 27 settings.
+
+### Storing computed vectors in a quadrant function
+
+A quadrant that stores a computed vector evaluates the operands for its first component before it draws the operands for the second. MaterialCraft now uses that order for stored sums, products, scalar multiples and interpolations. A scalar shared by two components consumes one draw.
+
+Use one full-coverage additive square over black at 16 × 16 F32 and graph seeds 0, 113 and 137. In its opacity function, pack independent Random(1) draws into vectors A and B. Store the result, then return one component of the stored value per render. For widths two, three and four, add A and B, multiply them component by component, scale A by another random draw and interpolate from A to B by .375. Repeat the product after connecting the first component of A to the last component of B. For width two also choose between the two vectors with a condition, then read the selected component. Compare the original on one and eight reference processors and the one-processor reopen of an ordinary MaterialCraft save.
+
+| Vector width | Settings | Previous exact pixels | Previous maximum F32 error | Current exact pixels | Current maximum F32 error |
+|---:|---:|---:|---:|---:|---:|
+| 2 | 36 | 2,304/9,216 | 0.302005053 | 9,216/9,216 | 0 |
+| 3 | 45 | 0/11,520 | 0.843028545 | 11,520/11,520 | 0 |
+| 4 | 60 | 0/15,360 | 0.71621437 | 15,360/15,360 | 0 |
+
+Each of the three routes matched **36,096/36,096** raw F32 pixels, up from 2,304. Both local renders also agreed in every setting. The three- and four-component interpolation results uniquely fit successive draws for (A₁,B₁), then (A₂,B₂), continuing through the final component. For example, at seed 113 the first two stored components were .496003091 and .551222920. A regression reads both components of five assignments at each of the three stamp seeds.
+
+Pixel Processor product rounding uses the consumers in the original expression. Six size and storage settings for each of 16 independent returned-vector expressions matched **282,624/282,624** pixels, maximum zero, with this fix and at `67ee598`. Use 16² F32 at seed 47, 64² U8, U16, F16 and F32 at seed 223, and 32² F32 at seed 449. The regression for independently returned product components also passed.
+
+The 221 grayscale Tile Generator settings and 175 settings from 35 other qualified roots matched **1,350,656/1,350,656** archived pixels, maximum zero. All 90 earlier pure-function settings stayed exact. Each root in `pattern_splatter_circular.sbs` still matched 13/54 whole settings on one processor, on eight and after saving. [Pure-function expressions](#shared-draws-and-channel-selection-across-pure-pattern-calls) · [Circular geometry and per-format errors](#circular-splatter-geometry-and-the-order-of-random-draws)
 
 ### Shared draws and channel selection across pure pattern calls
 
