@@ -28,6 +28,7 @@ pub fn cook(package: &Package, graph_index: usize, options: &Options, cache: &Mu
     let prepared = PreparedGraph::new(package, graph, options, &variables);
     let mut sampling = crate::PreviewSampling::default();
     sampling.context = (prepared.parent_base.size, prepared.parent_base.seed, options.max_size);
+    sampling.caller_format = options.parent_base.map(|base| base.format);
     let previous = options.previous_sampling.filter(|p| p.context == sampling.context);
     for &id in &prepared.order {
         if options.cancel.is_some_and(|cancel| cancel.load(Ordering::Relaxed)) {

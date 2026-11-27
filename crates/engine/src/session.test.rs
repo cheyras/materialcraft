@@ -23,8 +23,7 @@ fn the_resource_decoder_reads_data_maps_as_stored() {
     assert!((data.get(0, 0, false)[2] - 1.0).abs() < 0.01);
 }
 
-#[test]
-fn preview_stamps_reuse_sampling_levels_independently() {
+fn stamp_package() -> (Package, materialcraft_core::NodeId, [materialcraft_core::NodeId; 2]) {
     use materialcraft_core::{Graph, OutputFormat, PatternGraph, PatternNodeKind, ResourceBytes, SizeMode, Value};
 
     let image = Image::gray(128, 128, |x, y| ((13 * x + 7 * y + 3 * x * y) % 253) as f32 / 255.0);
@@ -57,6 +56,12 @@ fn preview_stamps_reuse_sampling_levels_independently() {
         id
     });
     package.graphs.push(graph);
+    (package, input, stamps)
+}
+
+#[test]
+fn preview_stamps_reuse_sampling_levels_independently() {
+    let (package, _, stamps) = stamp_package();
     let mut session = Session::new(package);
     let base = 0x3f01_4181;
     let mip = 0x3f01_8182;
@@ -86,6 +91,45 @@ fn preview_stamps_reuse_sampling_levels_independently() {
     assert_eq!(pixels(session.cook()), [mip, base]);
     crate::execute(&mut session, "graph.input.bind", &serde_json::json!({"identifier":"input","resource":"Copy","linear":true})).unwrap();
     assert_eq!(pixels(session.cook()), [base; 2]);
+}
+
+#[test]
+fn changing_one_instances_precision_updates_its_fixed_precision_stamp() {
+    use materialcraft_core::{Graph, OutputFormat, Value};
+
+    let (mut package, source, stamps) = stamp_package();
+    let child = &mut package.graphs[0];
+    let out = child.add_node("output", [200.0, 0.0]);
+    child.connect(stamps[0], "output", out, "input").unwrap();
+    let mut parent = Graph::new("Paired instances");
+    parent.size = [5; 2];
+    parent.format = OutputFormat::F32;
+    parent.input_images = std::mem::take(&mut child.input_images);
+    parent.input_images_linear = std::mem::take(&mut child.input_images_linear);
+    let input = parent.add_node("input_grayscale", [0.0; 2]);
+    parent.node_mut(input).unwrap().base = child.node(source).unwrap().base.clone();
+    let instances = [0.0, 80.0].map(|y| {
+        let instance = parent.add_node("graph_instance", [100.0, y]);
+        let node = parent.node_mut(instance).unwrap();
+        node.params.insert("graph".into(), Value::Text(child.name.clone()));
+        node.base.format = OutputFormat::F32;
+        parent.connect(input, "output", instance, "input").unwrap();
+        instance
+    });
+    package.graphs.insert(0, parent);
+    let mut session = Session::new(package);
+    let pixels = |cooked: &materialcraft_eval::Cooked| {
+        instances.map(|id| {
+            assert_eq!(cooked.nodes[&id].error, None);
+            cooked.image(id, 0).unwrap().get_gray(9, 8, false).to_bits()
+        })
+    };
+    assert_eq!(pixels(session.cook()), [0x3f01_4181; 2]);
+    for format in ["u16", "f32"] {
+        crate::execute(&mut session, "graph.node.base", &serde_json::json!({"id":instances[0].0,"format":format})).unwrap();
+        assert_eq!(pixels(session.cook()), [0x3f01_8182, 0x3f01_4181]);
+    }
+    assert_eq!(pixels(&session.cook_full(0)), [0x3f01_4181; 2]);
 }
 
 #[test]

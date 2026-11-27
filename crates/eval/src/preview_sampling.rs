@@ -6,6 +6,7 @@ use std::{collections::BTreeMap, sync::Arc};
 #[derive(Clone, Debug, Default)]
 pub struct PreviewSampling {
     pub(crate) context: ([u32; 2], u32, Option<u32>),
+    pub(crate) caller_format: Option<materialcraft_core::OutputFormat>,
     stamps: BTreeMap<NodeId, Stamp>,
     instances: BTreeMap<NodeId, Instance>,
 }
@@ -18,10 +19,10 @@ struct Stamp {
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct Instance {
+struct Instance {
     input_key: u64,
-    pub output_key: u64,
-    pub sampling: Arc<PreviewSampling>,
+    output_key: u64,
+    sampling: Arc<PreviewSampling>,
 }
 
 impl PreviewSampling {
@@ -48,13 +49,16 @@ impl PreviewSampling {
     }
 
     pub(crate) fn stamp(&mut self, previous: Option<&Self>, id: NodeId, cook_key: u64, input_keys: &[u64], base_only: &mut [bool]) -> u64 {
+        // A precision edit on the calling instance resamples retained textures even at a fixed child precision.
+        let caller_changed = previous.is_some_and(|state| state.caller_format != self.caller_format);
         let previous = previous.and_then(|p| p.stamps.get(&id));
         let mut inputs = BTreeMap::new();
         let mut full = Vec::new();
         for (port, (base_only, &texture)) in base_only.iter_mut().zip(input_keys).enumerate() {
             if *base_only {
-                let retained =
-                    previous.is_some_and(|stamp| stamp.inputs.get(&port).is_some_and(|&(old, full)| old == texture && (full || stamp.cook_key != cook_key)));
+                let retained = previous.is_some_and(|stamp| {
+                    stamp.inputs.get(&port).is_some_and(|&(old, full)| old == texture && (full || caller_changed || stamp.cook_key != cook_key))
+                });
                 inputs.insert(port, (texture, retained));
                 if retained {
                     *base_only = false;
