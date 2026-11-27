@@ -59,6 +59,65 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-26 root comparisons
 
+### Whole caustic, scratch, splatter, tile and vertical noise comparisons
+
+At `67ee598`, MaterialCraft rendered the 19 established whole outputs for each of seven roots using their original inputs, seeds, parent sizes and storage formats. The first comparison uses archived raw buffers. The caustic graph uses the height, normal and noise fields from its original comparison. The two splatter roots and two tile roots in this table are from `splatter_circular.sbs` and `tile_random.sbs`. [Caustic settings and input formulas](#paths-caustics-and-cell-fields-after-pattern-sampling) · [Scratch, splatter, tile and vertical noise settings](#tile-weave-splatter-and-fiber-stage-comparisons) · [Four-format inventory comparison](#four-format-inventory-comparison)
+
+| Root | Previous exact pixels | Current exact pixels | Complete settings | Current maxima in U8 / U16 / F16 / F32 |
+|---|---:|---:|---:|---|
+| RT Caustics Base | 152,777/172,288 | 167,462/172,288 | 9/19 | 0 / 1 / 0 / 3.33786011e-06 |
+| Scratches 2 | 118,291/142,592 | 141,575/142,592 | 6/19 | 0 / 1 / 0 / 1.78813934e-07 |
+| Splatter Circular | 139,297/142,592 | 139,334/142,592 | 6/19 | 231 / 59,438 / 1 / 1.00000006 |
+| Splatter Circular Color | 140,218/142,592 | 140,218/142,592 | 6/19 | 247 / 65,535 / 0.96862793 / 0.996078431 |
+| Tile Random | 111,364/142,592 | 111,364/142,592 | 0/19 | 223 / 57,311 / 1 / 1.00000006 |
+| Tile Random Color | 111,228/142,592 | 111,228/142,592 | 0/19 | 250 / 65,535 / 1 / 2.00000003 |
+| Vertical Noise | 142,088/142,592 | 142,295/142,592 | 9/19 | 0 / 2 / 0 / 1.75237656e-05 |
+
+Take one case per storage format from first-pass controls, the precision matrix and the additional settings above. Choose the lowest exact fraction in that format, breaking ties by smaller pixel count. Save each graph as an ordinary SBS file from MaterialCraft. Capture each original with one and eight reference processors and reopen the save with one. Integer maxima are storage levels. Float maxima are absolute errors.
+
+| Root | U8 dimensions / seed | U16 dimensions / seed | F16 dimensions / seed | F32 dimensions / seed |
+|---|---|---|---|---|
+| RT Caustics Base | 64 × 64 / 42 | 64 × 64 / 4127 | 64 × 64 / 42 | 128 × 128 / 4159 |
+| Scratches 2 | 32 × 32 / 115729 | 32 × 32 / 115729 | 32 × 32 / 115729 | 64 × 32 / 115735 |
+| Splatter Circular | 32 × 32 / 116154 | 32 × 32 / 116154 | 32 × 32 / 116154 | 64 × 32 / 116160 |
+| Splatter Circular Color | 32 × 32 / 116171 | 32 × 32 / 116171 | 32 × 32 / 116171 | 32 × 32 / 116171 |
+| Tile Random | 32 × 32 / 116715 | 32 × 32 / 116715 | 32 × 32 / 116715 | 32 × 32 / 116715 |
+| Tile Random Color | 32 × 32 / 116732 | 32 × 32 / 116732 | 32 × 32 / 116732 | 32 × 16 / 116736 |
+| Vertical Noise | 32 × 32 / 116919 | 32 × 32 / 116919 | 32 × 32 / 116919 | 32 × 32 / 116918 |
+
+| Root | One processor · maxima U8 / U16 / F16 / F32 | Eight processors · maxima | Ordinary save · maxima |
+|---|---|---|---|
+| RT Caustics Base | 25,402/28,672 · 0 / 0 / 0 / 7.74860382e-07 | 25,295/28,672 · 0 / 1 / 0 / 8.34465027e-07 | 25,092/28,672 · 0 / 0 / 0 / 8.34465027e-07 |
+| Scratches 2 | 5,120/5,120 · 0 / 0 / 0 / 0 | 4,960/5,120 · 0 / 1 / 0 / 1.1920929e-07 | 5,120/5,120 · 0 / 0 / 0 / 0 |
+| Splatter Circular | 3,814/5,120 · 231 / 59,438 / 0.906524658 / 0.929198086 | 3,814/5,120 · 231 / 59,438 / 0.906524658 / 0.929198086 | 3,814/5,120 · 231 / 59,438 / 0.906524658 / 0.929198086 |
+| Splatter Circular Color | 3,388/4,096 · 174 / 44,618 / 0.680664062 / 0.680815682 | 3,388/4,096 · 174 / 44,618 / 0.680664062 / 0.680815682 | 3,388/4,096 · 174 / 44,618 / 0.680664062 / 0.680815682 |
+| Tile Random | 1,921/4,096 · 223 / 57,222 / 0.947509766 / 0.947844714 | 1,921/4,096 · 223 / 57,222 / 0.947509766 / 0.947844714 | 1,921/4,096 · 223 / 57,222 / 0.947509766 / 0.947844714 |
+| Tile Random Color | 1,619/3,584 · 187 / 48,014 / 0.732543945 / 2.00000003 | 1,619/3,584 · 187 / 48,014 / 0.732543945 / 2.00000003 | 1,619/3,584 · 187 / 48,014 / 0.732543945 / 2.00000003 |
+| Vertical Noise | 4,080/4,096 · 0 / 1 / 0 / 1.75237656e-05 | 4,085/4,096 · 0 / 1 / 0 / 1.75237656e-05 | 4,080/4,096 · 0 / 1 / 0 / 1.75237656e-05 |
+
+MaterialCraft reproduced every original pixel on its own reopens. All seven roots remain in progress.
+
+| Root | Fresh one vs archive · maxima U8 / U16 / F16 / F32 | One vs eight · maxima | One vs reopened · maxima |
+|---|---:|---:|---:|
+| RT Caustics Base | 24,931/28,672 · 0 / 1 / 0 / 1.07288361e-06 | 25,294/28,672 · 0 / 1 / 0 / 7.15255737e-07 | 26,889/28,672 · 0 / 0 / 0 / 4.17232513e-07 |
+| Scratches 2 | 4,835/5,120 · 0 / 1 / 0 / 1.1920929e-07 | 4,960/5,120 · 0 / 1 / 0 / 1.1920929e-07 | 5,120/5,120 · 0 / 0 / 0 / 0 |
+| Splatter Circular | 5,120/5,120 · 0 / 0 / 0 / 0 | 5,120/5,120 · 0 / 0 / 0 / 0 | 5,120/5,120 · 0 / 0 / 0 / 0 |
+| Splatter Circular Color | 4,096/4,096 · 0 / 0 / 0 / 0 | 4,096/4,096 · 0 / 0 / 0 / 0 | 4,096/4,096 · 0 / 0 / 0 / 0 |
+| Tile Random | 4,096/4,096 · 0 / 0 / 0 / 0 | 4,096/4,096 · 0 / 0 / 0 / 0 | 4,096/4,096 · 0 / 0 / 0 / 0 |
+| Tile Random Color | 3,584/3,584 · 0 / 0 / 0 / 0 | 3,584/3,584 · 0 / 0 / 0 / 0 | 3,584/3,584 · 0 / 0 / 0 / 0 |
+| Vertical Noise | 4,080/4,096 · 0 / 1 / 0 / 1.69277191e-05 | 4,081/4,096 · 0 / 1 / 0 / 1.69277191e-05 | 4,096/4,096 · 0 / 0 / 0 / 0 |
+
+#### Scratches 2 across all established settings and two new rectangles
+
+Repeat the full 19-setting series at both processor counts and on ordinary reopen. Add the exposed defaults at 64 × 16 at seed 727889 and the first changed scratch setting at 32 × 64 at seed 727920, each in U8, U16, F16 and F32. The changed values are `Pattern_size_width` 100.0, `Pattern_size_height` 100.0, `Disorder` 0.0.
+
+| Settings | One processor · exact images · exact pixels · maxima U8 / U16 / F16 / F32 | Eight processors | Ordinary save |
+|---|---|---|---|
+| Established | 19/19 · 142,592/142,592 · 0 / 0 / 0 / 0 | 7/19 · 141,518/142,592 · 0 / 1 / 0 / 2.38418579e-07 | 19/19 · 142,592/142,592 · 0 / 0 / 0 / 0 |
+| Additional rectangles | 8/8 · 12,288/12,288 · 0 / 0 / 0 / 0 | 6/8 · 12,016/12,288 · 0 / 0 / 0 / 1.78813934e-07 | 8/8 · 12,288/12,288 · 0 / 0 / 0 / 0 |
+
+A second eight-processor render of 64 × 64 at seed 42 matched 3,696/4,096 pixels of the first, maximum 2.38418579e-07. Repeating the new F32 rectangle at 32 × 64 at seed 727920 matched 1,887/2,048, maximum 1.78813934e-07. The original and reopened local buffers agreed for all 27 settings.
+
 ### Shared draws and channel selection across pure pattern calls
 
 A quadrant expression can assign a value, call a function and later reuse a draw from a conditional arm. When each called function computes only from its declared arguments and constants, MaterialCraft now preserves the shared draw's position and evaluates only the selected channel of a packed value. The check follows nested calls. A call that draws a random value, samples an image, writes a variable or reads an undeclared name can observe evaluation order.
