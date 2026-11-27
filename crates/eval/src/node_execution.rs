@@ -53,6 +53,8 @@ pub(crate) fn cook_node(
     graph_variables: &BTreeMap<String, Value>,
     options: &Options,
     cache: &Mutex<Cache>,
+    previous: Option<&crate::PreviewSampling>,
+    sampling: &mut crate::PreviewSampling,
 ) -> NodeResult {
     let (input_ports, output_ports) = prepared.ports(node.id);
     let definition = find(&node.def);
@@ -251,7 +253,7 @@ pub(crate) fn cook_node(
         0
     };
 
-    let key = hash_of(&(
+    let mut key = hash_of(&(
         &node.def,
         serde_json::to_string(&parameters).unwrap_or_default(),
         (dynamic_blend_opacity, bound_image, background_tiling),
@@ -277,6 +279,24 @@ pub(crate) fn cook_node(
         input_image.as_ref().map(|(image, upstream, bitmap, base_level)| (image_key(image, cache), upstream, bitmap, wired, base_level)),
         (variable_key(node, &parameters, &bindings), &instance_literals),
     ));
+    if options.previous_sampling.is_some() && input_image.is_some() {
+        let name = identifier(node);
+        if let Some(&upstream) = options.preview_input_keys.get(&name) {
+            key = hash_of(&(key, upstream));
+        } else if let Some(graph) = package.graphs.get(graph_index)
+            && let Some(binding) = graph.input_images.get(&name)
+        {
+            key = hash_of(&(key, binding, graph.input_images_linear.contains(&name), graph.input_images_from_file.contains(&name)));
+        }
+    }
+    let instance_input_key = key;
+    if options.previous_sampling.is_some() && !node.disabled {
+        if node.def == "graph_instance" {
+            key = sampling.reuse_instance(previous, node.id, key);
+        } else if node.def == "fx_map" && base_level_only.contains(&true) {
+            key = sampling.stamp(previous, node.id, key, &input_keys, &mut base_level_only);
+        }
+    }
     if let Some(outputs) = lock(cache).get(key) {
         inspection_parameters(node, &mut parameters);
         let base = outputs.bases.as_deref().and_then(|ports| ports.first()).copied().unwrap_or(base);
@@ -326,8 +346,27 @@ pub(crate) fn cook_node(
 
         Err(format!("unsupported node `{name}`"))
     } else if node.def == "graph_instance" {
-        cook_instance(package, graph_index, node, input_ports, output_ports, &incoming, &parameters, &instance_literals, base, options, cache).map(|ports| {
-            let (values, bases): (Vec<_>, Vec<_>) = ports.into_iter().unzip();
+        cook_instance(
+            package,
+            graph_index,
+            node,
+            input_ports,
+            output_ports,
+            &incoming,
+            &input_keys,
+            &parameters,
+            &instance_literals,
+            base,
+            options,
+            cache,
+            previous.and_then(|p| p.child(node.id)),
+        )
+        .map(|instance| {
+            if let Some((child, outputs)) = instance.sampling {
+                key = hash_of(&(instance_input_key, outputs));
+                sampling.record_instance(node.id, instance_input_key, key, child);
+            }
+            let (values, bases): (Vec<_>, Vec<_>) = instance.ports.into_iter().unzip();
             output_bases = Some(bases.into());
             values
         })

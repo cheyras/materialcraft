@@ -24,6 +24,71 @@ fn the_resource_decoder_reads_data_maps_as_stored() {
 }
 
 #[test]
+fn preview_stamps_reuse_sampling_levels_independently() {
+    use materialcraft_core::{Graph, OutputFormat, PatternGraph, PatternNodeKind, ResourceBytes, SizeMode, Value};
+
+    let image = Image::gray(128, 128, |x, y| ((13 * x + 7 * y + 3 * x * y) % 253) as f32 / 255.0);
+    let bytes = ResourceBytes::new(encode(&image, "png", Depth::U8, false).unwrap());
+    let mut package = Package::new("Stamp sampling");
+    for name in ["Field", "Copy"] {
+        package.resources.push(Resource::new(name, format!("{name}.png"), bytes.clone()));
+    }
+    let mut graph = Graph::new("Shared image");
+    graph.size = [5; 2];
+    graph.format = OutputFormat::F32;
+    let input = graph.add_node("input_grayscale", [0.0; 2]);
+    let base = &mut graph.node_mut(input).unwrap().base;
+    base.size_mode = SizeMode::Absolute;
+    base.size = [5; 2];
+    base.format = OutputFormat::U8;
+    graph.input_images.insert("input".into(), "Field".into());
+    graph.input_images_linear.insert("input".into());
+    let stamps = [0.0, 80.0].map(|y| {
+        let id = graph.add_node("fx_map", [100.0, y]);
+        let mut pattern = PatternGraph::with_root(PatternNodeKind::Quadrant);
+        pattern.nodes[0].parameters.insert("patterntype".into(), Value::Int(1));
+        pattern.nodes[0].parameters.insert("patternsize".into(), Value::Float2([0.5; 2]));
+        let node = graph.node_mut(id).unwrap();
+        node.base.format = OutputFormat::F32;
+        node.params.insert("color_mode".into(), Value::Bool(false));
+        node.params.insert("roughness".into(), Value::Float(0.0));
+        node.params.insert("pattern".into(), Value::PatternGraph(Box::new(pattern)));
+        graph.connect(input, "output", id, "pattern0").unwrap();
+        id
+    });
+    package.graphs.push(graph);
+    let mut session = Session::new(package);
+    let base = 0x3f01_4181;
+    let mip = 0x3f01_8182;
+    let pixels = |cook: &materialcraft_eval::Cooked| {
+        stamps.map(|id| {
+            assert_eq!(cook.nodes[&id].error, None);
+            cook.image(id, 0).unwrap().get_gray(9, 8, false).to_bits()
+        })
+    };
+    assert_eq!(pixels(session.cook()), [base; 2]);
+    let change_precision = |session: &mut Session| {
+        for format in ["u16", "f32"] {
+            crate::execute(session, "graph.node.base", &serde_json::json!({"id":stamps[0].0,"format":format})).unwrap();
+            session.cook();
+        }
+    };
+    change_precision(&mut session);
+    assert_eq!(pixels(session.cook()), [mip, base], "only the edited stamp reacquires its input levels");
+    crate::execute(&mut session, "graph.size", &serde_json::json!({"width":32})).unwrap();
+    assert_eq!(pixels(session.cook()), [mip, base]);
+    assert_eq!(pixels(&session.cook_full(0)), [base; 2]);
+    for extent in [64, 32] {
+        crate::execute(&mut session, "graph.size", &serde_json::json!({"width":extent})).unwrap();
+    }
+    assert_eq!(pixels(session.cook()), [base; 2]);
+    change_precision(&mut session);
+    assert_eq!(pixels(session.cook()), [mip, base]);
+    crate::execute(&mut session, "graph.input.bind", &serde_json::json!({"identifier":"input","resource":"Copy","linear":true})).unwrap();
+    assert_eq!(pixels(session.cook()), [base; 2]);
+}
+
+#[test]
 fn bitmap_nodes_read_default_colors_from_the_file_and_keep_explicit_data_reads() {
     use materialcraft_core::{Graph, OutputFormat, ResourceBytes, Value};
 
