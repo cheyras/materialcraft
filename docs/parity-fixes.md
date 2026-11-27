@@ -59,6 +59,37 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-27 root comparisons
 
+### Seven tiled half-precision settings in Directional Noise 3 v2
+
+All seven previously recorded F16 settings now render in MaterialCraft, including the 64 × 32 output at seed 195062 and the 64² output at seed 411704. The three settings that previously reached the execution limit produce 7,168/7,168 exact pixels on each reference processor count, on the originals and their configured saves. [Earlier precision results and exposed parameter values](#half-precision-inputs-to-levels)
+
+| Size · seed | F16 original, one or eight · maximum | Configured save, one or eight · maximum |
+|---|---:|---:|
+| 16² · 0 | 256/256 · 0 | 256/256 · 0 |
+| 64 × 16 · 42 | 1,024/1,024 · 0 | 1,024/1,024 · 0 |
+| 32² · 103867 | 1,023/1,024 · 0.0068359375 | 1,024/1,024 · 0 |
+| 64 × 32 · 195062 | 2,048/2,048 · 0 | 2,048/2,048 · 0 |
+| 32 × 64 · 195109 | 2,048/2,048 · 0 | 2,048/2,048 · 0 |
+| 64² · 411704 | 4,096/4,096 · 0 | 4,096/4,096 · 0 |
+| 64² · 42 | 4,096/4,096 · 0 | 4,096/4,096 · 0 |
+
+The seven originals match **14,591/14,592** pixels, maximum .0068359375. Reopening each saved file in the reference app and MaterialCraft gives **14,592/14,592**, maximum zero. The local original and saved words agree in all seven settings. The remaining original pixel at (18,16) is documented with its stage-to-output captures. [F32 and U16 reads at the same coordinate](#a-recovered-rectangle-and-repeated-outputs-in-directional-noise-3-v2)
+
+At 64 × 32, seed 195062, set scale 3, disorder, speed, anisotropy and angle randomness .34375, both angles .09375 and tile offset (0,.10546875). Enable non-square expansion and leave tiling at its default. Choose U8, U16, F16 and F32 on the Levels node feeding the output. Save each configuration and reopen it with the stored controls. **8,192/8,192** original pixels and **8,192/8,192** saved pixels match each reference processor count, maximum zero. The graph generates its own input.
+
+### A tiled square in Directional Noise 2 v2
+
+At 64², seed 195094, use scale 2, disorder, speed, anisotropy and angle randomness .53125, both angles .28125 and tile offset (.1875,−.05859375). Disable non-square expansion, keep the authored tiling and leave the other parameters at default. Choose each storage format on the node feeding the output, save the configuration and reopen the file with the stored controls. All four MaterialCraft saved buffers reproduce their originals, **16,384/16,384** pixels. [Related 64 × 32 setting and seeded drawing expression](#floored-modulo-in-seeded-drawing-properties)
+
+| Storage | Original, one · maximum | Original, eight · maximum | Saved, one · maximum | Saved, eight · maximum |
+|---|---:|---:|---:|---:|
+| U8 | 4,096/4,096 · 0 | 4,096/4,096 · 0 | 4,096/4,096 · 0 | 4,096/4,096 · 0 |
+| U16 | 4,093/4,096 · 1 | 4,093/4,096 · 1 | 4,093/4,096 · 1 | 4,093/4,096 · 1 |
+| F16 | 4,096/4,096 · 0 | 4,096/4,096 · 0 | 4,095/4,096 · 0.000122070312 | 4,095/4,096 · 0.000122070312 |
+| F32 | 2,170/4,096 · 1.78813934e-07 | 2,422/4,096 · 1.78813934e-07 | 2,218/4,096 · 2.38418579e-07 | 2,218/4,096 · 2.38418579e-07 |
+
+The earlier original F32 reference pair agreed at 1,899/4,096 · 1.78813934e-07. The exact counts above compare whole buffers. Both roots remain in progress.
+
 ### Floored modulo in seeded drawing properties
 
 Directional Noise 2 v2 at 64 × 32 and seed 195000 now returns a whole image in each of four storage formats and on their four ordinary saves. The previous evaluator reached its property budget on this setting. It had completed 5,242,880 full property evaluations and still had pending drawing work. The drawing function wraps a two-component offset using floored modulo. The general evaluator already implements that operation. The bounded drawing evaluator now uses the same implementation for its fixed and seeded operands. It preserves the random register and the offset published to subsequent properties.
