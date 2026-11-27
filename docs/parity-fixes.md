@@ -59,6 +59,19 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-26 root comparisons
 
+### Pattern Fibers 1 at default and changed tiling
+
+Pattern Fibers 1 now matches **438,528/438,528 pixels across 36 whole settings** on one processor, on eight and when reopened from an ordinary MaterialCraft SBS save. All 24 earlier whole settings now match their original archived buffers, including the 7,393 pixels that differed in the previous comparison. This version of the graph takes no image inputs and exposes tiling and non-square expansion. [Established 24 settings, dimensions and seeds](#fibers-and-fluid-pattern-stages) · [Earlier differences by storage format](#pattern-rotation-phase)
+
+For the additional three rectangles use 16 × 32 at seed 628801 with exposed defaults, 64 × 16 at seed 628833 with tiling 5 and non-square expansion on, and 32 × 64 at seed 628865 with tiling 3 and expansion off. Set the node feeding the output to each of U8, U16, F16 and F32. The original and saved local buffers have the same raw words in every case.
+
+| Settings | U8 exact | U16 exact | F16 exact | F32 exact | Maximum error on all routes |
+|---|---:|---:|---:|---:|---:|
+| Established | 5,120/5,120 | 285,696/285,696 | 5,120/5,120 | 128,256/128,256 | 0 |
+| Additional rectangles | 3,584/3,584 | 3,584/3,584 | 3,584/3,584 | 3,584/3,584 | 0 |
+
+All 36 fresh original readbacks agree across the two processor counts and with their one-processor saved-file readbacks. Pattern Fibers 1 qualifies for parity in the measured cases.
+
 ### Full Pattern Weave 2 comparisons at both processor counts
 
 On release `bd12ea4`, Pattern Weave 2 matches **3,139,840/3,139,840 pixels across all 95 established whole settings** on one processor, on eight, and in fresh ordinary saves opened in both applications. The earlier whole comparison differed at 351 pixels. Each fresh one-processor readback agrees with the corresponding archived original. This graph takes no image input. The measurements cover the original defaults and changed square and rectangular outputs, including different seeds, scales, disorder, 45-degree rotation and non-square expansion. [Seven sizes, fixed fields and reopen settings](#saved-splatter-and-weave-graphs-across-independent-fields) · [Earlier shape and oblique bounds controls](#fixed-and-input-driven-rotation-bounds-for-oblique-stamps)
