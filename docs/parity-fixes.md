@@ -59,6 +59,48 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-27 root comparisons
 
+### Working precision of Blur inputs
+
+When an equal-sized normalized input feeds Blur and exactly one size depends on a graph parameter, the filter reads the texture at its floating-point destination precision. U8 and U16 inputs to F16 Blur are stored at half precision before the first pass. F32 Blur retains the normalized values and samples them as floats. The second pass reads the stored horizontal result. For fractional taps, the sampler precision affects the result even with identical source texels.
+
+Use the 16² U8 field of 58 with four changed neighbors from the Sharpen comparison. Have the input, Blur, both or neither read an exposed .375 and return (0,0) as the relative size offset. The fixed and both-reader settings agree. The two single-reader settings also agree. Each cell gives the value read from the reference output on one and eight processors. [Procedural field and size functions](#half-precision-inputs-to-sharpen)
+
+| Intensity · destination | Pixel | Fixed or both sizes | One size reads the parameter |
+|---|---|---:|---:|
+| 24 · F16 | (7,8) | .185546875 | .1854248046875 |
+| 32 · F16 | (6,7) | .2100830078125 | .2099609375 |
+| 32 · F32 | (6,5) | `0x3e673a97` | `0x3e673a99` |
+
+At intensity 32 with one size reading the parameter, filtering the already stored half pixels with F32 weights gives 251/256, maximum .0001220703125. Sampling them at F16 gives 256/256. For the F32 destination, the previous normalized sampler gave 213/256, maximum 9.9837779999e−7. Sampling the same normalized values at F32 gives 256/256.
+
+The first 55 Blur settings reuse the procedural grayscale and RGBA fields, sizes and seeds of the Sharpen series, with intensity 24. They improved from **26,321/30,976** to **30,976/30,976**, maximum .00048828125 to zero. The 55 Transformation 2D controls use matrix (.875,.125,−.125,.875) with centered translation and reproduce another 30,976/30,976 unchanged. For a separate intensity sweep use 0, 3.2, 10, 24 and 32 at each of the following settings. The fixed gray U8 control is 16² at seed 0. The variable-size gray U16 source uses 16² at seed 512. The gray U8 source with variable-size Blur uses 16 × 32 at seed 5034. The RGBA U16 source with its size driven uses 64 × 32 at seed 6211. Drive both sizes at 64², seed 4242, in the RGBA U16 control. Store all four output formats and compare every channel.
+
+| Intensity sweep · 25 settings per format | Before · maximum | After · maximum |
+|---|---:|---:|
+| U8 | 35,840/35,840 · 0 | 35,840/35,840 · 0 |
+| U16 | 35,840/35,840 · 0 | 35,840/35,840 · 0 |
+| F16 | 30,839/35,840 · 0.00048828125 | 35,840/35,840 · 0 |
+| F32 | 31,004/35,840 · 6.169080734e-06 | 35,840/35,840 · 0 |
+
+All 100 sweep settings now match **143,360/143,360** on both processor counts. Four F32 fractional or wider filters previously matched 28/4,864. Binding an F32 field with the exact normalized values from the corresponding input bridge independently reproduced 4,864/4,864 with zero error.
+
+In Dirt 1 use the 16² default at seed 0, 32 × 16 at seed 42 with Disorder .375, and 32² at seed 93 with Disorder .8125. Store U8, U16, F16 and F32 on the final Blend. With the original U8 quarter-size Blur at intensity 3.2, all 7,168 output pixels match. For the other cases, bring Blur to the full U16 FX-Map extent. Use intensity 24 and F16 on Blur, then intensity 32 and F32. Try fixed sizes, have only Blur read Disorder before returning (0,0) for the size, then have both nodes read it. The following rows cover the single-reader path. All three FX-Map inputs agree in each comparison.
+
+| Blur precision · final output | Before · maximum | After · maximum |
+|---|---:|---:|
+| F16 · U8 | 1,789/1,792 · 1 | 1,792/1,792 · 0 |
+| F16 · U16 | 1,533/1,792 · 8 | 1,792/1,792 · 0 |
+| F16 · F16 | 1,631/1,792 · 0.00048828125 | 1,792/1,792 · 0 |
+| F16 · F32 | 1,530/1,792 · 0.0001186728477 | 1,792/1,792 · 0 |
+| F32 · U8 | 1,791/1,792 · 1 | 1,792/1,792 · 0 |
+| F32 · U16 | 1,662/1,792 · 1 | 1,792/1,792 · 0 |
+| F32 · F16 | 1,763/1,792 · 0.0001220703125 | 1,792/1,792 · 0 |
+| F32 · F32 | 233/1,792 · 7.525086403e-06 | 1,792/1,792 · 0 |
+
+At Blur itself the three F16 cases improved from 1,334/1,792 · 0.0001220703125 to 1,792/1,792 · 0. The three F32 cases improved from 1/1,792 · 4.023313522e-06 to 1,792/1,792 · 0. The fixed and both-reader controls match every final output on both processors. Across the original and six changed Blur configurations all 84 final renders now match **50,176/50,176 pixels**, maximum zero.
+
+Use ordinary Save on configured cases and reopen without edits. The 16 direct filter files reproduce 15,360/15,360 pixels. The 10 whole Dirt 1 files reproduce 6,656/6,656 pixels. Each also matches the corresponding pre-save reference on one and eight processors, maximum zero. Dirt 1 remains in progress for its earlier processor-dependent results. [Original Dirt 1 comparison](#four-child-pattern-order-as-a-tile-copy-batch-fills)
+
 ### Saving older linked packages at their existing paths
 
 An ordinary Save in MaterialCraft can update an older linked SBS at the same relative path. Both callers below then reopen in the reference app with their original connections. Saving just the caller leaves the older linked files at version `0.1.3`. The reference compiler rejected both configured callers in that state. After saving the linked files, it accepted the same caller bytes. All counts below compare whole pixels at native storage precision on both one and eight reference processors.

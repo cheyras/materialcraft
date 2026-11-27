@@ -1089,7 +1089,7 @@ fn unchanged_size_after_read(getter: &str, variable: &str) -> materialcraft_core
 }
 
 #[test]
-fn half_levels_and_sharpen_convert_integer_inputs_when_one_size_is_parameter_controlled() {
+fn filters_store_normalized_inputs_at_their_working_precision_when_one_size_is_parameter_controlled() {
     use materialcraft_core::{BaseParameter, OutputFormat, SizeMode};
 
     let mut graph = Graph::new("Filter sizing");
@@ -1111,6 +1111,16 @@ fn half_levels_and_sharpen_convert_integer_inputs_when_one_size_is_parameter_con
     detail.base.size_mode = SizeMode::RelativeToParent;
     detail.base.format = OutputFormat::F16;
     graph.connect(input, "output", sharpen, "input").unwrap();
+    let [blur, fractional_half, fractional_float] =
+        [(24.0, OutputFormat::F16), (32.0, OutputFormat::F16), (32.0, OutputFormat::F32)].map(|(intensity, format)| {
+            let blur = graph.add_node("blur", [64.0, 128.0]);
+            let smooth = graph.node_mut(blur).unwrap();
+            smooth.base.size_mode = SizeMode::RelativeToParent;
+            smooth.base.format = format;
+            smooth.params.insert("intensity".into(), Value::Float(intensity));
+            graph.connect(input, "output", blur, "input").unwrap();
+            blur
+        });
     let mut package = Package::new("Input precision");
     package.graphs.push(graph);
     let mut options = Options::new(&no_res);
@@ -1128,13 +1138,20 @@ fn half_levels_and_sharpen_convert_integer_inputs_when_one_size_is_parameter_con
     options.overrides.insert("gain".into(), Value::Float(0.375));
     let cache = Mutex::new(Cache::default());
     let runtime = unchanged_size_after_read("get_float1", "gain");
-    for (source_dynamic, output_dynamic, expected_levels, expected_sharpen) in [
-        (false, false, 0x3d0e8000, 0x3f1e8000),
-        (true, false, 0x3d0e0000, 0x3f1e6000),
-        (false, true, 0x3d0e0000, 0x3f1e6000),
-        (true, true, 0x3d0e8000, 0x3f1e8000),
-    ] {
-        for (id, dynamic) in [(input, source_dynamic), (levels, output_dynamic), (sharpen, output_dynamic)] {
+    for (source_dynamic, output_dynamic) in [(false, false), (true, false), (false, true), (true, true)] {
+        let [expected_levels, expected_sharpen, expected_blur, expected_half, expected_float] = if source_dynamic == output_dynamic {
+            [0x3d0e8000, 0x3f1e8000, 0x3e3e0000, 0x3e572000, 0x3e673a97]
+        } else {
+            [0x3d0e0000, 0x3f1e6000, 0x3e3de000, 0x3e570000, 0x3e673a99]
+        };
+        for (id, dynamic) in [
+            (input, source_dynamic),
+            (levels, output_dynamic),
+            (sharpen, output_dynamic),
+            (blur, output_dynamic),
+            (fractional_half, output_dynamic),
+            (fractional_float, output_dynamic),
+        ] {
             let functions = &mut package.graphs[0].node_mut(id).unwrap().base.functions;
             if dynamic {
                 functions.insert(BaseParameter::OutputSize, runtime.clone());
@@ -1147,6 +1164,12 @@ fn half_levels_and_sharpen_convert_integer_inputs_when_one_size_is_parameter_con
         assert_eq!(cooked.image(levels, 0).unwrap().get_gray(0, 0, false).to_bits(), expected_levels);
         assert_eq!(cooked.nodes[&sharpen].error, None);
         assert_eq!(cooked.image(sharpen, 0).unwrap().get_gray(9, 8, false).to_bits(), expected_sharpen);
+        assert_eq!(cooked.nodes[&blur].error, None);
+        assert_eq!(cooked.image(blur, 0).unwrap().get_gray(7, 8, false).to_bits(), expected_blur);
+        assert_eq!(cooked.nodes[&fractional_half].error, None);
+        assert_eq!(cooked.image(fractional_half, 0).unwrap().get_gray(6, 7, false).to_bits(), expected_half);
+        assert_eq!(cooked.nodes[&fractional_float].error, None);
+        assert_eq!(cooked.image(fractional_float, 0).unwrap().get_gray(6, 5, false).to_bits(), expected_float);
     }
 }
 

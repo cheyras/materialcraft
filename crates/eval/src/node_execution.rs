@@ -380,17 +380,26 @@ pub(crate) fn cook_node(
         {
             *image = filtered;
         }
-        if base.format == OutputFormat::F16 && matches!(node.def.as_str(), "blend" | "fx_map" | "levels" | "sharpen") {
-            // When exactly one size is parameter-controlled, normalized inputs to these operations are stored at half precision first.
+        let store_inputs = match base.format {
+            OutputFormat::F16 => matches!(node.def.as_str(), "blend" | "fx_map" | "levels" | "sharpen" | "blur"),
+            OutputFormat::F32 => node.def == "blur",
+            _ => false,
+        };
+        if store_inputs {
+            // When exactly one size is parameter-controlled, these filters store normalized inputs at their working precision.
             // Images stamped by a pattern keep their sampling precision.
-            for ((image, format), port) in inputs.iter_mut().zip(&input_formats).zip(input_ports) {
+            for ((image, format), port) in inputs.iter_mut().zip(&mut input_formats).zip(input_ports) {
                 if (node.def != "fx_map" || port.id == "background")
                     && matches!(format, OutputFormat::U8 | OutputFormat::U16 | OutputFormat::Inherit)
                     && let Some(image) = image
                     && (image.width(), image.height()) == (w, h)
                     && prepared.source_base(node.id, &port.id, cooked).is_some_and(|source| source.dynamic_size != base.dynamic_size)
                 {
-                    *image = crate::output_precision::apply(image.clone(), OutputFormat::F16);
+                    *image = crate::output_precision::apply(image.clone(), base.format);
+                    if node.def == "blur" {
+                        // Fractional blur taps use the working texture's sampler.
+                        *format = base.format;
+                    }
                 }
             }
         }
