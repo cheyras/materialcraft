@@ -18,3 +18,4 @@ unicode-bidi = { workspace = true }
 vello_cpu = { workspace = true }
 half = { workspace = true }
 rayon = { workspace = true }
+serde_json = { workspace = true }

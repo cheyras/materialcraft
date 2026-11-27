@@ -1,7 +1,7 @@
 use super::pattern_stamp::PatternStamp;
 use crate::function::Program;
-use materialcraft_core::Value;
-use std::collections::{BTreeSet, HashMap};
+use materialcraft_core::{PatternNode, Value};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 /// A terminal draw can reuse its properties across positions when its programs
 /// only depend on the traversal seed, depth and inputs fixed for this cook.
@@ -19,6 +19,51 @@ pub(super) fn reusable(program: &Program, assigned: &BTreeSet<&str>) -> bool {
         }
         op.call.as_ref().is_none_or(|call| reusable(&call.program, assigned))
     })
+}
+
+pub(super) fn independent_of_depth(program: &Program) -> bool {
+    program.instructions.iter().all(|op| {
+        !matches!(&op.value, Some(Value::Text(name)) if matches!(name.as_str(), "$depth" | "$depthpow2"))
+            && op.call.as_ref().is_none_or(|call| independent_of_depth(&call.program))
+    })
+}
+
+/// Identical authoring data can supply a branch offset and tint at several drawing depths.
+#[derive(Default)]
+pub(super) struct BranchGroups(HashMap<Vec<u8>, (u32, BTreeMap<String, Value>)>);
+
+impl BranchGroups {
+    pub fn storage(&mut self, node: &PatternNode) -> Option<Storage> {
+        let size = match node.parameters.get("patternsize") {
+            Some(Value::Float2(size)) => *size,
+            None => [1.0; 2],
+            _ => return None,
+        };
+        let mut parameters = node.parameters.clone();
+        // An ordinary save assigns fresh IDs to each expression. Only its result and wiring use them.
+        for value in parameters.values_mut() {
+            let Value::Function(graph) = value else { continue };
+            let ids: BTreeMap<_, _> = graph.nodes.iter().map(|n| n.id).zip(0_u32..).collect();
+            let output = graph.output.as_mut()?;
+            *output = *ids.get(output)?;
+            for (id, n) in (0_u32..).zip(&mut graph.nodes) {
+                n.id = id;
+                for input in n.inputs.iter_mut().flatten() {
+                    *input = *ids.get(input)?;
+                }
+            }
+        }
+        let key = serde_json::to_vec(&parameters).ok()?;
+        // Serialization distinguishes signed zeros. Compare resolved calls and nonfinite values as well.
+        let group = match self.0.entry(key) {
+            std::collections::hash_map::Entry::Occupied(entry) if entry.get().1 == parameters => entry.get().0,
+            entry => {
+                entry.or_insert((node.id, parameters));
+                node.id
+            }
+        };
+        Some(Storage::BranchTint { group, size })
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -40,6 +85,7 @@ pub(super) enum Storage {
     Full,
     FixedImage,
     Placement,
+    BranchTint { group: u32, size: [f32; 2] },
 }
 
 // Each node and depth has immutable properties. A sparse seed page points
@@ -136,9 +182,13 @@ impl StampCache {
                 properties.stamp.color[3] = alpha;
                 Some(properties)
             }
-            Storage::Placement => {
+            Storage::Placement | Storage::BranchTint { .. } => {
                 let (mut properties, [x, y, rotation, alpha]) = self.placements.get(key)?;
-                properties.stamp.center = [x, y];
+                if matches!(storage, Storage::BranchTint { .. }) {
+                    properties.branch_offset = [x, y];
+                } else {
+                    properties.stamp.center = [x, y];
+                }
                 properties.stamp.rotation = rotation;
                 properties.stamp.color[3] = alpha;
                 Some(properties)
@@ -147,7 +197,7 @@ impl StampCache {
     }
 
     pub fn insert(&mut self, key: Key, properties: Properties, storage: Storage, streaming: bool) {
-        if streaming {
+        if streaming || matches!(storage, Storage::BranchTint { .. }) {
             let stamp = &properties.stamp;
             let stored = match storage {
                 Storage::FixedImage if self.lookups > Self::MAX_SLOTS * 2 => {
@@ -155,8 +205,8 @@ impl StampCache {
                     let [width, height] = stamp.size;
                     self.images.insert(key, &properties, [x, y, width, height, stamp.color[3]], 64 << 20)
                 }
-                Storage::Placement => {
-                    let [x, y] = stamp.center;
+                Storage::Placement | Storage::BranchTint { .. } => {
+                    let [x, y] = if matches!(storage, Storage::BranchTint { .. }) { properties.branch_offset } else { stamp.center };
                     self.placements.insert(key, &properties, [x, y, stamp.rotation, stamp.color[3]], 96 << 20)
                 }
                 _ => false,
@@ -175,6 +225,32 @@ impl StampCache {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn branch_programs_share_renumbered_connections_and_distinguish_rewired_operands() {
+        use materialcraft_core::{FunctionGraph, PatternGraph, PatternNodeKind};
+
+        let cases = [(1, [5, 9, 4], false, 1), (2, [32, 31, 33], false, 1), (3, [32, 31, 33], true, 3)].map(|(id, ids, reverse, expected)| {
+            let mut offset = FunctionGraph::default();
+            let a = offset.add_constant(Value::Float2([0.125, 0.25]));
+            let b = offset.add_constant(Value::Float2([0.5, 0.75]));
+            offset.add("sub", &[a, b], None);
+            for (node, id) in offset.nodes.iter_mut().zip(ids) {
+                node.id = id;
+            }
+            let [a, b, result] = ids;
+            offset.nodes[2].inputs = if reverse { vec![Some(b), Some(a)] } else { vec![Some(a), Some(b)] };
+            offset.output = Some(result);
+            let mut node = PatternGraph::with_root(PatternNodeKind::Quadrant).nodes.remove(0);
+            node.id = id;
+            node.parameters.insert("branchoffset".into(), Value::Function(Box::new(offset)));
+            (node, expected)
+        });
+        let mut groups = BranchGroups::default();
+        for (node, expected) in &cases {
+            assert!(matches!(groups.storage(node), Some(Storage::BranchTint { group, .. }) if group == *expected));
+        }
+    }
 
     #[test]
     fn streamed_image_cache_distinguishes_seed_bits_and_drawing_depth() {

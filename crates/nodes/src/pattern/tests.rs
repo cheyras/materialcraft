@@ -2290,6 +2290,63 @@ fn repeated_image_space_offsets_and_rotations_reuse_the_parent_draw() {
 }
 
 #[test]
+fn sparse_branch_offsets_and_tints_reuse_properties_across_drawing_depths() {
+    let mut graph = nested_square_draws(40);
+    graph.nodes[8].parameters.insert("randominherited".into(), Value::Bool(false));
+    for parent in [9, 10] {
+        let child = graph.add(PatternNodeKind::Quadrant).unwrap();
+        graph.nodes[parent].children.fill(Some(child));
+    }
+    let mut tint = FunctionGraph::default();
+    let one = tint.add_constant(Value::Float(1.0));
+    tint.output = Some(tint.add("rand", &[one], None));
+    let offset = FunctionGraph::constant(Value::Float2([1.0 / 4096.0, -1.0 / 4096.0]));
+    for node in &mut graph.nodes[9..=11] {
+        node.parameters = BTreeMap::from([
+            ("patterntype".into(), Value::Int(3)),
+            ("branchoffset".into(), Value::Function(Box::new(offset.clone()))),
+            ("opacity".into(), Value::Function(Box::new(tint.clone()))),
+            ("frameoffset".into(), Value::Float2([0.125 - 1.0 / 256.0; 2])),
+            ("patternsize".into(), Value::Float2([1.0; 2])),
+        ]);
+    }
+    let expected = render_with_visit_limit(&graph, 8_192).unwrap().remove(0);
+    let limited = render_with_visit_limit(&graph, 384).unwrap().remove(0);
+    assert_eq!(limited.data(), expected.data());
+    assert!(limited.data().iter().any(|v| *v > 0.0));
+    assert!(limited.data().contains(&0.0));
+}
+
+#[test]
+fn cached_branch_tints_keep_their_drawing_depth_and_stamp_size() {
+    let fixed = FunctionGraph::constant(Value::Float(0.75));
+    let depth = FunctionGraph::input("$depth", materialcraft_core::ValueType::Float);
+    for (expression, luminosities) in [(fixed, [0.75, 0.75]), (depth, [0.0, 1.0])] {
+        let mut graph = PatternGraph::with_root(PatternNodeKind::Quadrant);
+        let child = graph.add(PatternNodeKind::Quadrant).unwrap();
+        graph.nodes[0].children[0] = Some(child);
+        for node in &mut graph.nodes {
+            node.parameters = BTreeMap::from([
+                ("patterntype".into(), Value::Int(2)),
+                ("randominherited".into(), Value::Bool(false)),
+                ("patternsize".into(), Value::Float2([1.0; 2])),
+                ("branchoffset".into(), Value::Function(Box::new(FunctionGraph::constant(Value::Float2([0.0; 2]))))),
+                ("opacity".into(), Value::Function(Box::new(expression.clone()))),
+            ]);
+        }
+        let mut literal = graph.clone();
+        for (node, value) in literal.nodes.iter_mut().zip(luminosities) {
+            node.parameters.insert("branchoffset".into(), Value::Float2([0.0; 2]));
+            node.parameters.insert("opacity".into(), Value::Float(value));
+        }
+        let expected = render_with_visit_limit(&literal, 64).unwrap().remove(0);
+        let actual = render_with_visit_limit(&graph, 64).unwrap().remove(0);
+        assert!(expected.data().iter().any(|v| *v > 0.0));
+        assert_eq!(actual.data(), expected.data());
+    }
+}
+
+#[test]
 fn cached_parents_that_miss_still_draw_their_terminal_children() {
     let mut graph = nested_square_draws(41);
     graph.nodes[8].parameters.insert("randominherited".into(), Value::Bool(false));

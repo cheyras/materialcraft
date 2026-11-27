@@ -59,6 +59,60 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-26 root comparisons
 
+### Shared branch expressions and all sixty Noise Dirt 5 renders
+
+The normal evaluator renders all 60 tiled Noise Dirt 5 originals and all 12 archived ordinary saves on the same release. Earlier runs finished 58 originals and 11 saves. The two remaining originals use 128 × 32, seed 433608, scale 3, disorder .046875 and non-square expansion enabled. Leave the other inputs at their defaults and set the final output to the requested storage. [Original series and parameter combinations](#sixty-whole-settings-for-three-directional-and-dirt-noise-packages) · [Ten earlier recovered settings](#ten-recovered-whole-noise-dirt-5-settings)
+
+| Storage at 128 × 32 | Original on one processor | Original on eight | Fresh ordinary save on one | Earlier ordinary save on one |
+|---|---:|---:|---:|---:|
+| U16 | 4,095/4,096 · 3 | 4,095/4,096 · 3 | 4,095/4,096 · 3 | 4,094/4,096 · 3 |
+| F32 | 4,094/4,096 · 5.08353114e-05 | 4,095/4,096 · 5.07831573e-05 | 4,095/4,096 · 5.0842762e-05 | 4,096/4,096 · 0 |
+
+Each entry gives exact pixels / pixels compared and maximum absolute error. The separate archived F32 save matches 4,093/4,096 · 5.0842762e-05. The earlier and corrected builds write byte-identical ordinary SBS files. The corrected original and both saved buffers reproduce the same local words in each measured format.
+
+The original one- and eight-processor U16 captures agree with one another on 4,094 pixels and MaterialCraft matches all 4,094. Across the 4 U16 reads, 4,093 of 4,093 invariant pixels match, and 0 local words fall outside all captured values. The 5 F32 reads give 4,093/4,093 invariant pixels and 0 outside every capture. The maximum distance to the nearest captured F32 value is 0.
+
+For the complete series, compare stored words in the original one- and eight-processor captures and the archived one-processor saves. Each cell gives exact images / images rendered followed by exact pixels / pixels compared and the maximum error in that storage format.
+
+| Storage | Original · one processor | Original · eight processors | Archived ordinary saves · one processor |
+|---|---:|---:|---:|
+| U8 | 9/9 · 99,840/99,840 · 0 | 9/9 · 99,840/99,840 · 0 | 4/4 · 26,624/26,624 · 0 |
+| U16 | 7/20 · 338,863/338,944 · 4 | 6/20 · 338,870/338,944 · 4 | 2/4 · 51,709/51,712 · 4 |
+| F16 | 6/10 · 101,876/101,888 · 0.000244140625 | 7/10 · 101,879/101,888 · 0.000122070312 | — |
+| F32 | 9/21 · 244,938/244,992 · 5.08576632e-05 | 8/21 · 244,936/244,992 · 5.08725643e-05 | 2/4 · 71,148/71,168 · 5.0842762e-05 |
+
+Measured across all formats, 31/60 originals match in full on one processor, 30/60 on eight, and 8/12 archived saves on one. Each of the 12 local archived saves matches its original raw buffer. The inventory remains open for the pixel differences above.
+
+Three settings had pixels that differed from both original reference captures. Repeat each on one and eight processors, reverse their cook order, and reopen an ordinary save. At 64 × 32, seed 281734, scale 1, zero disorder and expansion on, three of seven F32 captures match all 2,048 pixels. The other four give 2,047/2,048 · 5.08278608e-05. All 2,047 pixels that stay constant across the seven reads match MaterialCraft.
+
+At the two square settings below, all seven reference cooks agree at the listed coordinate. Add a second output to the FX-Map feeding Levels and keep the original output connected. Both processor counts and the ordinary save reproduce the listed values on this two-output graph. At both coordinates the first difference is one U16 level at the FX-Map output.
+
+| Size · seed · final storage | Pixel | FX-Map U16, local / reference | Final output, local / reference | Final exact pixels · maximum error on one processor |
+|---|---:|---:|---:|---:|
+| 32 × 32 · 113 · F32 | (2,11) | 36,770 / 36,769 | .2100976706 / .2100468427 | 1,023/1,024 · 5.08278608e-05 |
+| 64 × 64 · 42 · U16 | (0,41) | 36,197 / 36,198 | 11,860 / 11,863 | 4,094/4,096 · 3 |
+
+Use scale 2 and disorder .37 for both square settings. For the FX-Map output alone the single-processor counts are 1,023/1,024 and 4,094/4,096, maximum one U16 level in each. The saved two-output graph reproduces both local buffers exactly.
+
+Set the FX-Map itself to F32 to read the sum before U16 conversion. At 32 × 32 the raw sums match 956/1,024 pixels on one processor and 954/1,024 on eight. At 64 × 64 they match 3,833/4,096 and 3,814/4,096. All four maxima are 1.19209290e-07. Record the initial background and every nonzero additive contribution at each differing pixel. Replaying the original sequence reproduces the entire local buffer at both sizes. Enumerating the orders of those same contributions reaches every differing reference word, including all 68 and 70 differences at 32 × 32 and all 263 and 282 at 64 × 64. The two tabulated coordinates receive six and three contributions. These per-pixel results leave the shared submission order unresolved.
+
+Three drawing quadrants use the same branch offset and tint at successive depths. For grayscale analytic shapes whose only computed drawing properties are a branch offset and an optional tint, the evaluator can reuse their values by seed when both expressions are independent of position, depth, iteration and writable variables. The stamp uses the current depth and extent on every visit. An invisible parent of terminal draws can consume one previous skipped evaluation and one unit from the bounded cache allowance. Its children still run in their original order.
+
+The 128 × 32 U16 control visits 12,583,070 nodes. In an instrumented run with room to finish, using separate node and depth keys required 9,038,245 full property evaluations. Starting reuse before the first filled batch and sharing equivalent branch expressions gave 8,122,984 hits and 4,460,086 full evaluations. Both complete buffers have the same raw hash. The latter fits within the existing 5,242,880 full-evaluation limit. A version that kept separate keys for each node and depth still reached that limit.
+
+A normal save gives the three expressions fresh function-node IDs. In a control made from that save, point the three quadrants to the same parameter data record. Keep every expression and connection. The intermediate renderer that keyed on the original IDs now produces the original U16 hash and matches 4,095/4,096 · 3 on one processor. The corrected renderer compares function wiring with relative node IDs for its cache key. Its regression also distinguishes a subtraction whose operands are exchanged.
+
+At 16 × 32 use seed 739013 and the published defaults. At 32 × 16 use seed 739049 and the changed values below. Cook in U8, U16, F16 and F32. All 32 original and 32 saved local buffers match the preceding release. Each cell gives raw exact pixels / total, followed by maximum errors in U8, U16, F16 and F32 order.
+
+| Related graph · changed values | Original · one processor | Original · eight processors | Ordinary save · one processor |
+|---|---:|---:|---:|
+| Dirt 3 · Disorder 0.4 | 4,096/4,096 · 0 / 0 / 0 / 0 | 4,096/4,096 · 0 / 0 / 0 / 0 | 4,096/4,096 · 0 / 0 / 0 / 0 |
+| Dirt 5 · defaults | 4,096/4,096 · 0 / 0 / 0 / 0 | 4,095/4,096 · 0 / 3 / 0 / 0 | 4,096/4,096 · 0 / 0 / 0 / 0 |
+| Dirt Gradient · defaults | 4,096/4,096 · 0 / 0 / 0 / 0 | 4,095/4,096 · 0 / 0 / 0 / 1.85370445e-05 | 4,096/4,096 · 0 / 0 / 0 / 0 |
+| Vertical Noise · Disorder 0.3 | 4,088/4,096 · 0 / 1 / 0 / 1.65998936e-05 | 4,085/4,096 · 0 / 1 / 0 / 1.65998936e-05 | 4,088/4,096 · 0 / 1 / 0 / 1.65998936e-05 |
+
+Four alternating cold release cooks of Noise Dirt 5 at 32 × 16, seed 42, scale 2, disorder 0.21875 and expansion on produced identical U16 buffers. With one local rendering thread, median cook time was 46.19 seconds before and 30.39 after the change. Median peak working set was 185.0 and 257.0 MiB. Other comparisons were active.
+
 ### Tiled outputs of ten noise roots and the full Wood Fibers 2 series
 
 Release `0f01b25` renders the previously blocked 256 × 256 default in Wood Fibers 2. Open the ordinary tiled package, leave all parameters at their defaults and use 256 × 256, seed 0. Read the final U16 grayscale output. The archived setting matches 65,381/65,536 · 2. Across all 18 settings, the recorded comparisons now cover 121,030/126,208 exact pixels. [Previous sizes, formats and changed parameters](#discarding-pattern-stamps-that-miss-every-output-sample)
