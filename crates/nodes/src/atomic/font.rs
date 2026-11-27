@@ -7,7 +7,7 @@ use read_fonts::TableProvider;
 use vello_cpu::{
     Pixmap, RenderContext, Resources,
     color::palette::css::WHITE,
-    kurbo::{Affine, BezPath, Rect, Shape},
+    kurbo::{Affine, BezPath, ParamCurve, PathEl, Point, QuadBez, Rect, Shape},
 };
 
 use crate::{CookContext, CookResult, raster::composite_text};
@@ -19,6 +19,49 @@ const MAX_ELEMENTS: usize = 1_000_000;
 struct Glyph {
     path: BezPath,
     bounds: Rect,
+}
+
+impl Glyph {
+    fn new(path: BezPath, pixels_per_unit: f64, remaining: &mut usize) -> Result<Self, String> {
+        let budget_error = "font exceeds the outline storage budget";
+        *remaining = remaining.checked_sub(path.elements().len()).ok_or(budget_error)?;
+        let bounds = path.bounding_box();
+        if !path.elements().iter().any(|element| matches!(element, PathEl::QuadTo(..))) {
+            return Ok(Self { path, bounds });
+        }
+
+        let mut raster = BezPath::new();
+        let mut current = Point::ORIGIN;
+        let mut start = Point::ORIGIN;
+        for &element in path.elements() {
+            match element {
+                PathEl::MoveTo(point) => {
+                    start = point;
+                    current = point;
+                }
+                PathEl::LineTo(point) | PathEl::CurveTo(_, _, point) => current = point,
+                PathEl::ClosePath => current = start,
+                PathEl::QuadTo(control, end) => {
+                    // Each bisection quarters the distance between the curve midpoint and the chord.
+                    let mut deviation = control.distance(current.midpoint(end)) * 0.5 * pixels_per_unit;
+                    let mut segments = 1;
+                    while deviation > 0.35 {
+                        *remaining = remaining.checked_sub(segments).ok_or(budget_error)?;
+                        segments *= 2;
+                        deviation *= 0.25;
+                    }
+                    let curve = QuadBez { p0: current, p1: control, p2: end };
+                    for step in 1..=segments {
+                        raster.line_to(curve.eval(step as f64 / segments as f64));
+                    }
+                    current = end;
+                    continue;
+                }
+            }
+            raster.push(element);
+        }
+        Ok(Self { path: raster, bounds })
+    }
 }
 
 fn shape_line(line: &str, shaper: &Shaper<'_>, plans: &ShapePlanCache) -> Result<Vec<RunGlyph>, String> {
@@ -145,6 +188,8 @@ pub fn text_with_font(context: &CookContext<'_>, bytes: &[u8]) -> CookResult {
     if !frame.as_coeffs().into_iter().all(f64::is_finite) {
         return Err("non-finite text transform".into());
     }
+    let [xx, yx, xy, yy, _, _] = frame.as_coeffs();
+    let pixels_per_unit = xx.hypot(xy).min(yx.hypot(yy));
     let text = context.text("text").chars().take(super::text::MAX_CHARS).collect::<String>().replace("\\n", "\n");
     let mut cache = BTreeMap::new();
     let mut outline_budget = MAX_ELEMENTS;
@@ -160,8 +205,7 @@ pub fn text_with_font(context: &CookContext<'_>, bytes: &[u8]) -> CookResult {
         for glyph in glyphs {
             if let std::collections::btree_map::Entry::Vacant(entry) = cache.entry(glyph.glyph_id) {
                 let path = face.outline(glyph.glyph_id).map_err(|e| e.to_string())?;
-                outline_budget = outline_budget.checked_sub(path.elements().len()).ok_or("font exceeds the outline storage budget")?;
-                entry.insert(Glyph { bounds: path.bounding_box(), path });
+                entry.insert(Glyph::new(path, pixels_per_unit, &mut outline_budget)?);
             }
             let ink = cache.get(&glyph.glyph_id).ok_or("missing glyph outline")?;
             let x = cursor + f64::from(glyph.x_offset);

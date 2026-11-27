@@ -59,6 +59,25 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-27 root comparisons
 
+### Quadratic glyph outlines in Points Preview
+
+In the same 30 whole-root settings, Points Preview with the same licensed font now matches **17,913/17,920 pixels** on both one and eight reference processors. The previous result was 17,869/17,920. The largest difference fell from 42 grayscale levels to one (.0039215684 on F32 readback). Point-only output matches 5,376/5,376. Labels alone match 5,371/5,376, and points plus labels including the empty input match 7,166/7,168. All seven remaining differences occur at count 12. The catalog-path comparison, where the reference resolves a different font, gives 17,548/17,920 and a maximum of .380392157. The root remains in progress. [Whole-root inputs, offsets and label sizes](#stored-and-wired-values-at-graph-instance-inputs)
+
+To isolate the contributing stage, render the original licensed four-line label sheet separately at 8², 16² and 16 × 8. Use the resulting byte field in place of Text in a private comparison graph. At root sizes 16², 32² and 32 × 16, use counts 4, 8 and 12 with labels alone, then count 12 with points and labels. MaterialCraft fed the reference sheet reproduces all 7,168/7,168 original reference pixels. Feeding its own sheet reproduces all 7,168/7,168 of its previous pixels. Reimporting the sheet as a linked bitmap in the reference also changes some final samples. The totals above compare the original Text graphs.
+
+For an independent TrueType face, give A one quadratic from (0,0) through control (512,1024) to (1024,0) and close the contour along the baseline. Use 1,024 units per em, ascent 768, descent −256, centered alignment, offset (−.0625,1/256), and grayscale on black. A second face replaces the curve by straight segments at equal parameter intervals. At 32² the reference gives exactly the four-segment raster at size .35 and the eight-segment raster at .35001. Both comparisons cover 1,024/1,024 F32 pixels, maximum zero. At size .5, use four segments at 16², eight at 32², 64², 128 × 64 and 64 × 128, and sixteen at 128². All six reference curves agree with their corresponding reference polygons.
+
+MaterialCraft now subdivides a quadratic while its midpoint is more than .35 pixels from the chord at the smaller axis scale. The existing outline storage budget also covers the new segments. Across 32 renders of the curved A, including fractional scales, shear, rotation, reflection and rectangular outputs, agreement improved from 79,823/81,152 to **81,132/81,152**, maximum .431372568 to .003921599. The 42 licensed-face sizes and strings improved from 81,267/83,328 to 82,571/83,328, maximum .631372556 to .533333357. The 96 straight-sided controls retain 261,700/262,144. [Original outline and font measurements](#text-block-bounds-for-linked-font-outlines)
+
+For each handoff below, save the configured graph normally and reopen it in both applications. Original and reopened counts agree on both reference processor settings. The reference before and after these saves matches all 5,120/5,120 pixels, maximum zero. The zero glyph uses the linked licensed monospace face, centered at size .5 with zero offset.
+
+| Text configuration | Size · seed · format | Previous exact pixels · maximum | Current exact pixels · maximum |
+|---|---|---:|---:|
+| Quadratic at .35 | 32² · 0 · U8 | 1,006/1,024 · 36 levels | 1,024/1,024 · 0 |
+| Quadratic at .35001 | 32² · 42 · U16 | 1,002/1,024 · 8,224 levels | 1,024/1,024 · 0 |
+| Quadratic at .5, matrix (.70710677,−.70710677,.70710677,.70710677) | 64 × 16 · 261017 · F16 | 988/1,024 · .431030273 | 1,024/1,024 · 0 |
+| Single zero | 64 × 32 · 903331 · F32 | 1,973/2,048 · .450980395 | 2,021/2,048 · .415686272 |
+
 ### Text block bounds for linked font outlines
 
 The shared Text renderer now clips glyph ink to the outward-rounded bounds of the transformed text block. It uses the horizontal header ascent and descent, line spacing and aligned line widths. An overhang may extend between two lines of the same block. A wrapped copy carries the same clip to its new position.

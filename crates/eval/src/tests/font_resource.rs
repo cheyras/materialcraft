@@ -1,8 +1,12 @@
 use super::*;
 use materialcraft_core::{OutputFormat, Resource, ResourceBytes};
 
-/// A two-glyph TrueType face. U+0041 is a rectangle with a variable cap height.
 fn rectangle_font(height: i16, metrics: [i16; 3]) -> Vec<u8> {
+    outline_font(metrics, &[(0, 0, true), (0, height, true), (512, height, true), (512, 0, true)])
+}
+
+/// A two-glyph TrueType face with one contour for A. A false flag denotes a quadratic control point.
+fn outline_font(metrics: [i16; 3], contour: &[(i16, i16, bool)]) -> Vec<u8> {
     fn words(values: &[i16]) -> Vec<u8> {
         values.iter().flat_map(|value| value.to_be_bytes()).collect()
     }
@@ -18,19 +22,30 @@ fn rectangle_font(height: i16, metrics: [i16; 3]) -> Vec<u8> {
     head[..4].copy_from_slice(&0x10000u32.to_be_bytes());
     head[12..16].copy_from_slice(&0x5f0f3cf5u32.to_be_bytes());
     head[18..20].copy_from_slice(&1024i16.to_be_bytes());
-    head[40..44].copy_from_slice(&words(&[512, height]));
+    let width = contour.iter().map(|p| p.0).max().unwrap();
+    let height = contour.iter().map(|p| p.1).max().unwrap();
+    head[40..44].copy_from_slice(&words(&[width, height]));
     let mut hhea = vec![0; 36];
     hhea[..4].copy_from_slice(&0x10000u32.to_be_bytes());
     hhea[4..12].copy_from_slice(&words(&[metrics[0], metrics[1], metrics[2], 640]));
     hhea[34..].copy_from_slice(&2i16.to_be_bytes());
     let mut maxp = vec![0; 32];
     maxp[..4].copy_from_slice(&0x10000u32.to_be_bytes());
-    maxp[4..10].copy_from_slice(&words(&[2, 4, 1]));
+    let count = i16::try_from(contour.len()).unwrap();
+    maxp[4..10].copy_from_slice(&words(&[2, count, 1]));
     let mut cmap = words(&[0, 1, 3, 1, 0, 12]);
     cmap.extend(words(&[4, 32, 0, 4, 4, 1, 0, 65, -1, 0, 65, -1, -64, 1, 0, 0]));
-    let mut glyf = words(&[1, 0, 0, 512, height, 3, 0]);
-    glyf.extend([1; 4]);
-    glyf.extend(words(&[0, 0, 512, 0, 0, height, 0, -height]));
+    let mut glyf = words(&[1, 0, 0, width, height, count - 1, 0]);
+    glyf.extend(contour.iter().map(|p| u8::from(p.2)));
+    for axis in 0..2 {
+        let mut previous = 0;
+        for &(x, y, _) in contour {
+            let coordinate = [x, y][axis];
+            glyf.extend((coordinate - previous).to_be_bytes());
+            previous = coordinate;
+        }
+    }
+    glyf.resize(glyf.len().next_multiple_of(2), 0);
     let loca = words(&[0, 0, (glyf.len() / 2) as i16]);
     let tables = [(b"cmap", cmap), (b"glyf", glyf), (b"head", head), (b"hhea", hhea), (b"hmtx", words(&[640, 0, 640, 0])), (b"loca", loca), (b"maxp", maxp)];
     let mut font = words(&[1, 0, 7, 64, 2, 48]);
@@ -135,6 +150,31 @@ fn package_font_clips_overhang_at_the_outside_of_the_text_block() {
         for x in 0..64 {
             let ink = (28..36).contains(&x) && (4..32).contains(&y);
             assert_eq!(image.get_gray(x, y, false), f32::from(ink), "({x}, {y})");
+        }
+    }
+}
+
+#[test]
+fn package_font_quadratic_detail_tracks_the_text_scale() {
+    let metrics = [768, -256, 0];
+    let (mut package, id) = text_sample([5, 5], metrics, &[("text", Value::Text("A".into())), ("position", Value::Float2([-0.0625, 1.0 / 256.0]))]);
+    let curve = [(0, 0, true), (512, 1024, false), (1024, 0, true)];
+    let options = Options::new(&no_res);
+    let cache = Mutex::new(Cache::default());
+    for (size, segments) in [(0.35, 4), (0.35001, 8)] {
+        package.graphs[0].node_mut(id).unwrap().params.insert("fontsize".into(), Value::Float(size));
+        let chords: Vec<_> = (0..=segments).map(|i| ((1024 * i / segments) as i16, (2048 * i * (segments - i) / (segments * segments)) as i16, true)).collect();
+        let mut render = |contour: &[(i16, i16, bool)]| {
+            package.resources[0].bytes = ResourceBytes::new(outline_font(metrics, contour));
+            let result = cook(&package, 0, &options, &cache);
+            assert_eq!(result.nodes[&id].error, None);
+            result.image(id, 0).unwrap().clone()
+        };
+        let expected = render(&chords);
+        assert!(expected.data().contains(&1.0));
+        let ink = render(&curve);
+        for (pixel, (a, b)) in ink.data().iter().zip(expected.data()).enumerate() {
+            assert_eq!(a, b, "pixel {pixel} at size {size}");
         }
     }
 }
