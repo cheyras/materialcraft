@@ -380,7 +380,7 @@ pub(crate) fn cook_node(
         {
             *image = filtered;
         }
-        if base.format == OutputFormat::F16 && matches!(node.def.as_str(), "blend" | "fx_map" | "levels") {
+        if base.format == OutputFormat::F16 && matches!(node.def.as_str(), "blend" | "fx_map" | "levels" | "sharpen") {
             // When exactly one size is parameter-controlled, normalized inputs to these operations are stored at half precision first.
             // Images stamped by a pattern keep their sampling precision.
             for ((image, format), port) in inputs.iter_mut().zip(&input_formats).zip(input_ports) {

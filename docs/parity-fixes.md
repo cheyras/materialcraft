@@ -59,6 +59,34 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-27 root comparisons
 
+### Half-precision inputs to Sharpen
+
+Sharpen reads equal-sized normalized integer inputs at half precision when it writes F16 and exactly one of the two sizes depends on a graph parameter. The shared evaluator now applies that conversion before the four-neighbor filter. The 55 grayscale and RGBA probes improved from **23,181/30,976** to **30,976/30,976** pixels on both reference processor counts. The maximum component error fell from .001953125 to zero.
+
+For a minimal case, fill a 16² U8 input with 58. Store 5 at (7,8), 78 at (9,8), 31 at (8,7) and 42 at (8,9). Use intensity 1 and an F16 destination. Have the source, the filter, both or neither read an exposed .375 and return (0,0) as the relative size offset. At (9,8) the two single-reader cases give .61865234375. The other two give .619140625. The four images now match all 1,024 pixels. For the larger series use the same procedural fields, sizes and seeds as the Levels comparison, intensity 1 for gray and .4375 for color. Include U8, U16, F16 and F32 sources, and check the F32 output control. Six configured ordinary saves reproduce all 3,584 pixels. The 130 repeated Levels controls retain 56,320/56,320. [Procedural inputs and size functions](#half-precision-inputs-to-levels)
+
+In Dirt 4 and Dirt 4 v2, edit the final Sharpen size property so it has the same extent as its FX-Map input. Set it first to half the parent on both axes, then to the input size with zero offset. Use a 16² parent, seed 0 and defaults. Repeat at 32 × 16, seed 93, scale 1, disorder .3125 and non-square expansion disabled. Store U8, U16, F16 and F32 on each route. Both processor counts agree at the FX-Map, Sharpen and output. The first root feeds U16 into the filter and the second feeds U8.
+
+| Root and size mode | F16 before · maximum | F16 after · maximum | All four formats after |
+|---|---:|---:|---:|
+| Dirt 4, half the parent | 79/192 · .001953125 | 192/192 · 0 | 768/768 · 0 |
+| Dirt 4, relative to input | 192/192 · 0 | 192/192 · 0 | 768/768 · 0 |
+| Dirt 4 v2, half the parent | 68/192 · .001953125 | 192/192 · 0 | 768/768 · 0 |
+| Dirt 4 v2, relative to input | 192/192 · 0 | 192/192 · 0 | 768/768 · 0 |
+
+Across these 32 whole-graph settings, exact pixels rose from 2,835/3,072 to **3,072/3,072**. Opening eight configured F16 files without further edits gives another 768/768, maximum zero.
+
+With the original Sharpen size property, Dirt 4 enlarges the FX-Map. Use scale 1, disorder 0 and non-square expansion enabled at 64 × 32, seed 299618. For the 32 × 64 settings use seed 299697, scale 2, disorder 0.8125 and non-square expansion enabled. Each cell gives exact output pixels and maximum absolute error.
+
+| Original size · storage | Earlier capture, either processor count | Fresh one-processor capture | Fresh eight-processor capture | Ordinary save, either processor count |
+|---|---:|---:|---:|---:|
+| 64 × 32 · F16 | 2,045/2,048 · 0.0001220703125 | 2,045/2,048 · 0.0001220703125 | 2,048/2,048 · 0 | 2,044/2,048 · 0.00048828125 |
+| 64 × 32 · F32 | 2,035/2,048 · 5.340576172e-05 | 2,007/2,048 · 6.103515625e-05 | 2,048/2,048 · 0 | 2,048/2,048 · 0 |
+| 32 × 64 · F16 | 2,040/2,048 · 0.001953125 | 2,040/2,048 · 0.001953125 | 2,040/2,048 · 0.001953125 | 2,048/2,048 · 0 |
+| 32 × 64 · F32 | 2,026/2,048 · 4.583597183e-05 | 2,026/2,048 · 4.583597183e-05 | 2,048/2,048 · 0 | 2,037/2,048 · 6.103515625e-05 |
+
+The two fresh reference reads of the U16 FX-Map differ by one level at three of 512 input texels on the wide case and one of 512 on the tall case. MaterialCraft matches all 512 on the eight-processor read of each. In the tall F16 case the eight-processor Sharpen result matches MaterialCraft on all 2,048 pixels while the separately read reference output differs at eight. In Dirt 4 v2, both original-size 16 × 32 controls at seed 0 agree in F16 and F32 across both reference counts and their ordinary saves, 1,024/1,024 on each file route. Larger pattern executions and reference variation remain open. [Dense Dirt comparisons and work limits](#dense-seeded-quadrants-in-moisture-noise-and-dirt-4)
+
 ### Half-precision inputs to Levels
 
 Levels now converts a normalized integer image to half precision before applying the curve when the input and output have equal pixel dimensions and only one size is parameter-controlled. The curve runs in F32 and the output uses its declared storage precision. The untiled 16 × 32 Directional Noise 3 v2 graph at seed 731257 now matches **512/512 F16 pixels**, up from 99/512. The ordinary F16 save also improves from 99/512 to 512/512. Maximum error falls from .0009765625 to zero on one and eight reference processors. All four storage formats match **2,048/2,048** on the original and another **2,048/2,048** after opening the four normally saved files. [Graph parameters and intermediate sizes](#a-recovered-rectangle-and-repeated-outputs-in-directional-noise-3-v2)

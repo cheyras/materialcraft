@@ -1089,10 +1089,10 @@ fn unchanged_size_after_read(getter: &str, variable: &str) -> materialcraft_core
 }
 
 #[test]
-fn half_levels_convert_the_input_before_the_curve_when_only_one_size_depends_on_a_parameter() {
+fn half_levels_and_sharpen_convert_integer_inputs_when_one_size_is_parameter_controlled() {
     use materialcraft_core::{BaseParameter, OutputFormat, SizeMode};
 
-    let mut graph = Graph::new("Levels sizing");
+    let mut graph = Graph::new("Filter sizing");
     graph.size = [4, 4];
     graph.format = OutputFormat::U8;
     let input = graph.add_node("input_grayscale", [0.0; 2]);
@@ -1106,17 +1106,35 @@ fn half_levels_convert_the_input_before_the_curve_when_only_one_size_depends_on_
     curve.params.insert("in_low".into(), Value::Float4([0.21875; 4]));
     curve.params.insert("in_high".into(), Value::Float4([0.46875; 4]));
     graph.connect(input, "output", levels, "input").unwrap();
+    let sharpen = graph.add_node("sharpen", [64.0, 64.0]);
+    let detail = graph.node_mut(sharpen).unwrap();
+    detail.base.size_mode = SizeMode::RelativeToParent;
+    detail.base.format = OutputFormat::F16;
+    graph.connect(input, "output", sharpen, "input").unwrap();
     let mut package = Package::new("Input precision");
     package.graphs.push(graph);
     let mut options = Options::new(&no_res);
-    options.inputs.insert("source".into(), Image::filled(16, 16, Kind::Gray, [58.0 / 255.0; 4]));
+    let field = Image::generate(16, 16, Kind::Gray, |x, y| {
+        let byte: u8 = match (x, y) {
+            (7, 8) => 5,
+            (9, 8) => 78,
+            (8, 7) => 31,
+            (8, 9) => 42,
+            _ => 58,
+        };
+        [f32::from(byte) / 255.0; 4]
+    });
+    options.inputs.insert("source".into(), field);
     options.overrides.insert("gain".into(), Value::Float(0.375));
     let cache = Mutex::new(Cache::default());
     let runtime = unchanged_size_after_read("get_float1", "gain");
-    for (source_dynamic, output_dynamic, expected) in
-        [(false, false, 0x3d0e8000), (true, false, 0x3d0e0000), (false, true, 0x3d0e0000), (true, true, 0x3d0e8000)]
-    {
-        for (id, dynamic) in [(input, source_dynamic), (levels, output_dynamic)] {
+    for (source_dynamic, output_dynamic, expected_levels, expected_sharpen) in [
+        (false, false, 0x3d0e8000, 0x3f1e8000),
+        (true, false, 0x3d0e0000, 0x3f1e6000),
+        (false, true, 0x3d0e0000, 0x3f1e6000),
+        (true, true, 0x3d0e8000, 0x3f1e8000),
+    ] {
+        for (id, dynamic) in [(input, source_dynamic), (levels, output_dynamic), (sharpen, output_dynamic)] {
             let functions = &mut package.graphs[0].node_mut(id).unwrap().base.functions;
             if dynamic {
                 functions.insert(BaseParameter::OutputSize, runtime.clone());
@@ -1126,7 +1144,9 @@ fn half_levels_convert_the_input_before_the_curve_when_only_one_size_depends_on_
         }
         let cooked = cook(&package, 0, &options, &cache);
         assert_eq!(cooked.nodes[&levels].error, None);
-        assert_eq!(cooked.image(levels, 0).unwrap().get_gray(0, 0, false).to_bits(), expected);
+        assert_eq!(cooked.image(levels, 0).unwrap().get_gray(0, 0, false).to_bits(), expected_levels);
+        assert_eq!(cooked.nodes[&sharpen].error, None);
+        assert_eq!(cooked.image(sharpen, 0).unwrap().get_gray(9, 8, false).to_bits(), expected_sharpen);
     }
 }
 
