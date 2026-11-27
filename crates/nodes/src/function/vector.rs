@@ -8,32 +8,26 @@ pub(super) enum PatternComponent {
 }
 
 /// Evaluate packed pattern components in the order their consumers read them.
-pub(super) fn identify_pattern_components(program: &mut super::Program) {
+pub(super) fn identify_pattern_components(program: &mut super::Program, end: usize) {
     let instructions = &program.instructions;
-    let assigned: std::collections::BTreeSet<_> = instructions
+    let prefix = &instructions[..end];
+    let assigned: std::collections::BTreeSet<_> = prefix
         .iter()
         .filter_map(|op| match (op.definition.id, op.inputs.as_slice()) {
             ("set", &[source]) if super::returned_product::float_width(op.type_code) > 1 => Some(source),
             _ => None,
         })
         .collect();
-    if (assigned.is_empty() && !instructions.iter().any(|op| op.definition.id == "swizzle1" || op.call.is_some()))
-        || !instructions.iter().any(|op| matches!(op.definition.id, "rand" | "set") || op.call.is_some())
+    if (assigned.is_empty() && !prefix.iter().any(|op| op.definition.id == "swizzle1" || op.call.is_some()))
+        || !prefix.iter().any(|op| matches!(op.definition.id, "rand" | "set") || op.call.is_some())
     {
         return;
     }
-    // A call can read state written elsewhere in this graph, without an argument wire.
-    // Keep the original evaluation order when those dependencies are unknown.
-    if instructions.iter().any(|op| op.definition.id == "set")
-        && instructions.iter().any(|op| op.call.as_ref().is_some_and(|call| call.pattern_arguments.is_none() && !call.depends_only_on_arguments()))
-    {
-        return;
-    }
-    let mut sources = Vec::with_capacity(instructions.len());
+    let mut sources = Vec::with_capacity(prefix.len());
     let mut projections = Vec::new();
     let mut generated = Vec::new();
-    let mut ranges = Vec::with_capacity(instructions.len());
-    for (index, op) in instructions.iter().enumerate() {
+    let mut ranges = Vec::with_capacity(prefix.len());
+    for (index, op) in prefix.iter().enumerate() {
         let start = instructions.len() + generated.len();
         let mut lanes = [None; 4];
         if let Some(forwarded) = super::returned_product::forwarded(op, instructions, &sources, Some(PatternComponent::Zero)) {

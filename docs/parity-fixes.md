@@ -57,6 +57,35 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 - **2026-11-13 - Unconnected output images:** Unconnected output bridges now produce transparent RGBA instead of grayscale. The importer separately retains each output's declared image type so saving an unconnected output preserves the graph interface. Both material templates match all 1,179,648 RGBA8 pixels across six recorded cases. All 2,560 direct grayscale/color declaration probe pixels also match, and both declared image types survive save/reload.
 
+## 2026-11-27 root comparisons
+
+### Splatter Circular Color and assignments before a later function call
+
+Splatter Circular Color in `splatter_circular.sbs` matches all **190,720/190,720** pixels in **62 distinct whole settings**, up from 185,121 pixels and 31 complete settings at `4080c38`. Both reference processor counts and the one-processor reopen of the ordinary MaterialCraft SBS save gave the counts below. The 19 established reference captures reproduced their archives in 142,592/142,592 pixels. The grayscale root retained 190,720/190,720 across its own 62 settings on all three routes.
+
+| Storage | Settings | Earlier exact pixels | Earlier maximum | Current exact pixels on each route | Current maximum |
+|---|---:|---:|---:|---:|---:|
+| U8 | 5 | 8,587/9,216 | 247 | 9,216/9,216 | 0 |
+| U16 | 10 | 123,129/124,416 | 65,535 | 124,416/124,416 | 0 |
+| F16 | 6 | 10,635/11,264 | 0.96862793 | 11,264/11,264 | 0 |
+| F32 | 41 | 42,770/45,824 | 1 | 45,824/45,824 | 0 |
+
+Use the [19 established settings](#tile-weave-splatter-and-fiber-stage-comparisons) and the [35 color settings](#grayscale-splatter-circular-across-four-output-formats) with their original RGBA inputs. For the eight additional renders, apply the exposed defaults at 64 × 16 and seed 724903 with the original 16² input pair. At 32 × 64 and seed 724934, use the 32² inputs of the first changed color setting with two patterns, radius .25, size (.25,.25), pattern 2, filtering 2, zero rotation and zero radius, size and mask randomness. Keep center orientation off. Render each rectangle in U8, U16, F16 and F32.
+
+In the quadrant opacity expression, the first input of a Sequence assigns the rotation, position and size. Its second input computes the tint and calls a function that can use the random stream. The evaluator had let that call change how it planned the earlier assignments. It now follows the boundary between the two inputs when the assignments finish in the first and the second exports no writes.
+
+Use one full-coverage additive square at 16² F32 and seeds 0, 113 and 137. Make the last operation in the opacity expression a Sequence. Let E be a call to a zero-argument function returning Random(1). The second input adds E/8 to the value described below. Repeat with a direct Random(1) in place of that call. A, B, C and D denote separate Random(1) nodes. Render both values of an exposed switch.
+
+| First input and value read by the second | Settings including direct controls | Earlier exact pixels | Earlier maximum F32 error | Current exact pixels on each route | Current maximum |
+|---|---:|---:|---:|---:|---:|
+| Assign the interpolation of (A,B) and (C,D) by .375, then select X or Y | 12 | 1,536/3,072 | 0.188753158 | 3,072/3,072 | 0 |
+| Assign A when true and B when false, then read the assignment plus A/4 | 12 | 2,304/3,072 | 0.435002506 | 3,072/3,072 | 0 |
+| Assign Y of (A,B), then return the assigned scalar | 12 | 1,536/3,072 | 0.579116881 | 3,072/3,072 | 0 |
+
+At seed 113 the interpolated-vector outputs with the additional E/8 were `3f1b5b11` and `3f297df4`. The conditional outputs were `3f846c61` and `3ee92f7e`. These words matched with either form of E, on one processor, on eight and after an ordinary save. The Rust regression exercises both sequences and failed on the previous evaluator.
+
+The 221 grayscale Tile Generator settings and the 175 archived controls on 35 other qualified roots retained **1,350,656/1,350,656** pixels, maximum zero. The 141 stored-vector and 90 pure-call controls retained their original words, as did 56 independent Pixel Processor graphs. The two modern circular roots in `pattern_splatter_circular.sbs` still have 13/54 exact settings each. [Vector controls](#storing-computed-vectors-in-a-quadrant-function) · [Modern circular cases](#circular-splatter-geometry-and-the-order-of-random-draws)
+
 ## 2026-11-26 root comparisons
 
 ### Grayscale Splatter Circular across four output formats
@@ -74,7 +103,7 @@ For the additional rectangles, keep the 16² source and background of the establ
 
 For the separate 35-setting series, start at 32² F32 and seed 113 with the two 32² procedural F32 fields from the established changed setting. Use Number 5, Radius .375, Radius_Random .21875, Pattern 1, PatternSize (.1875,.3125), PatternSize_Random .15625, Rotation 22.5, image input filtering 1, center orientation on and RandomMask .1875. Compare the exposed defaults, the changed values, all three random amounts zero and each random amount alone. With the pins open, use Pattern 2, rotation zero and center orientation off. Repeat with 1, 2, 5 and 7 patterns, all three random amounts zero and each alone. With both pins supplied, use Pattern 1 and repeat the zero-randomness and changed settings at 1, 2 and 5 patterns. Also disconnect each pin separately and both together, try U8, U16 and F16, and render 16 × 64 at seed 0 and 64 × 16 at seed 137. The repeated five-pattern setting counts once.
 
-Splatter Circular Color remains open. The same 35-setting series used its rotation .21875 and its original color input fields. All three routes gave 17/35 exact settings and 32,615/35,840 exact pixels. Maximum errors were 165 U8 levels, 42,524 U16 levels, .648803711 in F16 and 1 in F32. With one analytic stamp and only radius randomness enabled, 1,004/1,024 pixels matched, maximum 1.
+At `4080c38`, Splatter Circular Color was still open. The same 35-setting series used its rotation .21875 and its original color input fields. All three routes gave 17/35 exact settings and 32,615/35,840 exact pixels. Maximum errors were 165 U8 levels, 42,524 U16 levels, .648803711 in F16 and 1 in F32. With one analytic stamp and only radius randomness enabled, 1,004/1,024 pixels matched, maximum 1.
 
 ### Whole caustic, scratch, splatter, tile and vertical noise comparisons
 

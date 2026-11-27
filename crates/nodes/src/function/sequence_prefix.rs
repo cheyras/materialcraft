@@ -1,5 +1,27 @@
 use super::instruction::Instruction;
 
+/// The part of a pattern expression whose branches and packed channels can be planned
+/// without moving a draw or assignment across an opaque call.
+pub(super) fn pattern_planning_end(program: &super::Program) -> usize {
+    let instructions = &program.instructions;
+    if !instructions.iter().any(|op| op.definition.id == "set") {
+        return instructions.len();
+    }
+    let Some(first_call) = instructions.iter().position(|op| op.call.as_ref().is_some_and(|call| !call.depends_only_on_arguments())) else {
+        return instructions.len();
+    };
+    let Some(root) = instructions.get(program.output) else { return 0 };
+    let ("sequence", &[first, _]) = (root.definition.id, root.inputs.as_slice()) else { return 0 };
+    // The compiler visits a Sequence's first input and its dependencies before its
+    // second input. A call in the result cannot observe an intermediate prefix value.
+    let end = first.saturating_add(1);
+    if end <= first_call && instructions[end..].iter().all(|op| op.definition.id != "set" && op.call.as_ref().is_none_or(|call| !call.exports)) {
+        end
+    } else {
+        0
+    }
+}
+
 /// How to evaluate a Sequence's first input when its return value is discarded.
 #[derive(Clone, Copy)]
 pub(super) enum Visit {

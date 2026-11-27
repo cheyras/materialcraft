@@ -1,6 +1,7 @@
-use super::{Program, function_call::FunctionCall, vector::PatternComponent};
+use super::{Program, vector::PatternComponent};
 use materialcraft_core::Value;
 use std::collections::{BTreeMap, BTreeSet};
+use std::ops::Range;
 
 pub(super) struct BranchInputs {
     shared: Vec<usize>,
@@ -16,7 +17,7 @@ impl BranchInputs {
 }
 
 /// Schedule shared writes and draws from a skipped arm. Private expressions stay lazy.
-pub(super) fn identify(program: &mut Program) {
+pub(super) fn identify(program: &mut Program, pattern_tail: Range<usize>) {
     let instructions = &program.instructions;
     if !instructions.iter().any(|op| op.definition.id == "ifelse")
         || !instructions.iter().any(|op| matches!(op.definition.id, "rand" | "set"))
@@ -42,20 +43,25 @@ pub(super) fn identify(program: &mut Program) {
     // A called graph can observe the caller's assignments without listing them among its inputs.
     let has_calls_and_writes = !written.is_empty() && instructions.iter().any(|op| op.call.is_some());
     if !has_calls_and_writes {
-        program.processor_branches = shared_inputs(program, &independent_range, None);
+        program.processor_branches = shared_inputs(program, &independent_range, None, 0..0);
     }
-    if !has_calls_and_writes || instructions.iter().filter_map(|op| op.call.as_ref()).all(FunctionCall::depends_only_on_arguments) {
-        program.pattern_branches = shared_inputs(program, &independent_range, Some(&program.pattern_components));
+    if pattern_tail.start > 0 {
+        program.pattern_branches = shared_inputs(program, &independent_range, Some(&program.pattern_components), pattern_tail);
     }
 }
 
-fn shared_inputs(program: &Program, ranges: &[bool], components: Option<&BTreeMap<usize, PatternComponent>>) -> BTreeMap<usize, BranchInputs> {
+fn shared_inputs(
+    program: &Program,
+    ranges: &[bool],
+    components: Option<&BTreeMap<usize, PatternComponent>>,
+    excluded: Range<usize>,
+) -> BTreeMap<usize, BranchInputs> {
     let instructions = &program.instructions;
     let mut paths = vec![0_u8; instructions.len()];
     let mut stack = Vec::new();
     let mut effects = Vec::new();
     let mut plans = BTreeMap::new();
-    for (branch, op) in instructions.iter().enumerate().filter(|(_, op)| op.definition.id == "ifelse") {
+    for (branch, op) in instructions.iter().enumerate().filter(|(i, op)| op.definition.id == "ifelse" && !excluded.contains(i)) {
         let &[_, yes, no] = op.inputs.as_slice() else { continue };
         paths.fill(0);
         effects.clear();

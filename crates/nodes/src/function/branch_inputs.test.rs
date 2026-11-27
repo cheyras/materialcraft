@@ -159,3 +159,74 @@ fn an_assignment_shared_only_with_the_later_arm_keeps_the_earlier_arms_read() {
         }
     }
 }
+
+#[test]
+fn a_later_random_call_preserves_the_draws_in_a_sequence_assignment() {
+    // The second sequence input calls a separate graph that draws from the same stamp stream.
+    for (vector, expected) in [
+        (true, [[0x3e5c760a, 0x3ee8063f], [0x3f1b5b11, 0x3f297df4], [0x3f4c65e0, 0x3edef0a6]]),
+        (false, [[0x3e1fa354, 0x3e74cd9a], [0x3f846c61, 0x3ee92f7e], [0x3f377cfc, 0x3fa0bebe]]),
+    ] {
+        let mut graph = FunctionGraph::default();
+        let first = graph.add("get_bool", &[], Some(Value::Text("first".into())));
+        let unit = graph.add_constant(Value::Float(1.0));
+        let [a, b, c, d] = std::array::from_fn(|_| graph.add("rand", &[unit], None));
+        let name = Some(Value::Text("firstValue".into()));
+        let (saved, read) = if vector {
+            let left = graph.add("vector2", &[a, b], None);
+            let right = graph.add("vector2", &[c, d], None);
+            let factor = graph.add_constant(Value::Float(0.375));
+            let value = graph.add("lerp", &[left, right, factor], None);
+            let saved = graph.add("set", &[value], name.clone());
+            let read = graph.add("get_float2", &[], name.clone());
+            let x = graph.add("swizzle1", &[read], Some(Value::Int(0)));
+            let y = graph.add("swizzle1", &[read], Some(Value::Int(1)));
+            (saved, graph.add("ifelse", &[first, y, x], None))
+        } else {
+            let value = graph.add("ifelse", &[first, a, b], None);
+            let saved = graph.add("set", &[value], name.clone());
+            let read = graph.add("get_float1", &[], name);
+            let quarter = graph.add_constant(Value::Float(0.25));
+            let shared = graph.add("mul", &[a, quarter], None);
+            (saved, graph.add("add", &[read, shared], None))
+        };
+        let mut sampler = FunctionGraph::default();
+        let range = sampler.add_constant(Value::Float(1.0));
+        sampler.output = Some(sampler.add("rand", &[range], None));
+        let sampled = graph.add("instance", &[], None);
+        let node = graph.nodes.last_mut().unwrap();
+        node.instance = Some(materialcraft_core::GraphInstance {
+            graph: "next_sample".into(),
+            label: String::new(),
+            package: String::new(),
+            inputs: Vec::new(),
+            outputs: Vec::new(),
+            defaults: BTreeMap::new(),
+        });
+        node.source = Some(Ok(std::sync::Arc::new(sampler)));
+        let eighth = graph.add_constant(Value::Float(0.125));
+        let offset = graph.add("mul", &[sampled, eighth], None);
+        let result = graph.add("add", &[read, offset], None);
+        graph.output = Some(graph.add("sequence", &[saved, result], None));
+        for (seed, words) in [11_038_009, 9_766_418, 22_858_730].into_iter().zip(expected) {
+            let program = compile(&graph, seed).unwrap();
+            for (first, word) in [false, true].into_iter().zip(words) {
+                let variables = BTreeMap::from([("first".into(), Value::Bool(first))]);
+                let context = EvaluationContext {
+                    scope: FunctionScope::FxMap,
+                    position: [0.5; 2],
+                    size: [16.0; 2],
+                    images: &[],
+                    image_formats: &[],
+                    tile: true,
+                    variables: &variables,
+                };
+                assert_eq!(
+                    program.evaluate(&context, &mut EvaluationState::default()).unwrap(),
+                    Value::Float(f32::from_bits(word)),
+                    "{seed}, {first}, {vector}"
+                );
+            }
+        }
+    }
+}
