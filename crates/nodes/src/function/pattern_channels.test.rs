@@ -168,6 +168,22 @@ fn measured_pattern_argument(graph: &FunctionGraph, seed: u32) -> Value {
 }
 
 #[test]
+fn a_returned_pattern_offset_finishes_each_component_in_read_order() {
+    let mut graph = FunctionGraph::default();
+    let one = graph.add_constant(Value::Float(1.0));
+    let [x, y, scale] = std::array::from_fn(|_| graph.add("rand", &[one], None));
+    let direction = graph.add("vector2", &[x, y], None);
+    let scaled = graph.add("mulscalar", &[direction, scale], None);
+    let origin = graph.add_constant(Value::Float2([0.0, 0.0]));
+    graph.output = Some(graph.add("add", &[origin, scaled], None));
+
+    for (seed, words) in [(11_038_009, [0x3c41_a72f, 0x3cbf_ad3c]), (9_766_418, [0x3e74_d565, 0x3f3b_1f1e]), (22_858_730, [0x3ed1_98e7, 0x3e30_d4b5])] {
+        let expected = Value::Float2(words.map(f32::from_bits));
+        assert_eq!(measured_pattern_argument(&graph, seed), expected, "returned offset at seed {seed}");
+    }
+}
+
+#[test]
 fn arithmetic_in_a_called_pattern_function_reads_packed_components_on_first_use() {
     let all = [0x3e37_3b24, 0x3eed_4df9, 0x3f29_859c];
     for (order, repeat_swizzle, words) in [

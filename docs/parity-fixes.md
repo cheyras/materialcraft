@@ -59,6 +59,28 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-27 root comparisons
 
+### Returned vectors in pattern properties
+
+The two roots in `pattern_tile_random.sbs` now match all **1,154,048 pixels across 283 distinct settings** on one processor, eight processors and after reopening an ordinary MaterialCraft save. Maximum error is zero in each format. The [preceding seed correction](#driven-seeds-in-pattern-nodes) had left 20 settings with differences in each of the two main comparison sets.
+
+| Output | Grayscale settings | Grayscale exact pixels on each route | Color settings | Color exact pixels on each route |
+|---|---:|---:|---:|---:|
+| U8 | 10 | 33,792/33,792 | 11 | 37,888/37,888 |
+| U16 | 19 | 184,832/184,832 | 20 | 188,928/188,928 |
+| F16 | 10 | 30,720/30,720 | 11 | 34,816/34,816 |
+| F32 | 65 | 175,872/175,872 | 137 | 467,200/467,200 |
+| All | **104** | **425,216/425,216** | **179** | **728,832/728,832** |
+
+Start with the 79 grayscale and 154 color settings in the linked seed comparison. Repeat the connected 64² F32 position case from that section. Open its input pins, then independently disable position randomness, shape rotation and its randomness, pattern rotation randomness, both sets of rotations, and both sets of rotations together with position randomness. Also try zero X/Y size randomness, zero interstice, disabled shape rotation constraint, grids (1,1), (2,1) and (4,4), disabled non-square expansion, pattern 2, defaults with open pins and the original settings at seeds 0 and 113. Count the original once.
+
+For eight further settings per root, use all four formats on each of two original connected cases. In the 64² position case change the extent to 32 × 64, seed to 4047289, position randomness to .3125, split mode to 0 and shape rotation randomness to .21875. Disable the position randomness constraint. In the connected 5 × 3 case use 64 × 32, seed 1741031, position randomness .625, a 3 × 4 grid and pattern 2. Enable the position randomness constraint and disable the shape rotation constraint. The ordinary save from the verified build matched the 1,741,759-byte file reopened for the reference measurements.
+
+In the square isolation, assigning the computed frame offset to a new vector variable preserved the reference image. MaterialCraft's two expressions had differed at 49 pixels. The same assignment recovered all 358 differing pixels in a connected 3 × 5 rectangle. Returning a vector from a pattern property now evaluates the operands of its first component before drawing values for the next component, just as an explicit vector assignment does. Reused operands consume one draw.
+
+Independent checks use one additive square over black. Pack independent Random(.5) draws into two vectors. Return their sum as the frame offset. Repeat with a product sharing a component, scaling by one draw, or a conditional choice. Return an interpolation by .375 as the branch offset, a product as the size, and four-component sums or products as the color. Use 32², 64 × 32, 32 × 64 and 64² F32 at seeds 0, 113, 137 and 845872. All **32/32 settings and 73,728/73,728 pixels** match on each route, up from 12/32 and 54,544/73,728. Adding (.3125, .265625) to the product size gives visible footprints of 100, 280, 216 and 360 pixels. These four settings improved from 9,116/9,216 to 9,216/9,216, maximum error zero.
+
+The structural scan identified 17 already-qualified roots with potentially affected arithmetic results in a pattern property. All 103 rechecked settings match 1,063,936/1,063,936 pixels. The overlapping 36-root regression set retained 1,350,656/1,350,656 across 396 distinct settings. The older roots in `tile_random.sbs` remain open on one processor, eight processors and ordinary reopen. Grayscale went from 111,274 to 111,207 of 142,592 pixels, and color from 111,101 to 111,194 of 142,592, each over 19 settings. Their maximum U16 errors remain 59,881 and 65,535 respectively.
+
 ### Driven seeds in pattern nodes
 
 A pattern node's Random Seed expression now uses the same scalar storage arithmetic as a graph or filter seed. It still reads the incoming pattern stream and the variables available to the node. A driven float-to-integer conversion returns the F32 word of the floored value. A driven scalar sum adds the two 32-bit words. Rounding an intermediate signaling NaN sets its quiet bit and retains its sign and payload.

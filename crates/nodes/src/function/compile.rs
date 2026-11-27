@@ -330,7 +330,7 @@ fn plan_pixel_operations(program: &mut Program, pixel: Option<&super::Evaluation
     let exported = super::returned_product::identify(program, returned, root);
     let original_len = program.instructions.len();
     let pattern_end = super::sequence_prefix::pattern_planning_end(program);
-    super::vector::identify_pattern_components(program, pattern_end);
+    super::vector::identify_pattern_components(program, pattern_end, root);
     super::branch_inputs::identify(program, pattern_end..original_len);
     program.loop_sums =
         program.instructions.iter().enumerate().filter_map(|(index, op)| super::loop_sum::LoopSum::identify(program, op).map(|sum| (index, sum))).collect();

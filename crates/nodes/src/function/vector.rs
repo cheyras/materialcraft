@@ -8,17 +8,21 @@ pub(super) enum PatternComponent {
 }
 
 /// Evaluate packed pattern components in the order their consumers read them.
-pub(super) fn identify_pattern_components(program: &mut super::Program, end: usize) {
+pub(super) fn identify_pattern_components(program: &mut super::Program, end: usize, root: bool) {
     let instructions = &program.instructions;
     let prefix = &instructions[..end];
-    let assigned: std::collections::BTreeSet<_> = prefix
+    let mut packed_results: std::collections::BTreeSet<_> = prefix
         .iter()
         .filter_map(|op| match (op.definition.id, op.inputs.as_slice()) {
             ("set", &[source]) if super::returned_product::float_width(op.type_code) > 1 => Some(source),
             _ => None,
         })
         .collect();
-    if (assigned.is_empty() && !prefix.iter().any(|op| op.definition.id == "swizzle1" || op.call.is_some()))
+    // Writing the final vector to a pattern property consumes its components in the same order as a Set.
+    if root && prefix.get(program.output).is_some_and(|op| super::returned_product::float_width(op.type_code) > 1) {
+        packed_results.insert(program.output);
+    }
+    if (packed_results.is_empty() && !prefix.iter().any(|op| op.definition.id == "swizzle1" || op.call.is_some()))
         || !prefix.iter().any(|op| matches!(op.definition.id, "rand" | "set") || op.call.is_some())
     {
         return;
@@ -41,7 +45,7 @@ pub(super) fn identify_pattern_components(program: &mut super::Program, end: usi
             lanes = projected;
             // A complete conditional still owns its branch effects. For arithmetic, finish the
             // operands of the first stored component before drawing those of the next component.
-            if assigned.contains(&index)
+            if packed_results.contains(&index)
                 && op.definition.id != "ifelse"
                 && let Some(packed) = super::pattern_channel_operations::pack(op, instructions.len(), &lanes, &mut generated)
             {
