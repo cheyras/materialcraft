@@ -2228,6 +2228,33 @@ fn nested_square_draws(inner_count: i32) -> PatternGraph {
 }
 
 #[test]
+fn a_single_repeat_passes_its_written_value_and_seed_directly_to_the_child() {
+    let mut graph = nested_square_draws(1);
+    graph.nodes[7].parameters.insert("numberadded".into(), Value::Int(64));
+
+    let mut count = FunctionGraph::default();
+    let number = count.add("get_float1", &[], Some(Value::Text("$number".into())));
+    let scale = count.add_constant(Value::Float(1.0 / 128.0));
+    let weight = count.add("mul", &[number, scale], None);
+    let write = count.add("set", &[weight], Some(Value::Text("weight".into())));
+    let one = count.add_constant(Value::Int(1));
+    count.output = Some(count.add("sequence", &[write, one], None));
+    graph.nodes[8].parameters.insert("numberadded".into(), Value::Function(Box::new(count)));
+
+    let mut tint = FunctionGraph::input("weight", materialcraft_core::ValueType::Float);
+    let gain = tint.output.unwrap();
+    let span = tint.add_constant(Value::Float(0.125));
+    let draw = tint.add("rand", &[span], None);
+    tint.output = Some(tint.add("add", &[gain, draw], None));
+    graph.nodes[9].parameters.insert("opacity".into(), Value::Function(Box::new(tint)));
+
+    let expected = render_with_visit_limit(&graph, 8192).unwrap().remove(0);
+    assert_eq!(expected.data(), &[f32::from_bits(1_100_931_893); 16]);
+    assert_eq!(render_with_visit_limit(&graph, 64).unwrap()[0].data(), expected.data());
+    assert!(render_with_visit_limit(&graph, 32).unwrap_err().contains("budget"));
+}
+
+#[test]
 fn streamed_analytic_draws_keep_the_accumulated_pixels_and_bounded_work() {
     let mut graph = nested_square_draws(24);
     let expected = (0..96).fold(0.0_f32, |background, _| background + 0.01_f32);

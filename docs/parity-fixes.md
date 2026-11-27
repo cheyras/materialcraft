@@ -463,6 +463,32 @@ For each of U8, U16, F16 and F32, set the connected background bridge to that pr
 
 The seven measured roots with an input-relative pattern and a connected background retain their recorded results. Bevel Smooth's position helper retains 354,560/354,560 pixels on both original and saved paths. Paths Trace retains 73,984/73,984 original and 28,928/28,928 saved pixels, and the irradiance UV helper retains 16,384/16,384 on each route. The two newer Tile Random roots retain 180,224/180,224 and the two older roots retain 484,864/484,864 on the originals and again on ordinary saves.
 
+### One repeated branch in Dirt 4 v2
+
+At 128 × 32 with scale 2 and seed 433595, the previous evaluator stopped at its visit limit. With an empty initial branch and exactly one repetition, the Iterate node can enter its child directly after evaluating the count and its assignments. The child receives its usual iteration number, seed and local variables. The pending stack, property work and raster work retain their bounds. This change applies to the shared evaluator.
+
+Start from the procedural root, set disorder, disorder speed and anisotropy to .046875, anisotropy angle to −.203125 and tile offset to (−.296875,.365234375). Enable non-square expansion, keep the other defaults and choose each output format on the node feeding the output. Save each configuration separately and reopen without edits. All **16,384/16,384** stored MaterialCraft pixels agreed between original and saved files. Each entry compares stored pixel words with the reference and reports maximum absolute error. Integer errors are in storage levels.
+
+| Storage | Original · one processor | Original · eight | Ordinary reopen · one | Ordinary reopen · eight |
+|---|---:|---:|---:|---:|
+| U8 | 4,096/4,096 · 0 | 4,096/4,096 · 0 | 4,096/4,096 · 0 | 4,096/4,096 · 0 |
+| U16 | 4,096/4,096 · 0 | 4,096/4,096 · 0 | 4,096/4,096 · 0 | 4,096/4,096 · 0 |
+| F16 | 4,096/4,096 · 0 | 4,096/4,096 · 0 | 4,096/4,096 · 0 | 4,096/4,096 · 0 |
+| F32 | 4,096/4,096 · 0 | 4,096/4,096 · 0 | 4,096/4,096 · 0 | 4,096/4,096 · 0 |
+
+For separate procedural controls, compare an inner Iterate with and without an initial child and with reset or inherited seed. Test shared and independent random draws in a count expression that writes a float read by the drawing child. Use 16² at seed 0, 32 × 16 at seed 42 and 16 × 32 at seed 329779 in all four formats. The 48 one-repeat settings match **20,480/20,480** original and **20,480/20,480** reopened pixels at each reference processor count. The 24 settings with conditional counts match **10,240/10,240** per route. Maximum error is zero. In the 4² regression, one child under each of 64 outer repetitions reproduces all 16 full-budget values at a limit of 64. The previous traversal stopped there. The new traversal still reaches the limit at 32.
+
+At 32², the previous and current evaluators also produced the same stored pixels for all eight Dirt 5 and Dirt 5 v2 controls. Use scale 1, disorder .3125 and non-square expansion off. For Dirt 5 use seed 105545. For v2 use seed 105562, anisotropy .25, anisotropy angle .3125, disorder speed .6875 and tile offset (.125,−.1875). Keep the other defaults.
+
+| Root | U8 · one / eight processors | U16 · one / eight | F16 · one / eight | F32 · one / eight |
+|---|---:|---:|---:|---:|
+| Dirt 5 · exact pixels of 1,024 | 1,024 / 1,024 | 1,023 / 1,024 | 1,023 / 1,024 | 1,023 / 1,024 |
+| Maximum error | 0 / 0 | 3 / 0 | .0001220703125 / 0 | .0000508129597 / 0 |
+| Dirt 5 v2 · exact pixels of 1,024 | 1,024 / 1,024 | 1,024 / 1,024 | 1,024 / 1,024 | 887 / 922 |
+| Maximum error | 0 / 0 | 0 / 0 | 0 / 0 | 5.96046448e−8 / 5.96046448e−8 |
+
+With scale 3 and the same remaining Dirt 4 v2 settings, the release still stops during the pattern draw. A bounded diagnostic run completed 55,245,436 visits and retained 49,761 draws. Its U8 intermediate agrees at all **1,023/1,023** texels that stayed fixed across six reference reads. Its F32 output matches **4,096/4,096** on five reads and **4,064/4,096** on the sixth, maximum .00407773256. The diagnostic used a larger allowance. The complete scale 2 measurements above used the release limits. [The one changing input texel at scale 3](#a-one-level-pattern-change-before-sharpen-in-dirt-4-v2)
+
 ### A one-level pattern change before Sharpen in Dirt 4 v2
 
 At 128 × 32, seed 433595, the graph renders a U8 pattern at 64 × 16 before Sharpen produces the full-size output. Alternate the changed rectangular setting with 32² at seed 113 and read each node directly on three returns at one processor and three at eight. The six pattern buffers have two distinct images. They agree at 1,023/1,024 texels, with 142 or 143 at (52,6). The six F32 graph outputs also have two distinct images. They agree at 4,064/4,096 pixels, with a maximum difference of .00407773256. The word returned by a separate node read can vary between evaluations. [Whole-root seeds and parameters](#repeated-f32-captures-of-28-noise-roots)

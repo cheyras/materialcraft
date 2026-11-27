@@ -445,7 +445,8 @@ fn evaluate(context: &CookContext, base_level_only: &[bool], visit_limit: usize,
     let mut parameter_values = Vec::new();
     let mut children = Vec::new();
     let mut empty_switches = BTreeSet::new();
-    while let Some((mut visit, repeats_left)) = pending.pop() {
+    let mut immediate = None;
+    while let Some((mut visit, repeats_left)) = immediate.take().or_else(|| pending.pop()) {
         // Returning below the previous stack size starts the next child of the root.
         if pending.len() < root_children_pending {
             root_children_pending = pending.len();
@@ -897,7 +898,13 @@ fn evaluate(context: &CookContext, base_level_only: &[bool], visit_limit: usize,
             accounted_stamps = 0;
             stamps.clear();
         }
-        if children.len() + pending.len() + usize::from(repeated.is_some()) > remaining {
+        // The count and its assignments have run. A single repetition with no initial
+        // child can enter that child directly without allocating a traversal-stack entry.
+        if children.is_empty() && matches!(repeated, Some((_, 0))) {
+            immediate = repeated.take();
+            remaining += 1;
+        }
+        if children.len() + pending.len() + usize::from(repeated.is_some() || immediate.is_some()) > remaining {
             return Err("pattern graph exceeded its execution budget".into());
         }
 
