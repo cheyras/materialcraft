@@ -59,6 +59,25 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-27 root comparisons
 
+### Overlapping glyphs and Points Preview file handoff
+
+Points Preview now matches **26,880/26,880 pixels across 45 settings** with the same font on both sides. The licensed monospace face gives 17,920/17,920 in 30 settings. The original overlapping digit face improves from 8,952 to 8,960/8,960 in 15 settings. At 16², 32² and 32 × 16, use point counts 4, 8 and 12 with labels alone, count 4 with points alone and count 12 with both. For digit `i`, use 1,024 units per em, an advance of 640, ascent 768 and descent −256. Draw three rectangles with opposite corners (0,0) and (64 + 32(i mod 4),512), (224,640) and (416,1088 + 64(i mod 3)), and (128,−576 − 64(i mod 3)) and (416,−128). Both reference processor counts give zero maximum error. [Point fields, label sizes and offsets](#stored-and-wired-values-at-graph-instance-inputs)
+
+For the independent Text probe, use a zero-advance A consisting of a rectangle from (0,0) to (width,512). Draw one through four copies at 32², size .5, left alignment and zero offset. Widths 6, 8, 11, 32 and 41 give **20,480/20,480 pixels**, up from 20,392. At pixel (16,12), width 11 yields the successive byte values 44, 80, 110 and 135. Width 32 yields 128, 192, 224 and 240. MaterialCraft now composes the new glyph's coverage with the existing byte and rounds after each glyph. It reads edge coverage in canvas coordinates. The 32 quadratic controls retain 81,132/81,152, the 96 straight-sided controls retain 261,700/262,144 and all 83,328 licensed glyph and sheet pixels remain exact.
+
+| Original and normally reopened Text | Size · seed · format | Previous exact · maximum | Current exact · maximum |
+|---|---|---:|---:|
+| Width 11, two glyphs | 32² · 0 · U8 | 1,016/1,024 · 1 level | 1,024/1,024 · 0 |
+| Width 32, three glyphs | 32² · 42 · U16 | 1,016/1,024 · 257 levels | 1,024/1,024 · 0 |
+| Width 11, three glyphs | 32 × 64 · 261017 · F16 | 2,032/2,048 · .00390625 | 2,048/2,048 · 0 |
+| Width 41, four glyphs | 64 × 32 · 903331 · F32 | 2,040/2,048 · .0039215684 | 2,048/2,048 · 0 |
+
+Save configured whole-root callers with their bound procedural point fields and open the files directly in both applications. Eight monospace cases give 5,632/5,632. All 15 overlapping-digit cases give 8,960/8,960. These counts are identical at one and eight processors, maximum zero. The caller requests U8, U16, F16 and F32 across the files. The root's observed output on these direct opens is U8 throughout.
+
+One ordinary handoff still fails. From a caller pointing directly to the loose spline package with its three-part format version, save four views at three sizes. MaterialCraft reproduces the expected 7,168/7,168 grayscale pixels. The reference app returns a transparent RGBA F32 image in all 12 files on both processor counts. The standalone compiler rejects the linked package before rendering.
+
+To isolate the dependency, take private copies of the six linked package files with the same licensed font. Use format revision `1.1.0.202401` for the five three-part package headers and zero for the braced file identifiers in dependency records. The reference compiler accepts the package when the spline package's top-level file identifier is still braced and its dependency file identifiers are numeric. Restoring the braced identifier in its self dependency makes the compiler reject it. With the compatible metadata, the original Points Preview graph body compares identically with the inventory graph. Rendering the 30 settings and comparing against MaterialCraft opening the original graph gives 17,920/17,920 on one and eight processors. The installed catalog path selects a different face and gives 17,548/17,920, maximum .380392157. The root remains in progress for the loose-file handoff.
+
 ### Whole design coordinates at implicit glyph joins
 
 With the same linked, licensed monospace font, all **30 Points Preview settings match 17,920/17,920 pixels** on both one and eight reference processors, maximum zero. The seven previously differing pixels all had count 12. The independent 42 Text renders now match 83,328/83,328, up from 82,571. They cover individual glyphs, digits and the four-line label sheet from 8² through 128 × 64. The catalog-path comparison selects different faces and gives 17,548/17,920, maximum .380392157. [Whole-root inputs and sizes](#stored-and-wired-values-at-graph-instance-inputs)

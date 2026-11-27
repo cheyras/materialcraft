@@ -2,11 +2,11 @@ use super::*;
 use materialcraft_core::{OutputFormat, Resource, ResourceBytes};
 
 fn rectangle_font(height: i16, metrics: [i16; 3]) -> Vec<u8> {
-    outline_font(metrics, &[(0, 0, true), (0, height, true), (512, height, true), (512, 0, true)])
+    outline_font(metrics, 640, &[(0, 0, true), (0, height, true), (512, height, true), (512, 0, true)])
 }
 
 /// A two-glyph TrueType face with one contour for A. A false flag denotes a quadratic control point.
-fn outline_font(metrics: [i16; 3], contour: &[(i16, i16, bool)]) -> Vec<u8> {
+fn outline_font(metrics: [i16; 3], advance: i16, contour: &[(i16, i16, bool)]) -> Vec<u8> {
     fn words(values: &[i16]) -> Vec<u8> {
         values.iter().flat_map(|value| value.to_be_bytes()).collect()
     }
@@ -31,7 +31,7 @@ fn outline_font(metrics: [i16; 3], contour: &[(i16, i16, bool)]) -> Vec<u8> {
     head[36..44].copy_from_slice(&words(&bounds));
     let mut hhea = vec![0; 36];
     hhea[..4].copy_from_slice(&0x10000u32.to_be_bytes());
-    hhea[4..12].copy_from_slice(&words(&[metrics[0], metrics[1], metrics[2], 640]));
+    hhea[4..12].copy_from_slice(&words(&[metrics[0], metrics[1], metrics[2], advance]));
     hhea[34..].copy_from_slice(&2i16.to_be_bytes());
     let mut maxp = vec![0; 32];
     maxp[..4].copy_from_slice(&0x10000u32.to_be_bytes());
@@ -51,7 +51,8 @@ fn outline_font(metrics: [i16; 3], contour: &[(i16, i16, bool)]) -> Vec<u8> {
     }
     glyf.resize(glyf.len().next_multiple_of(2), 0);
     let loca = words(&[0, 0, (glyf.len() / 2) as i16]);
-    let tables = [(b"cmap", cmap), (b"glyf", glyf), (b"head", head), (b"hhea", hhea), (b"hmtx", words(&[640, 0, 640, 0])), (b"loca", loca), (b"maxp", maxp)];
+    let tables =
+        [(b"cmap", cmap), (b"glyf", glyf), (b"head", head), (b"hhea", hhea), (b"hmtx", words(&[advance, 0, advance, 0])), (b"loca", loca), (b"maxp", maxp)];
     let mut font = words(&[1, 0, 7, 64, 2, 48]);
     font.resize(12 + 16 * tables.len(), 0);
     let mut head_start = 0;
@@ -169,7 +170,7 @@ fn package_font_quadratic_detail_tracks_the_text_scale() {
         package.graphs[0].node_mut(id).unwrap().params.insert("fontsize".into(), Value::Float(size));
         let chords: Vec<_> = (0..=segments).map(|i| ((1024 * i / segments) as i16, (2048 * i * (segments - i) / (segments * segments)) as i16, true)).collect();
         let mut render = |contour: &[(i16, i16, bool)]| {
-            package.resources[0].bytes = ResourceBytes::new(outline_font(metrics, contour));
+            package.resources[0].bytes = ResourceBytes::new(outline_font(metrics, 640, contour));
             let result = cook(&package, 0, &options, &cache);
             assert_eq!(result.nodes[&id].error, None);
             result.image(id, 0).unwrap().clone()
@@ -192,7 +193,7 @@ fn adjacent_quadratic_controls_place_their_join_in_whole_design_units() {
         &[
             ("text", Value::Text("A".into())),
             ("fontsize", Value::Float(0.5)),
-            ("alignment", Value::Int(0)),
+            ("alignment", Value::Enum(0)),
             ("position", Value::Float2([-0.1875, 1.0 / 256.0])),
         ],
     );
@@ -200,7 +201,7 @@ fn adjacent_quadratic_controls_place_their_join_in_whole_design_units() {
     let explicit = [implicit[0], implicit[1], (273, -130, true), implicit[2], (583, 369, true), implicit[3], implicit[4]];
     let cache = Mutex::new(Cache::default());
     let mut render = |contour: &[(i16, i16, bool)]| {
-        package.resources[0].bytes = ResourceBytes::new(outline_font(metrics, contour));
+        package.resources[0].bytes = ResourceBytes::new(outline_font(metrics, 640, contour));
         let result = cook(&package, 0, &Options::new(&no_res), &cache);
         assert_eq!(result.nodes[&id].error, None);
         result.image(id, 0).unwrap().clone()
@@ -210,6 +211,29 @@ fn adjacent_quadratic_controls_place_their_join_in_whole_design_units() {
     let actual = render(&implicit);
     for (pixel, (a, b)) in actual.data().iter().zip(expected.data()).enumerate() {
         assert_eq!(a, b, "pixel {pixel} at the implicit join");
+    }
+}
+
+#[test]
+fn overlapping_glyphs_round_each_coverage_composition() {
+    let metrics = [768, -256, 0];
+    let (mut package, id) = text_sample([5, 5], metrics, &[("fontsize", Value::Float(0.5)), ("alignment", Value::Enum(0))]);
+    let cache = Mutex::new(Cache::default());
+    for (width, expected) in [(11, [44u8, 80, 110, 135]), (32, [128, 192, 224, 240])] {
+        let contour = [(0, 0, true), (0, 512, true), (width, 512, true), (width, 0, true)];
+        package.resources[0].bytes = ResourceBytes::new(outline_font(metrics, 0, &contour));
+        for (count, code) in (1..=4).zip(expected) {
+            package.graphs[0].node_mut(id).unwrap().params.insert("text".into(), Value::Text("A".repeat(count)));
+            let cooked = cook(&package, 0, &Options::new(&no_res), &cache);
+            assert_eq!(cooked.nodes[&id].error, None);
+            let ink = cooked.image(id, 0).unwrap();
+            for y in 0..32 {
+                for x in 0..32 {
+                    let coverage = if x == 16 && (8..16).contains(&y) { code } else { 0 };
+                    assert_eq!(ink.get_gray(x, y, false), f32::from(coverage) / 255.0, "width {width}, {count} glyphs at ({x},{y})");
+                }
+            }
+        }
     }
 }
 

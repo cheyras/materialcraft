@@ -92,7 +92,7 @@ craft-font-catalog = { git = "https://github.com/storytold/craft-libs", rev = "4
 harfrust = "0.13"
 read-fonts = { version = "0.43", default-features = false }
 unicode-bidi = "0.3.18"
-vello_cpu = { version = "0.2", default-features = false, features = ["std", "u8_pipeline"] }
+vello_common = { version = "0.2", default-features = false, features = ["std"] }
 # Keyboard bindings (chords, dispatch and display text): storytold/craft-libs, MIT OR Apache-2.0
 craft-keymap = { git = "https://github.com/storytold/craft-libs", rev = "453b0da782ccef39be9a6dac8d27c80b553ef1cc", features = ["egui"] }
 # Native dialogs that do not block the event loop: storytold/craft-libs, MIT OR Apache-2.0

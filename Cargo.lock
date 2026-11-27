@@ -2955,7 +2955,7 @@ dependencies = [
  "read-fonts 0.43.3",
  "serde_json",
  "unicode-bidi",
- "vello_cpu",
+ "vello_common",
 ]
 
 [[package]]

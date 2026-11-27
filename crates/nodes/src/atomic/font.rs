@@ -4,10 +4,14 @@ use std::collections::BTreeMap;
 use craft_font_catalog::{FontOutline, RunGlyph, RunInput, ShapePlanCache, shape_run};
 use harfrust::{Direction, Shaper};
 use read_fonts::{TableProvider, tables::glyf::Glyph as StoredGlyph, types::GlyphId};
-use vello_cpu::{
-    Pixmap, RenderContext, Resources,
-    color::palette::css::WHITE,
-    kurbo::{Affine, BezPath, ParamCurve, PathEl, Point, QuadBez, Rect, Shape},
+use vello_common::{
+    fearless_simd::Level,
+    geometry::RectU16,
+    kurbo::{Affine, BezPath, ParamCurve, PathEl, Point, QuadBez, Rect, Shape, Vec2},
+    peniko::Fill,
+    strip::{StripFillSegment, visit_strip_fill_segments},
+    strip_generator::{StripGenerator, StripStorage},
+    tile::Tile,
 };
 
 use crate::{CookContext, CookResult, raster::composite_text};
@@ -115,14 +119,57 @@ fn copies(low: f64, high: f64, period: f64, tiled: bool) -> Result<std::ops::Ran
 }
 
 struct Drawing {
-    context: RenderContext,
+    coverage: Vec<u8>,
+    generator: StripGenerator,
+    strips: StripStorage,
     width: u16,
     height: u16,
     tiled: [bool; 2],
     remaining: usize,
 }
 
+/// A solid span is opaque. An edge span stores one column of byte coverage at a time.
+fn paint_strip(image: &mut [u8], stride: usize, clip: RectU16, span: StripFillSegment, alphas: Option<&[u8]>) {
+    let rect = span.pixel_rect().intersect(clip);
+    for y in rect.y0..rect.y1 {
+        let offset = usize::from(y) * stride;
+        let Some(row) = image.get_mut(offset + usize::from(rect.x0)..offset + usize::from(rect.x1)) else { continue };
+        if let Some(alphas) = alphas {
+            let first = usize::from(rect.x0 - span.x0()) * usize::from(Tile::HEIGHT) + usize::from(y - span.y());
+            for (dst, &src) in row.iter_mut().zip(alphas.iter().skip(first).step_by(usize::from(Tile::HEIGHT))) {
+                let alpha = u16::from(src);
+                *dst = (alpha + (u16::from(*dst) * (255 - alpha) + 127) / 255) as u8;
+            }
+        } else {
+            row.fill(255);
+        }
+    }
+}
+
 impl Drawing {
+    fn composite_glyph(&mut self, path: &BezPath, transform: Affine, window: Rect) {
+        let clip = RectU16::new(window.x0 as u16, window.y0 as u16, window.x1 as u16, window.y1 as u16);
+        if clip.is_empty() {
+            return;
+        }
+        // Generate coverage in canvas coordinates. Moving an edge into a temporary
+        // bitmap can change the last coverage bit at a fractional transform.
+        self.generator.generate_filled_path(path.iter(), Fill::NonZero, transform, None, &mut self.strips, None);
+        let tiles = RectU16::new(clip.x0 / Tile::WIDTH, clip.y0 / Tile::HEIGHT, clip.x1.div_ceil(Tile::WIDTH), clip.y1.div_ceil(Tile::HEIGHT));
+        let stride = usize::from(self.width);
+        let alphas = &self.strips.alphas;
+        visit_strip_fill_segments(
+            &self.strips.strips,
+            tiles,
+            &mut self.coverage,
+            |image, span| {
+                let bytes = alphas.get(span.alpha_idx as usize..).unwrap_or_default();
+                paint_strip(image, stride, clip, span.fill, Some(bytes));
+            },
+            |image, span| paint_strip(image, stride, clip, span, None),
+        );
+    }
+
     fn glyph(&mut self, ink: &Glyph, transform: Affine, text_bounds: Rect) -> Result<(), String> {
         if ink.path.elements().is_empty() {
             return Ok(());
@@ -132,30 +179,23 @@ impl Drawing {
         if !bounds.is_finite() {
             return Err("non-finite text outline transform".into());
         }
-        let clip = (!text_bounds.contains_rect(bounds)).then(|| text_bounds.to_path(0.1));
         let bounds = bounds.intersect(text_bounds);
         if bounds.is_zero_area() {
             return Ok(());
         }
-        let elements = ink.path.elements().len() + clip.as_ref().map_or(0, |path| path.elements().len());
+        let elements = ink.path.elements().len();
         let columns = copies(bounds.x0, bounds.x1, width, self.tiled[0])?;
         let rows = copies(bounds.y0, bounds.y1, height, self.tiled[1])?;
         if (!self.tiled[0] && (bounds.x1 <= 0.0 || bounds.x0 >= width)) || (!self.tiled[1] && (bounds.y1 <= 0.0 || bounds.y0 >= height)) {
             return Ok(());
         }
+        let canvas = Rect::new(0.0, 0.0, width, height);
         for row in rows {
             for column in columns.clone() {
                 self.remaining = self.remaining.checked_sub(elements).ok_or("text outlines exceed the drawing budget")?;
-                let offset = Affine::translate((f64::from(column) * width, f64::from(row) * height));
-                if let Some(path) = &clip {
-                    self.context.set_transform(offset);
-                    self.context.push_clip_layer(path);
-                }
-                self.context.set_transform(offset * transform);
-                self.context.fill_path(&ink.path);
-                if clip.is_some() {
-                    self.context.pop_layer();
-                }
+                let offset = Vec2::new(f64::from(column) * width, f64::from(row) * height);
+                let window = (bounds + offset).expand().intersect(canvas);
+                self.composite_glyph(&ink.path, Affine::translate(offset) * transform, window);
             }
         }
         Ok(())
@@ -184,8 +224,15 @@ pub fn text_with_font(context: &CookContext<'_>, bytes: &[u8]) -> CookResult {
     let (w, h) = craft_texture::clamp_size(context.w, context.h);
     let width = u16::try_from(w).map_err(|_| "text width exceeds the raster size")?;
     let height = u16::try_from(h).map_err(|_| "text height exceeds the raster size")?;
-    let mut drawing = Drawing { context: RenderContext::new(width, height), width, height, tiled: context.tiling_axes(), remaining: MAX_ELEMENTS };
-    drawing.context.set_paint(WHITE);
+    let mut drawing = Drawing {
+        coverage: vec![0; usize::from(width) * usize::from(height)],
+        generator: StripGenerator::new(width, height, Level::try_detect().unwrap_or(Level::baseline())),
+        strips: StripStorage::default(),
+        width,
+        height,
+        tiled: context.tiling_axes(),
+        remaining: MAX_ELEMENTS,
+    };
 
     let [a, b, c, d] = context.v4("matrix").map(f64::from);
     let inverse = if a * d == b * c { Affine::IDENTITY } else { Affine::new([a, b, c, d, 0.0, 0.0]).inverse() };
@@ -248,11 +295,8 @@ pub fn text_with_font(context: &CookContext<'_>, bytes: &[u8]) -> CookResult {
             drawing.glyph(ink, frame * Affine::translate((x, y)), text_bounds)?;
         }
     }
-    let mut target = Pixmap::new(width, height);
-    drawing.context.flush();
-    drawing.context.render(&mut target, &mut Resources::new());
     Ok(vec![composite_text(context, |x, y| {
         let index = y as usize * usize::from(width) + x as usize;
-        target.data().get(index).map_or(0.0, |pixel| f32::from(pixel.a) / 255.0)
+        drawing.coverage.get(index).map_or(0.0, |&alpha| f32::from(alpha) / 255.0)
     })])
 }
