@@ -202,8 +202,8 @@ impl<'a> Builder<'a, '_> {
                         self.fixed(self.variables.get(name)?)?
                     }
                 }
-                "add" | "sub" | "mul" | "mulscalar" | "div" | "dot" | "rand" | "neg" | "sqrt" | "sin" | "cos" | "vector2" | "cartesian" | "min" | "max"
-                | "lerp" => {
+                "add" | "sub" | "mul" | "mulscalar" | "div" | "mod" | "dot" | "rand" | "neg" | "sqrt" | "sin" | "cos" | "vector2" | "cartesian" | "min"
+                | "max" | "lerp" => {
                     if op.inputs.len() > 3 {
                         return None;
                     }

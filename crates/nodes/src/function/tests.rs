@@ -89,6 +89,42 @@ fn bound_pattern_arithmetic_preserves_nested_arguments_and_shared_random_draws()
 }
 
 #[test]
+fn seeded_vector_modulo_preserves_the_period_and_random_stream() {
+    use super::{FunctionScope, PatternExpression};
+    use crate::random::FunctionRandom;
+
+    let mut graph = FunctionGraph::default();
+    let range = graph.add_constant(Value::Float(1.0));
+    let draw = graph.add("rand", &[range], None);
+    let pair = graph.add("vector2", &[draw, draw], None);
+    let offset = graph.add_constant(Value::Float2([0.8125, 0.21875]));
+    let shifted = graph.add("sub", &[pair, offset], None);
+    let period = graph.add_constant(Value::Float2([0.375, -0.1875]));
+    graph.output = Some(graph.add("mod", &[shifted, period], None));
+    let program = compile(&graph, 0).unwrap();
+    let variables = BTreeMap::new();
+    let context = EvaluationContext {
+        scope: FunctionScope::FxMap,
+        variables: &variables,
+        position: [0.5; 2],
+        size: [16.0; 2],
+        tile: true,
+        images: &[],
+        image_formats: &[],
+    };
+    let mut bound = PatternExpression::bind(&program, &variables, &BTreeSet::new(), None).expect("seeded vector modulo should bind");
+    for seed in [0, 19, 42, 329_779] {
+        let mut normal = FunctionRandom::image(seed);
+        let mut prepared = normal;
+        let value = program.evaluate_with_random(&context, &mut EvaluationState::default(), &mut normal).unwrap();
+        let Value::Float2([x, y]) = value else { panic!("expected a two-component offset") };
+        assert!((0.0..0.375).contains(&x) && y > -0.1875 && y <= 0.0);
+        assert_eq!(bound.evaluate(&mut prepared).unwrap(), (value, None));
+        assert_eq!(prepared.draw().to_bits(), normal.draw().to_bits());
+    }
+}
+
+#[test]
 fn folded_integers_use_word_order_and_convert_unsigned_magnitudes() {
     let variables = BTreeMap::from([("lhs".into(), Value::Int(-5)), ("rhs".into(), Value::Int(2))]);
     for (left_literal, right_literal) in [(true, true), (true, false), (false, true), (false, false)] {

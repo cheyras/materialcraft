@@ -59,6 +59,23 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-27 root comparisons
 
+### Floored modulo in seeded drawing properties
+
+Directional Noise 2 v2 at 64 × 32 and seed 195000 now returns a whole image in each of four storage formats and on their four ordinary saves. The previous evaluator reached its property budget on this setting. It had completed 5,242,880 full property evaluations and still had pending drawing work. The drawing function wraps a two-component offset using floored modulo. The general evaluator already implements that operation. The bounded drawing evaluator now uses the same implementation for its fixed and seeded operands. It preserves the random register and the offset published to subsequent properties.
+
+Use scale 3, disorder, speed, anisotropy and angle randomness .34375, both angles .09375, tile offset (0,.10546875) and non-square expansion on. Keep tiling and all other defaults. The graph generates its own input. Set the node feeding the output to each storage format, save to its own file, close and reopen with the stored parameters. The four saved MaterialCraft buffers reproduce their originals, **8,192/8,192** pixels. Integer errors below are stored levels. [Earlier tiled settings](#tiled-outputs-of-ten-noise-roots-and-the-full-wood-fibers-2-series)
+
+| Storage | Original · one · max | Original · eight · max | Saved · one · max | Saved · eight · max |
+|---|---:|---:|---:|---:|
+| U8 | 2,048/2,048 · 0 | 2,048/2,048 · 0 | 2,048/2,048 · 0 | 2,048/2,048 · 0 |
+| U16 | 2,047/2,048 · 1 | 2,046/2,048 · 1 | 2,046/2,048 · 1 | 2,046/2,048 · 1 |
+| F16 | 2,048/2,048 · 0 | 2,048/2,048 · 0 | 2,048/2,048 · 0 | 2,048/2,048 · 0 |
+| F32 | 1,253/2,048 · 1.1920929e-07 | 1,348/2,048 · 1.78813934e-07 | 1,300/2,048 · 1.1920929e-07 | 1,300/2,048 · 1.1920929e-07 |
+
+The original F32 reference captures themselves agree at 1,096/2,048 pixels, maximum 1.34110451e-07. The remaining differences keep the root in progress.
+
+For the procedural controls, start with a two-component seeded offset. Subtract (.1875,.21875), then apply floored modulo to each component. With one shared random draw use a period of (.09375,.09375). With two independent draws use (.09375,−.125). For the third case use the signed periods in an offset that the tint assigns to a local variable used by the child. Compare 16² at seed 0, 32 × 16 at seed 42 and 16 × 32 at seed 329779 in U8, U16, F16 and F32. The 36 originals and 36 ordinary reopens each match **15,360/15,360** pixels against both reference processor counts, maximum zero. The regression compares positive and negative periods with the full evaluator and checks the next random draw at four seeds. [Seeded offsets and routing controls](#rectangular-clouds-and-directional-noise-graphs-with-seeded-quadrant-offsets)
+
 ### Rectangular Clouds and Directional Noise graphs with seeded quadrant offsets
 
 Clouds 1 v2 and Clouds 2 v2 each produce whole images for all **60/60 established originals and 15/15 archived saves** across the recorded passes. Each previously produced 58 originals and 14 saves. The 64 × 16 Directional Noise 3 v2 at seed 42 now matches **4,096/4,096** original pixels across four formats and another **4,096/4,096** after opening its four ordinary saves, at both reference processor counts. Earlier same-setting reference differences still leave the three roots in progress. [Earlier Cloud rectangles](#two-more-whole-outputs-in-noise-clouds-1-v2) · [Earlier Directional Noise results](#a-recovered-rectangle-and-repeated-outputs-in-directional-noise-3-v2)
