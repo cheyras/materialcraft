@@ -59,6 +59,68 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-27 root comparisons
 
+### Repeated F32 captures of 28 noise roots
+
+At one fixed setting per root, compare one MaterialCraft render with five reference returns at one processor and five at eight. Between returns, render a second setting at a different size to invalidate the previous image. Read the raw F32 output after every return. The same processor count produced multiple buffers on 8 of the 28 roots at one processor and on 25 at eight.
+
+Of the 27 whole images MaterialCraft produced, 19 matched every pixel that had the same F32 word across all ten captures. In total, **11,403/11,445** such pixels matched. In 18 of the 27 images, every position matched a value seen at that position in at least one capture. Those matches can belong to different frames. The 128 × 32 Dirt 4 v2 graph reached the execution budget.
+
+Each five-count column gives the number of exact pixels in each successive whole frame. The maximum is the largest absolute error across those ten frames. The last column counts exact pixels among those constant across all ten and gives their maximum absolute error. A dash indicates that MaterialCraft returned an error.
+
+| Root package | Size · seed | Five at one processor | Five at eight processors | Whole maximum | Constant pixels · maximum |
+|---|---|---|---|---:|---|
+| `noise_bnw_spots_1` | 16² · 0 | 256, 256, 256, 256, 256 | 155, 166, 169, 165, 161 | 1.1920929e-07 | 90/90 · 0 |
+| `noise_bnw_spots_1_v2` | 16² · 0 | 256, 256, 256, 256, 256 | 229, 231, 235, 225, 226 | 1.1920929e-07 | 211/211 · 0 |
+| `noise_bnw_spots_3` | 64² · 42 | 4094, 4093, 4094, 4091, 4093 | 4095, 4094, 4092, 4093, 4094 | 1.0728836e-05 | 4,089/4,089 · 0 |
+| `noise_bnw_spots_3_v2` | 16² · 0 | 232, 232, 233, 232, 232 | 238, 236, 234, 236, 233 | 5.9604645e-08 | 207/211 · 5.9604645e-08 |
+| `noise_clouds_1` | 32² · 103019 | 1023, 1023, 1023, 1023, 1023 | 1024, 1023, 1023, 1024, 1024 | 1.5258789e-05 | 1,022/1,022 · 0 |
+| `noise_clouds_1_v2` | 16² · 0 | 256, 256, 256, 256, 256 | 215, 223, 220, 220, 214 | 1.1920929e-07 | 198/198 · 0 |
+| `noise_clouds_2_v2` | 16² · 103050 | 256, 256, 256, 256, 256 | 252, 249, 250, 252, 252 | 5.9604645e-08 | 247/247 · 0 |
+| `noise_directional_noise_1` | 16² · 103800 | 256, 256, 256, 256, 256 | 255, 255, 255, 255, 256 | 1.1444092e-05 | 255/255 · 0 |
+| `noise_directional_noise_1_v2` | 16² · 103813 | 158, 158, 158, 158, 158 | 158, 156, 165, 166, 159 | 1.7881393e-07 | 63/67 · 2.9802322e-08 |
+| `noise_directional_noise_2` | 16² · 103826 | 75, 75, 75, 74, 75 | 74, 83, 82, 85, 71 | 1.4901161e-07 | 3/5 · 5.9604645e-08 |
+| `noise_directional_noise_2_v2` | 16² · 103839 | 148, 148, 157, 151, 150 | 167, 162, 167, 153, 161 | 8.9406967e-08 | 48/49 · 5.9604645e-08 |
+| `noise_directional_noise_3` | 32² · 113 | 1010, 1014, 1013, 1015, 1014 | 1022, 1013, 1020, 1022, 1020 | 2.5361776e-05 | 1,007/1,007 · 0 |
+| `noise_directional_noise_4` | 16² · 103878 | 127, 127, 127, 127, 127 | 148, 174, 135, 122, 128 | 2.682209e-07 | 48/51 · 5.9604645e-08 |
+| `noise_directional_noise_4_v2` | 16² · 0 | 110, 110, 110, 110, 110 | 142, 133, 123, 174, 136 | 2.3841858e-07 | 47/58 · 2.3841858e-07 |
+| `noise_dirt_1` | 16² · 105424 | 256, 256, 256, 256, 256 | 250, 246, 248, 246, 247 | 5.9604645e-08 | 242/242 · 0 |
+| `noise_dirt_1_v2` | 16² · 105441 | 256, 256, 256, 256, 255 | 251, 251, 253, 253, 253 | 5.9604645e-08 | 248/248 · 0 |
+| `noise_dirt_3` | 16² · 105475 | 254, 254, 254, 254, 254 | 254, 254, 255, 254, 255 | 2.9802322e-08 | 253/253 · 0 |
+| `noise_dirt_3_v2` | 16² · 105492 | 256, 256, 256, 256, 256 | 255, 256, 255, 256, 255 | 7.4505806e-09 | 255/255 · 0 |
+| `noise_dirt_4` | 16² · 105509 | 238, 238, 238, 238, 238 | 256, 256, 256, 256, 256 | 6.1035156e-05 | 238/238 · 0 |
+| `noise_dirt_4_v2` | 128 × 32 · 433595 | — | — | — | —/4,064 · — |
+| `noise_dirt_5` | 32² · 105545 | 1023, 1023, 1023, 1023, 1023 | 1024, 1024, 1024, 1024, 1024 | 5.081296e-05 | 1,023/1,023 · 0 |
+| `noise_dirt_5_v2` | 16² · 105560 | 237, 237, 237, 237, 237 | 230, 232, 231, 232, 233 | 5.9604645e-08 | 208/209 · 7.4505806e-09 |
+| `noise_dirt_gradient` | 16 × 32 · 281741 | 512, 512, 512, 512, 512 | 511, 511, 511, 511, 511 | 1.5258789e-05 | 511/511 · 0 |
+| `noise_dirt_gradient_v2` | 16² · 105594 | 185, 177, 177, 177, 172 | 180, 188, 184, 188, 193 | 2.3841858e-07 | 124/124 · 0 |
+| `noise_fur_2` | 16² · 75892 | 256, 256, 256, 256, 256 | 223, 231, 213, 199, 202 | 5.9604645e-08 | 183/183 · 0 |
+| `noise_fur_3` | 16² · 75899 | 174, 174, 174, 174, 174 | 201, 198, 187, 177, 201 | 5.9604645e-08 | 134/150 · 2.9802322e-08 |
+| `noise_gaussian_spots_2` | 16² · 87914 | 256, 256, 256, 256, 256 | 241, 237, 237, 238, 239 | 5.9604645e-08 | 225/225 · 0 |
+| `noise_gaussian_spots_2_v2` | 16² · 87921 | 256, 256, 256, 256, 256 | 236, 236, 243, 231, 236 | 2.9802322e-08 | 224/224 · 0 |
+
+The procedural generators have no image inputs. Use defaults except for these settings. BNW Spots 3 uses scale 2 and disorder .37. Clouds 1 uses scale 3, disorder .3125 and non-square expansion off. Directional Noise 3 uses scale 2, disorder .37, angle .125 and angle random .2. Dirt 5 uses scale 1, disorder .3125 and non-square expansion off. For Dirt 4 v2 at 128 × 32, set scale 3, disorder, speed and anisotropy .046875, anisotropy angle −.203125, tile offset (−.296875,.365234375) and non-square expansion on.
+
+For the intervening setting, use 32² at seed 113. Set scale 2 and disorder .37 when present. For the v2 roots set speed .6, anisotropy .3, anisotropy angle .125 and tile offset (.17,.29) where exposed. Use roughness .6 for both BNW Spots 1 versions and angle .125 with angle random .2 for the directional roots. Dirt Gradient and Dirt Gradient v2 use the disorder fields only. Fur 2 uses scale 2, waves scale .25 and waves rotation .2. Fur 3 uses scale 2, disorder .37 and waves amount 3. The exceptions use 16² and defaults at seeds 103017 for Clouds 1, 103852 for Directional Noise 3 and 105543 for Dirt 5.
+
+#### The final drawing stage of BNW Spots 3 v2
+
+At 16², seed 0 and defaults, read all three FX-Map outputs on twelve more returns per processor count. All 24 renders matched the first two stages at **16/16 and 64/64 U8 pixels**, maximum zero. Combining the 24 final F32 reads with the preceding ten produced 33 distinct whole images. They matched MaterialCraft at 223 to 241 of 256 pixels, with a maximum whole-image error of 1.1920929e−7. Of 185 pixels constant across all 34, 184 matched. At (8,10), all 34 returned `0x3eb84742` and MaterialCraft returned `0x3eb84743`, a difference of 2.9802322e−8. Each of the other 255 pixels matched at least one full capture.
+
+Keep the outer Iterate’s count expression connected to the first input of a Sequence and return a fixed count from its second input. Leave the three FX-Map connections and six four-way quadrant subdivisions intact. Use the functions library for the reusable math calls. For the last three rows, use a count of one and retain all four children in the first three, four or five subdivisions. At each remaining subdivision keep only the original slot from (0,3,1,2,0,3), indexed by depth. Alternate the same 32² and 16² cases and collect five returns per processor count.
+
+| Outer repeats · paths per repeat | Exact whole pixels of 256, range over ten returns | Whole maximum | Constant pixels · maximum | Distinct whole buffers |
+|---|---:|---:|---|---:|
+| 0 · 4,096 | 256 | 0 | 256/256 · 0 | 1 |
+| 1 · 4,096 | 230–243 | 5.9604645e-08 | 202/202 · 0 | 10 |
+| 2 · 4,096 | 227–240 | 5.9604645e-08 | 191/191 · 0 | 10 |
+| 4 · 4,096 | 228–246 | 1.1920929e-07 | 201/201 · 0 | 10 |
+| 8 · 4,096 | 228–238 | 1.1920929e-07 | 201/203 · 2.9802322e-08 | 10 |
+| 1 · 64 | 256 | 0 | 256/256 · 0 | 1 |
+| 1 · 256 | 255–256 | 5.9604645e-08 | 255/255 · 0 | 2 |
+| 1 · 1,024 | 254–255 | 5.9604645e-08 | 249/249 · 0 | 5 |
+
+At one, two and four outer repeats the reference returned both neighboring F32 words at (8,10). At eight repeats it returned the lower word on all ten captures. The reduced one-repeat graphs with 64, 256 or 1,024 active paths each match every constant pixel. The full root remains in progress.
+
 ### Working precision of Blur inputs
 
 When an equal-sized normalized input feeds Blur and exactly one size depends on a graph parameter, the filter reads the texture at its floating-point destination precision. U8 and U16 inputs to F16 Blur are stored at half precision before the first pass. F32 Blur retains the normalized values and samples them as floats. The second pass reads the stored horizontal result. For fractional taps, the sampler precision affects the result even with identical source texels.
