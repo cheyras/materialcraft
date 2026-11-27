@@ -59,6 +59,74 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-26 root comparisons
 
+### Seeded quadrant properties with a live tint multiplier
+
+A grayscale quadrant can set a two-component frame offset and then choose between a seeded scalar and that same scalar multiplied by a live gain. MaterialCraft now reuses the seed-dependent draw properties for a repeated seed, node, depth and selected branch. It reapplies the current gain and publishes the offset in its original drawing scope before visiting children. The other computed fields must depend only on the seed, depth and fixed inputs. A direct read must connect the assigned offset to the frame. Each draw retains its original position in the traversal.
+
+For an independent control, connect four or seven outer iterations to an inner Iterate with seed inheritance disabled. In the count expression publish the outer number and a gain of (1 + number) × .25 or × .125, then return two. Connect a .625 × .375 additive square to the repeated branch. Set an offset from two Rand(.25) draws, then return .0625 + Rand(.125), scaled by the gain when the outer number exceeds 1.5. Use that offset for the square and its negative for four .375 × .25 children at .125 luminosity. Use the [three sizes, seeds and four formats from the initial-branch controls](#the-incoming-seed-on-the-initial-branch-of-an-iterate). All 24 originals match 10,240/10,240 pixels on both processor counts. The 24 ordinary saves also match 10,240/10,240. Maximum error is zero. A bounded regression compares the direct offset with an equivalent computed offset and checks a descendant reading the published value.
+
+Open `noise_bnw_spots_3_v2.sbs/bnw_spots_3` with its normal tiling. Set disorder, disorder speed and disorder anisotropy to the same value in the table. Keep other exposed parameters at default. Set storage precision on the node feeding the output. Compare the stored pixel words against the original desktop outputs on one and eight processors. For the saved column use an ordinary MaterialCraft SBS reopened directly in each application and a one-processor desktop capture. Integer errors are storage levels.
+
+| Size · seed | Scale | Disorder | Anisotropy angle | Tile offset | Non-square expansion |
+|---|---:|---:|---:|---|---|
+| 64 × 16 · 42 | 2 | 0.03125 | -0.21875 | (-0.3125, 0.37890625) | true |
+| 64 × 64 · 411585 | 3 | 0.34375 | 0.09375 | (0, 0.10546875) | true |
+| 128 × 128 · 411768 | 3 | 0.65625 | 0.40625 | (0.3125, -0.16796875) | false |
+| 64 × 32 · 194535 | 3 | 0.34375 | 0.09375 | (0, 0.10546875) | true |
+
+| Size · storage | Original · one | Original · eight | Ordinary save · one |
+|---|---:|---:|---:|
+| 64 × 16 · U8 | 1,024/1,024 · 0 | 1,024/1,024 · 0 | 1,024/1,024 · 0 |
+| 64 × 16 · U16 | 1,024/1,024 · 0 | 1,024/1,024 · 0 | 1,024/1,024 · 0 |
+| 64 × 16 · F16 | 1,024/1,024 · 0 | 1,024/1,024 · 0 | 1,024/1,024 · 0 |
+| 64 × 16 · F32 | 950/1,024 · 1.1920929e-07 | 945/1,024 · 8.94069672e-08 | 930/1,024 · 1.1920929e-07 |
+| 64 × 64 · U8 | 4,096/4,096 · 0 | 4,096/4,096 · 0 | 4,096/4,096 · 0 |
+| 64 × 64 · U16 | 4,093/4,096 · 1 | 4,095/4,096 · 1 | 4,095/4,096 · 1 |
+| 64 × 64 · F16 | 4,096/4,096 · 0 | 4,096/4,096 · 0 | 4,096/4,096 · 0 |
+| 64 × 64 · F32 | 3,695/4,096 · 1.78813934e-07 | 3,562/4,096 · 2.38418579e-07 | 3,578/4,096 · 1.78813934e-07 |
+| 128 × 128 · U16 | 16,377/16,384 · 1 | 16,379/16,384 · 1 | 16,380/16,384 · 1 |
+| 128 × 128 · F32 | 14,631/16,384 · 2.38418579e-07 | 14,275/16,384 · 2.38418579e-07 | 14,185/16,384 · 2.08616257e-07 |
+
+All ten previously blocked originals and their new ordinary saves render. Each local save reproduces its original F32 output word for word before the raw-format comparison. Of the 62 established originals, 58 have now rendered. Of the 14 archived ordinary saves, 13 have now rendered. The three recovered archived saves below are separate files from the freshly written saves.
+
+| Archived ordinary save | Exact pixels · maximum error |
+|---|---:|
+| 64 × 16 · F16 | 1,024/1,024 · 0 |
+| 64 × 64 · U16 | 4,094/4,096 · 1 |
+| 128 × 128 · F32 | 14,395/16,384 · 2.38418579e-07 |
+
+At 64 × 64, repeat the original desktop capture at each processor count, holding the settings fixed. The final column compares MaterialCraft at the positions where four original desktop captures and the ordinary save all have the same stored word.
+
+| Format | Fresh original · one | Fresh original · eight | Desktop repeat · one | Desktop repeat · eight | Same word in all five · local exact / compared · max |
+|---|---:|---:|---:|---:|---:|
+| U8 | 4,096/4,096 · 0 | 4,096/4,096 · 0 | 4,096/4,096 · 0 | 4,096/4,096 · 0 | 4,096/4,096 · 0 |
+| U16 | 4,095/4,096 · 1 | 4,093/4,096 · 1 | 4,092/4,096 · 1 | 4,092/4,096 · 1 | 4,090/4,090 · 0 |
+| F16 | 4,096/4,096 · 0 | 4,096/4,096 · 0 | 4,096/4,096 · 0 | 4,096/4,096 · 0 | 4,096/4,096 · 0 |
+| F32 | 3,550/4,096 · 2.08616257e-07 | 3,580/4,096 · 1.49011612e-07 | 3,477/4,096 · 2.38418579e-07 | 3,587/4,096 · 1.78813934e-07 | 2,992/3,024 · 8.94069672e-08 |
+
+A separate capture allowed seven host processors. Its F32 comparison was 3,555/4,096 · 2.38418579e-07. The processor counts in the table were verified from the capture receipts.
+
+Read the first two FX-Map outputs directly on one and eight processors at each of the four sizes and seeds above. In a disposable copy, route the output to the unmodified middle FX-Map, expose the first as a second output and remove the final stage. Keep the original U8 precision of the upstream maps. Both processor counts match all 1,472/1,472 first-stage pixels and 5,888/5,888 middle-stage pixels across the four geometries. Maximum error is zero. The discrepancy first appears downstream of those two stored outputs.
+
+At 64 × 64, switch seed 411585 to 411586, 411587 and 411588 in turn, returning to 411585 after each switch. Make three returns on one processor and three on eight. Across the initial five F32 readbacks and these six returns, 2,801 positions keep the same reference value. MaterialCraft matches 2,791/2,801, maximum 5.96046448e−8. Adding the final FX-Map and output-bridge reads at both processor counts leaves 2,728 invariant positions in fifteen readbacks. MaterialCraft matches 2,725/2,728, maximum 5.96046448e−8, and matches an observed reference value at 4,085/4,096 positions. The three residuals within that invariant set differ by one F32 word step.
+
+| Pixel (x, y) | MaterialCraft F32 word | Reference word across fifteen readbacks |
+|---|---|---|
+| (9, 9) | `0x3efb6504` | `0x3efb6505` |
+| (46, 33) | `0x3f1d2b80` | `0x3f1d2b7f` |
+| (33, 41) | `0x3f0d59a0` | `0x3f0d59a1` |
+
+The 64 × 32 F32 setting still stops at the execution limit. To count the workload, replace the depth-six drawing node of the last FX-Map with a constant marker of a distinct shape and disconnect its children in a disposable probe. The four-way subtree it replaces draws at depths six through nine, giving 85 draws per marker. Counts for 64 × 16, 64 × 64 and 128 × 128 are 100,370, 101,738 and 110,592 markers. The blocked 64 × 32 setting has 203,374 markers, or 17,286,790 draws. The four 64 × 32 storage settings remain open.
+
+Two earlier untiled F32 controls at 16 × 32 and 32 × 16 reproduced their previous local hashes for both the original and the saved file. [Earlier untiled scores and seeds](#untiled-spots-clouds-directional-noise-and-dirt-at-two-rectangular-sizes)
+
+| Related untiled F32 control | Original · one | Original · eight | Ordinary save · one |
+|---|---:|---:|---:|
+| Directional Noise 1 v2 · 16 × 32 | 346/512 · 1.1920929e-07 | 361/512 · 1.1920929e-07 | 339/512 · 1.1920929e-07 |
+| Directional Noise 2 v2 · 16 × 32 | 393/512 · 1.1920929e-07 | 410/512 · 5.96046448e-08 | 371/512 · 8.94069672e-08 |
+
+Both untiled F32 Directional Noise 3 v2 originals still reach the execution limit. The tiled 64 × 32 F32 Directional Noise 2 v2 original at seed 195000 also reaches the limit at the [earlier changed settings](#tiled-outputs-of-ten-noise-roots-and-the-full-wood-fibers-2-series). The Spots root retains the reported U16 and F32 differences.
+
 ### The incoming seed on the initial branch of an Iterate
 
 An Iterate passes its incoming random seed to its initial branch. Its seed offset and inheritance setting determine the random stream for its repeated branch. MaterialCraft previously passed the adjusted seed on both connections. The correction is in the shared pattern traversal.

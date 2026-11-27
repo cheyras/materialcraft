@@ -1,6 +1,7 @@
 use materialcraft_core::{PatternNode, PatternNodeKind, Value, ValueType};
 use std::collections::{BTreeMap, BTreeSet};
 
+use super::conditional_tint::{ConditionalStamps, ConditionalTint};
 use super::mixed_depth_runs::MixedDepthRuns;
 use super::stamp_cache::{self, StampCache, Storage};
 use super::{catalog, footprint::SampleGrid, pattern_stamp::PatternStamp, pattern_visit::PatternVisit, raster, variables::PatternVariables};
@@ -74,6 +75,27 @@ fn reusable_properties(
     } else {
         Storage::Full
     })
+}
+
+fn conditional_tint<'a>(node: &PatternNode, programs: &'a PropertyPrograms, assigned: &BTreeSet<&str>) -> Option<ConditionalTint<'a>> {
+    if node.kind != PatternNodeKind::Quadrant {
+        return None;
+    }
+    let shape @ 2..=16 = node.parameters.get("patterntype")?.as_i32()? else { return None };
+    let (program, names) = programs.get(&(node.id, "opacity"))?;
+    let tint = ConditionalTint::identify(program, assigned)?;
+    let (frame, _) = programs.get(&(node.id, "frameoffset"))?;
+    if names.len() != 1 || names.get(tint.offset) != Some(&ValueType::Float2) || frame.input_identifier() != Some(tint.offset) {
+        return None;
+    }
+    let fields = &catalog::definition(node.kind)?.params;
+    let fixed = fields.iter().filter(|field| uses_property(node.kind, field.id, shape)).all(|field| {
+        matches!(field.id, "opacity" | "frameoffset")
+            || programs
+                .get(&(node.id, field.id))
+                .is_none_or(|(program, _)| matches!(field.id, "branchoffset" | "patternrotation" | "patternsize") && stamp_cache::reusable(program, assigned))
+    });
+    fixed.then_some(tint)
 }
 
 struct TerminalSiblings {
@@ -342,6 +364,12 @@ fn evaluate(context: &CookContext, base_level_only: &[bool], visit_limit: usize,
         .collect();
     drop(branch_groups);
     let mut stamp_cache = StampCache::default();
+    let tint_plans: BTreeMap<_, _> = if grayscale {
+        graph.nodes.iter().filter_map(|node| conditional_tint(node, &functions, &assigned).map(|plan| (node.id, plan))).collect()
+    } else {
+        BTreeMap::new()
+    };
+    let mut conditional_stamps = ConditionalStamps::default();
 
     let image_slots: Vec<_> =
         context.inputs.iter().skip(1).take(crate::MAX_IMAGE_INPUTS).enumerate().filter_map(|(i, image)| image.as_ref().map(|_| i as i32)).collect();
@@ -453,6 +481,9 @@ fn evaluate(context: &CookContext, base_level_only: &[bool], visit_limit: usize,
             }
         }
         let mut declared = Vec::new();
+        let tint_plan = tint_plans.get(&node.id);
+        let scale = tint_plan.and_then(|plan| plan.scale(&variables.drawing));
+        let mut base_tint = None;
 
         let mut evaluate = |id: &str, random: &mut FunctionRandom| -> Result<Option<Value>, String> {
             let Some((program, names)) = functions.get(&(node.id, id)) else { return Ok(node.parameters.get(id).cloned()) };
@@ -479,6 +510,11 @@ fn evaluate(context: &CookContext, base_level_only: &[bool], visit_limit: usize,
             } else {
                 program.evaluate_with_random(&evaluation, &mut state, random)?
             };
+            if id == "opacity"
+                && let Some(plan) = tint_plan
+            {
+                base_tint = plan.base(&state);
+            }
             // A quadrant's mode expressions keep their own writes. A later stamp property can read writes from the draw expressions.
             if !mode {
                 for (name, value) in state.assignments() {
@@ -509,13 +545,18 @@ fn evaluate(context: &CookContext, base_level_only: &[bool], visit_limit: usize,
                 };
                 (stamp_cache::Key { node, depth, seed: visit.seed }, storage)
             });
-        let cached = cache.and_then(|(key, storage)| {
-            let mut properties = stamp_cache.get(key, storage)?;
-            if let Storage::BranchTint { size, .. } = storage {
-                properties.stamp.depth = visit.depth;
-                properties.stamp.size = size.map(|v| v * visit.extent);
-            }
-            Some(properties)
+        let tint_key = stamp_cache::Key { node: node.id, depth: visit.depth, seed: visit.seed };
+        let conditional = scale.and_then(|scale| conditional_stamps.get(tint_key, scale));
+        let written_offset = conditional.as_ref().map(|properties| properties.stamp.center);
+        let cached = conditional.or_else(|| {
+            cache.and_then(|(key, storage)| {
+                let mut properties = stamp_cache.get(key, storage)?;
+                if let Storage::BranchTint { size, .. } = storage {
+                    properties.stamp.depth = visit.depth;
+                    properties.stamp.size = size.map(|v| v * visit.extent);
+                }
+                Some(properties)
+            })
         });
         let reused = cached.is_some();
         // An unused stamp property cannot publish a Set to a child. The branch offset still positions that child.
@@ -529,6 +570,13 @@ fn evaluate(context: &CookContext, base_level_only: &[bool], visit_limit: usize,
             }
         }
 
+        // A cache hit must publish the same offset in the declaring depth's scope.
+        if let (Some(offset), Some(plan), Some((_, names))) = (written_offset, tint_plan, functions.get(&(node.id, "opacity"))) {
+            variables.enter(names, visit.depth, &mut declared);
+            if let Some(bound) = variables.drawing.get_mut(plan.offset) {
+                *bound = Value::Float2(offset);
+            }
+        }
         let field = |name: &str| parameter_values.iter().find_map(|(id, value)| (*id == name).then_some(value));
         let scalar = |name: &str| field(name).and_then(Value::as_f32).unwrap_or(0.0);
         let integer = |name: &str| field(name).and_then(Value::as_i32).unwrap_or(0);
@@ -597,6 +645,9 @@ fn evaluate(context: &CookContext, base_level_only: &[bool], visit_limit: usize,
                             filtering: integer("imagefiltering"),
                             premultiplied: field("imagepremul").and_then(Value::as_bool).unwrap_or(false),
                         };
+                        if let (Some(scale), Some(base)) = (scale, base_tint) {
+                            conditional_stamps.insert(tint_key, scale, base, offset, &stamp);
+                        }
                         if let Some((key, storage)) = cache {
                             stamp_cache.insert(key, stamp_cache::Properties { branch_offset: offset, stamp: stamp.clone() }, storage, raster_work.streaming);
                         }
@@ -640,7 +691,7 @@ fn evaluate(context: &CookContext, base_level_only: &[bool], visit_limit: usize,
                             remaining += 1;
                         } else if quadrant_children == QuadrantChildren::AllTerminal
                             && cached_stream_allowance > 0
-                            && (reused || (matches!(cache, Some((_, Storage::BranchTint { .. }))) && reused_terminal_misses > 0))
+                            && (reused || ((scale.is_some() || matches!(cache, Some((_, Storage::BranchTint { .. })))) && reused_terminal_misses > 0))
                         {
                             // A skipped terminal evaluation can pay for an invisible parent once.
                             // Its children still run and both the cache allowance and full evaluation limit apply.

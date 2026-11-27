@@ -2331,6 +2331,70 @@ fn repeated_image_space_offsets_and_rotations_reuse_the_parent_draw() {
 }
 
 #[test]
+fn repeated_quadrants_reapply_the_live_tint_scale_and_publish_the_frame_offset() {
+    let mut graph = nested_square_draws(40);
+    graph.nodes[7].parameters.insert("numberadded".into(), Value::Int(6));
+    graph.nodes[8].parameters.insert("randominherited".into(), Value::Bool(false));
+    let mut count = FunctionGraph::default();
+    let number = count.add("get_float1", &[], Some(Value::Text("$number".into())));
+    let row = count.add("set", &[number], Some(Value::Text("row".into())));
+    let eighth = count.add_constant(Value::Float(0.125));
+    let weight = count.add("mul", &[number, eighth], None);
+    let gain = count.add("set", &[weight], Some(Value::Text("gain".into())));
+    let forty = count.add_constant(Value::Int(40));
+    let finish = count.add("sequence", &[gain, forty], None);
+    count.output = Some(count.add("sequence", &[row, finish], None));
+    graph.nodes[8].parameters.insert("numberadded".into(), Value::Function(Box::new(count)));
+
+    let leaf = graph.add(PatternNodeKind::Quadrant).unwrap();
+    let marker = graph.add(PatternNodeKind::Quadrant).unwrap();
+    graph.nodes[9].children = vec![Some(leaf), Some(leaf), Some(leaf), Some(marker)];
+    let mut tint = FunctionGraph::default();
+    let width = tint.add_constant(Value::Float(1.0 / 128.0));
+    let shift = tint.add("rand", &[width], None);
+    let corner = tint.add_constant(Value::Float(0.118));
+    let shift = tint.add("add", &[corner, shift], None);
+    let position = tint.add("vector2", &[shift, shift], None);
+    let publish = tint.add("set", &[position], Some(Value::Text("placed".into())));
+    let one = tint.add_constant(Value::Float(1.0));
+    let base = tint.add("rand", &[one], None);
+    let gain = tint.add("get_float1", &[], Some(Value::Text("gain".into())));
+    let scaled = tint.add("mul", &[base, gain], None);
+    let row = tint.add("get_float1", &[], Some(Value::Text("row".into())));
+    let threshold = tint.add_constant(Value::Float(1.5));
+    let test = tint.add("gt", &[row, threshold], None);
+    let alpha = tint.add("ifelse", &[test, scaled, base], None);
+    tint.output = Some(tint.add("sequence", &[publish, alpha], None));
+    let offset = FunctionGraph::input("placed", materialcraft_core::ValueType::Float2);
+    for node in &mut graph.nodes[9..] {
+        node.parameters = BTreeMap::from([
+            ("patterntype".into(), Value::Int(2)),
+            ("frameoffset".into(), Value::Function(Box::new(offset.clone()))),
+            ("patternsize".into(), Value::Float2([1.0; 2])),
+        ]);
+    }
+    for node in &mut graph.nodes[9..11] {
+        node.parameters.insert("opacity".into(), Value::Function(Box::new(tint.clone())));
+    }
+    graph.nodes[11].parameters.insert("opacity".into(), Value::Float(0.25));
+
+    // This equivalent computed offset reads the published value through the full evaluator.
+    let mut ordinary = graph.clone();
+    let mut computed = offset;
+    let link = computed.output.unwrap();
+    let zero = computed.add_constant(Value::Float2([0.0; 2]));
+    computed.output = Some(computed.add("add", &[link, zero], None));
+    for node in &mut ordinary.nodes[9..11] {
+        node.parameters.insert("frameoffset".into(), Value::Function(Box::new(computed.clone())));
+    }
+    let expected = render_with_visit_limit(&ordinary, 4096).unwrap().remove(0);
+    assert!(expected.data().iter().any(|&v| v > 1.0));
+    assert!(render_with_visit_limit(&ordinary, 192).unwrap_err().contains("execution budget"));
+    let cached = render_with_visit_limit(&graph, 192).unwrap().remove(0);
+    assert_eq!(cached.data(), expected.data());
+}
+
+#[test]
 fn sparse_branch_offsets_and_tints_reuse_properties_across_drawing_depths() {
     let mut graph = nested_square_draws(40);
     graph.nodes[8].parameters.insert("randominherited".into(), Value::Bool(false));

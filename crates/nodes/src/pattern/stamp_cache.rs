@@ -6,19 +6,39 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 /// A terminal draw can reuse its properties across positions when its programs
 /// only depend on the traversal seed, depth and inputs fixed for this cook.
 pub(super) fn reusable(program: &Program, assigned: &BTreeSet<&str>) -> bool {
-    program.instructions.iter().all(|op| {
-        let id = op.definition.id;
-        if matches!(id, "set" | "while" | "samplecol" | "samplelum") {
+    (0..program.instructions.len()).all(|index| reusable_at(program, index, assigned))
+}
+
+fn reusable_at(program: &Program, index: usize, assigned: &BTreeSet<&str>) -> bool {
+    let Some(op) = program.instructions.get(index) else { return false };
+    let id = op.definition.id;
+    if matches!(id, "set" | "while" | "samplecol" | "samplelum") {
+        return false;
+    }
+    if (id.starts_with("get_") || id == "isdefined")
+        && let Some(Value::Text(name)) = &op.value
+        && (matches!(name.as_str(), "$pos" | "$number") || assigned.contains(name.as_str()))
+    {
+        return false;
+    }
+    op.call.as_ref().is_none_or(|call| reusable(&call.program, assigned))
+}
+
+pub(super) fn reusable_inputs(program: &Program, outputs: &[usize], assigned: &BTreeSet<&str>) -> bool {
+    let mut pending = outputs.to_vec();
+    let mut seen = vec![false; program.instructions.len()];
+    while let Some(index) = pending.pop() {
+        let Some(visited) = seen.get_mut(index) else { return false };
+        if *visited {
+            continue;
+        }
+        *visited = true;
+        if !reusable_at(program, index, assigned) {
             return false;
         }
-        if (id.starts_with("get_") || id == "isdefined")
-            && let Some(Value::Text(name)) = &op.value
-            && (matches!(name.as_str(), "$pos" | "$number") || assigned.contains(name.as_str()))
-        {
-            return false;
-        }
-        op.call.as_ref().is_none_or(|call| reusable(&call.program, assigned))
-    })
+        pending.extend(program.instructions[index].inputs.iter().copied());
+    }
+    true
 }
 
 pub(super) fn independent_of_depth(program: &Program) -> bool {
@@ -66,7 +86,7 @@ impl BranchGroups {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub(super) struct Key {
     pub node: u32,
     pub depth: u32,

@@ -1,6 +1,7 @@
 mod bitmap;
 mod blend;
 mod catalog;
+mod conditional_tint;
 mod coordinates;
 mod evaluation;
 mod footprint;
