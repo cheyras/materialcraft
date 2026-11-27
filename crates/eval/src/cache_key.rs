@@ -153,6 +153,9 @@ pub(crate) fn variable_key(node: &Node, parameters: &BTreeMap<String, Value>, va
         name.hash(&mut hasher);
         variables.get(name).map(|value| serde_json::to_string(value).unwrap_or_default()).hash(&mut hasher);
         variables.literal_inputs().iter().any(|input| input == name).hash(&mut hasher);
+        if node.def == "fx_map" {
+            variables.assigned_integers().iter().any(|input| input == name).hash(&mut hasher);
+        }
     }
 
     hasher.finish()

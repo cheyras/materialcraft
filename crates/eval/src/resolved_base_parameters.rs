@@ -76,6 +76,7 @@ impl ResolvedBaseParameters {
                     self.size,
                     crate::parameter_function::ParameterMode::for_base(parameter),
                     None,
+                    None,
                 )?;
                 Ok((value, dynamic, bound))
             })
@@ -155,6 +156,7 @@ pub(crate) fn evaluate(
     parent: ResolvedBaseParameters,
     variables: &mut std::borrow::Cow<'_, BTreeMap<String, Value>>,
     literal_inputs: &[String],
+    mut assigned_integers: Option<&mut Vec<String>>,
 ) -> Result<(ResolvedBaseParameters, BTreeMap<BaseParameter, Value>), String> {
     if base.functions.is_empty() {
         return Ok((ResolvedBaseParameters::resolve(base, input, parent), BTreeMap::new()));
@@ -216,6 +218,7 @@ pub(crate) fn evaluate(
                         size,
                         crate::parameter_function::ParameterMode::for_base(parameter),
                         None,
+                        assigned_integers.as_deref_mut(),
                     )
                 })
                 .map_err(|error| format!("function of `{}`: {error}", parameter.identifier()))?;

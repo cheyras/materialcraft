@@ -31,6 +31,7 @@ pub(crate) fn resolve_parameters(
     variables: &mut std::borrow::Cow<'_, BTreeMap<String, Value>>,
     base: ResolvedBaseParameters,
     literal_inputs: &[String],
+    mut assigned_integers: Option<&mut Vec<String>>,
 ) -> Result<ResolvedParameters, String> {
     let mut parameters = match definition {
         Some(definition) if node.def != "graph_instance" => resolve_params(definition, &node.params),
@@ -102,7 +103,7 @@ pub(crate) fn resolve_parameters(
                 if program.reads_graph_parameter(variables) {
                     record_drawing_input(parameter);
                 }
-                crate::parameter_function::evaluate(&program, expected, variables.to_mut(), base.size, mode, Some(current))
+                crate::parameter_function::evaluate(&program, expected, variables.to_mut(), base.size, mode, Some(current), assigned_integers.as_deref_mut())
             })
             .map_err(|error| format!("function of `{parameter}`: {error}"))?;
         if matches!(mode, ParameterMode::UniformColor) {

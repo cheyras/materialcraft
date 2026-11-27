@@ -17,6 +17,7 @@ use std::{
 struct BoundVariables<'a> {
     values: &'a BTreeMap<String, Value>,
     fixed: &'a [String],
+    assigned_integers: &'a [String],
 }
 
 impl GraphVariables for BoundVariables<'_> {
@@ -26,6 +27,10 @@ impl GraphVariables for BoundVariables<'_> {
 
     fn literal_inputs(&self) -> &[String] {
         self.fixed
+    }
+
+    fn assigned_integers(&self) -> &[String] {
+        self.assigned_integers
     }
 }
 
@@ -131,8 +136,10 @@ pub(crate) fn cook_node(
             ..prepared.parent_base
         })
     });
+    let mut assigned_integers = Vec::new();
+    let mut pattern_writes = (node.def == "fx_map").then_some(&mut assigned_integers);
     let (mut base, base_values, base_error) =
-        match crate::resolved_base_parameters::evaluate(&node.base, input_base, prepared.parent_base, &mut variables, &fixed) {
+        match crate::resolved_base_parameters::evaluate(&node.base, input_base, prepared.parent_base, &mut variables, &fixed, pattern_writes.as_deref_mut()) {
             Ok((base, values)) => (base, values, None),
             Err(error) => (crate::ResolvedBaseParameters::resolve(&node.base, input_base, prepared.parent_base), BTreeMap::new(), Some(error)),
         };
@@ -187,7 +194,7 @@ pub(crate) fn cook_node(
 
     let seed = base.seed;
     let ResolvedParameters { values: mut parameters, instance_literals, dynamic_blend_opacity, bound_image_property } =
-        match resolve_parameters(package, node, definition, &mut variables, base, &fixed) {
+        match resolve_parameters(package, node, definition, &mut variables, base, &fixed, pattern_writes) {
             Ok(parameters) => parameters,
             Err(error) => return fail(error, 0),
         };
@@ -207,7 +214,7 @@ pub(crate) fn cook_node(
         variables.to_mut().insert("$pixelsize".into(), Value::Float2(base.pixel_size));
     }
     let variables = &variables;
-    let bindings = BoundVariables { values: variables, fixed: &fixed };
+    let bindings = BoundVariables { values: variables, fixed: &fixed, assigned_integers: &assigned_integers };
 
     let tile = base.tiling[0] && base.tiling[1];
 

@@ -59,6 +59,31 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-27 root comparisons
 
+### Integer assignments read by pattern seeds
+
+The two roots in `tile_random.sbs` each match **142,592/142,592 pixels in all 19 established settings** on one reference processor, on eight and after reopening an ordinary MaterialCraft save. The previous grayscale and color totals were 111,207 and 111,194. The same 1,702,705-byte save was reproduced with the tested build. Both roots also match at 32² with a freshly connected image in the edit-order control described below. [Previous comparison](#returned-vectors-in-pattern-properties)
+
+In a pattern seed expression, an integer assigned by an earlier property supplies the bits of its F32 storage word. A published integer supplies its integer bits. Both yield the same numeric value to an ordinary integer getter. For an independent F32 probe, put a square with additive Random(1) luminosity over black below two single-iteration Iterate nodes. Disable seed inheritance on the inner Iterate. At graph seed zero, a published seed of 17 gives .5091854334. Assign 17 to a new integer in the global opacity multiplier or the outer iteration count, then use it for the inner seed. Both give .2648949623. Adding 3 inside the seed expression changes that result to .2363138199.
+
+Use graph seeds 0, 113 and 42 with integer inputs 17, 41 and 16,777,217 respectively. Compare direct literal and published seeds, and assign each of six sources in the global multiplier and again in the outer Iterate. The sources are literal 17, the published integer, that integer plus 3, a cast of 17.5, a cast of the float input plus .5, and a cast of Random(200000000). Set the float input to the published integer plus .125. Render each at 16², reading either the random luminosity or the numeric integer divided by 268435456. All **84 settings and 21,504/21,504 F32 pixels** match on each route, maximum zero. In 24 additional single-processor settings, integer addition, conditional selection and assignment within the same seed expression match 6,144/6,144 pixels. Assigning to the name of an exposed integer remains a separate difference in six controls, 0/1,536 with maximum .447026968.
+
+The wider whole-root comparison renders each setting in order. Each cell below counts whole pixels with all stored channels exact. The maximum error is the largest stored component difference on any of the three routes.
+
+| Output | Grayscale settings | Grayscale exact pixels | Maximum error | Color settings | Color exact pixels | Maximum error |
+|---|---:|---:|---:|---:|---:|---:|
+| U8 | 5/5 | 9,728/9,728 | 0 | 5/5 | 9,728/9,728 | 0 |
+| U16 | 10/10 | 124,928/124,928 | 0 | 10/10 | 124,928/124,928 | 0 |
+| F16 | 6/6 | 11,776/11,776 | 0 | 6/6 | 11,776/11,776 | 0 |
+| F32 | 123/124 | 130,308/131,328 | 0.267032921 | 54/55 | 59,648/60,672 | 0.416119799 |
+
+Across 145 grayscale settings the previous build matched 61 whole images and 228,741/277,760 pixels, maximum 59,881 in U16. The new result is 144 and 276,740/277,760. Across 76 color settings the previous build matched 33 images and 160,393/207,104, maximum 65,535 in U16. The new result is 75 and 206,080/207,104.
+
+For the additional open-pin controls, set 32² F32 and seed 0. Use grids (1,1), (2,1), (1,2), (2,2) and (4,4). At each grid compare defaults, zero X/Y size randomness and zero split threshold in mode 0, the latter with pattern 1, pattern 1 with threshold 1 in mode 1, and pattern 1 with zero split and .5 size randomness on both axes. At seeds 1, 42 and 113 repeat the default (1,1) and (4,4) grids. In grayscale also cross (2,1), (1,2) and (2,2) with both split modes, thresholds 0/.5/1 and X/Y randomness (0,0), (.5,0), (0,.5) and (.5,.5).
+
+Test both image pins open, each alone and both connected for the (1,1) grid, the (2,2) regular grid with pattern 1, defaults and a (7,3) grid with pattern 3 and pattern rotation randomness .3. Use the original grayscale or RGBA pattern and background fields from the [whole-root input comparison](#whole-caustic-scratch-splatter-tile-and-vertical-noise-comparisons). Add three rectangles in U8, U16, F16 and F32. For 32 × 64 use seed 530371, both inputs, a (3,2) grid, pattern 1, split mode 0, threshold .375 and size randomness (.4375,.21875). For 64 × 32 use seed 89027, both inputs, a (7,3) grid, pattern 3, split mode 1, threshold .625, size randomness (.3125,.5) and shape rotation randomness .125. For 16 × 32 use seed 2747, open inputs, a (2,5) grid, pattern 1, split mode 0, threshold 0 and size randomness (.375,.25). Count duplicate settings once.
+
+One F32 setting has two reproducible reference results. At seed 0 use the 32² (2,2) regular grid with pattern 1 and just the pattern input connected. Opening this setting directly gives 1,024/1,024 exact pixels in each root. Starting from a (1,1) grid with both inputs connected, then removing only the background while keeping the pattern connected, gives 4/1,024 grayscale and 0/1,024 color, with maxima .267032921 and .416119799. Both input bridge images have the same bytes in the two terminal states. Rebinding the identical pattern file by a second path restores all 1,024 pixels, including upon switching back to the original path. Each sequence reproduced on one processor, on eight and after opening the ordinary save. The three other roots with a driven pattern seed retained 2,449,920/2,449,920 pixels in 383 regression settings. Both older tile roots remain open on the sequential edit comparison.
+
 ### Hue rotation and saturation in Replace Color
 
 Replace Color matches **170,240/170,240 pixels in 39 settings** on one reference processor, eight processors and after reopening a normal MaterialCraft save. All channels match exactly on each route. The earlier build matched 18 whole images and 158,780 pixels. The same 35,695-byte save reopened for the reference comparison was reproduced byte for byte with the corrected build.

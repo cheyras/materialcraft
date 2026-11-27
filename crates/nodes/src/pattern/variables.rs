@@ -50,6 +50,14 @@ impl<'a> PatternVariables<'a> {
         Self { modes, drawing, published, bound_draw: false, locals: BTreeMap::new(), scopes: Vec::new() }
     }
 
+    pub(super) fn seed_integers<'b>(&'b self, assigned: &'b [String]) -> impl Iterator<Item = (&'b str, i32)> {
+        let locals = self.locals.iter().filter_map(|(name, local)| local.depth.map(|_| name));
+        assigned.iter().chain(locals).filter_map(|name| match self.drawing.get(name) {
+            Some(Value::Int(value)) => Some((name.as_str(), *value)),
+            _ => None,
+        })
+    }
+
     pub(super) fn enter(&mut self, names: &BTreeMap<String, ValueType>, depth: u32, declared: &mut Vec<Declaration>) {
         for (name, kind) in names {
             let local = self.locals.entry(name.clone()).or_default();

@@ -116,6 +116,20 @@ impl Program {
         self.evaluate_finite(context, state, random)
     }
 
+    pub(crate) fn evaluate_pattern_seed<'a>(
+        &self,
+        context: &EvaluationContext<'_>,
+        state: &mut EvaluationState,
+        random: &mut FunctionRandom,
+        assigned: impl Iterator<Item = (&'a str, i32)>,
+    ) -> Result<Value, String> {
+        state.variables.clear();
+        // An integer written by an earlier property occupies a float slot. Published inputs
+        // and values assigned within this seed expression use their ordinary integer words.
+        state.variables.extend(assigned.map(|(name, value)| (name.to_owned(), Value::Int((value as f32).to_bits() as i32))));
+        self.evaluate_finite(context, state, random)
+    }
+
     /// A quadrant blends its tint components individually, including an undefined channel.
     pub(crate) fn evaluate_pattern_tint(
         &self,

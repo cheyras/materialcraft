@@ -505,7 +505,9 @@ fn evaluate(context: &CookContext, base_level_only: &[bool], visit_limit: usize,
                 tile: context.tile,
                 variables: inputs,
             };
-            let value = if node.kind == PatternNodeKind::Quadrant && id == "opacity" {
+            let value = if id == "randomseed" {
+                program.evaluate_pattern_seed(&evaluation, &mut state, random, variables.seed_integers(context.vars.assigned_integers()))?
+            } else if node.kind == PatternNodeKind::Quadrant && id == "opacity" {
                 program.evaluate_pattern_tint(&evaluation, &mut state, random)?
             } else {
                 program.evaluate_with_random(&evaluation, &mut state, random)?

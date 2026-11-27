@@ -8,6 +8,10 @@ pub trait GraphVariables: Sync {
     fn literal_inputs(&self) -> &[String] {
         &[]
     }
+    /// Integer variables written by an image-node property before the pattern runs.
+    fn assigned_integers(&self) -> &[String] {
+        &[]
+    }
 }
 
 impl GraphVariables for BTreeMap<String, Value> {

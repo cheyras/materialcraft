@@ -2,6 +2,67 @@ use materialcraft_core::{FunctionGraph, Graph, OutputFormat, Package, PatternGra
 use materialcraft_eval::{Cache, Options, cook};
 use std::sync::Mutex;
 
+#[test]
+fn pattern_seeds_distinguish_published_integers_from_assignments() {
+    let mut graph = Graph::new("Integer seed storage");
+    graph.size = [4; 2];
+    graph.format = OutputFormat::F32;
+    let stamp = graph.add_node("fx_map", [0.0; 2]);
+    let node = graph.node_mut(stamp).unwrap();
+    node.params.insert("color_mode".into(), Value::Bool(false));
+    node.params.insert("roughness".into(), Value::Float(0.0));
+    node.params.insert("background".into(), Value::Color([0.0, 0.0, 0.0, 1.0]));
+    let mut pattern = PatternGraph::with_root(PatternNodeKind::Iterate);
+    let inner = pattern.add(PatternNodeKind::Iterate).unwrap();
+    let leaf = pattern.add(PatternNodeKind::Quadrant).unwrap();
+    pattern.nodes[0].children[1] = Some(inner);
+    pattern.nodes[1].children[1] = Some(leaf);
+    let fields = &mut pattern.nodes[1].parameters;
+    fields.insert("numberadded".into(), Value::Int(1));
+    fields.insert("randominherited".into(), Value::Bool(false));
+    fields.insert("randomseed".into(), Value::Function(Box::new(FunctionGraph::input("seed_value", ValueType::Integer))));
+    let mut opacity = FunctionGraph::default();
+    let one = opacity.add_constant(Value::Float(1.0));
+    opacity.output = Some(opacity.add("rand", &[one], None));
+    let fields = &mut pattern.nodes[2].parameters;
+    fields.insert("patterntype".into(), Value::Int(2));
+    fields.insert("blendingmode".into(), Value::Int(0));
+    fields.insert("opacity".into(), Value::Function(Box::new(opacity)));
+    let mut package = Package::new("Integer seed storage");
+    package.graphs.push(graph);
+    let cache = Mutex::new(Cache::default());
+
+    let write_seed = |result| {
+        let mut f = FunctionGraph::default();
+        let value = f.add_constant(Value::Int(17));
+        let store = f.add("set", &[value], Some(Value::Text("seed_value".into())));
+        let result = f.add_constant(result);
+        f.output = Some(f.add("sequence", &[store, result], None));
+        f
+    };
+    for (scope, expected) in [("input", 0.50918543), ("opacity", 0.26489496), ("iterate", 0.26489496), ("input", 0.50918543)] {
+        let mut options = Options::new(&|_| None);
+        let node = package.graphs[0].node_mut(stamp).unwrap();
+        node.functions.remove("opacity");
+        let count = match scope {
+            "input" => {
+                options.overrides.insert("seed_value".into(), Value::Int(17));
+                Value::Int(1)
+            }
+            "opacity" => {
+                node.functions.insert("opacity".into(), write_seed(Value::Float(1.0)));
+                Value::Int(1)
+            }
+            _ => Value::Function(Box::new(write_seed(Value::Int(1)))),
+        };
+        pattern.nodes[0].parameters.insert("numberadded".into(), count);
+        node.params.insert("pattern".into(), Value::PatternGraph(Box::new(pattern.clone())));
+        let result = cook(&package, 0, &options, &cache);
+        assert_eq!(result.nodes[&stamp].error, None);
+        assert_eq!(result.image(stamp, 0).unwrap().get_gray(8, 8, false), expected, "{scope}");
+    }
+}
+
 fn first_local_probe() -> (Package, materialcraft_core::NodeId) {
     let mut graph = Graph::new("First quadrant read");
     graph.size = [4; 2];
