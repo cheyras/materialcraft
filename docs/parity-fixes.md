@@ -59,6 +59,16 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-26 root comparisons
 
+### Full Pattern Weave 2 comparisons at both processor counts
+
+On release `bd12ea4`, Pattern Weave 2 matches **3,139,840/3,139,840 pixels across all 95 established whole settings** on one processor, on eight, and in fresh ordinary saves opened in both applications. The earlier whole comparison differed at 351 pixels. Each fresh one-processor readback agrees with the corresponding archived original. This graph takes no image input. The measurements cover the original defaults and changed square and rectangular outputs, including different seeds, scales, disorder, 45-degree rotation and non-square expansion. [Seven sizes, fixed fields and reopen settings](#saved-splatter-and-weave-graphs-across-independent-fields) · [Earlier shape and oblique bounds controls](#fixed-and-input-driven-rotation-bounds-for-oblique-stamps)
+
+| Compared in each of the three routes | U8 exact | U16 exact | F16 exact | F32 exact | Maximum error |
+|---|---:|---:|---:|---:|---:|
+| Whole outputs | 400,896/400,896 | 1,174,016/1,174,016 | 402,944/402,944 | 1,161,984/1,161,984 | 0 |
+
+Separately reopen the previously saved packages and compare with the archived reference readbacks of those same files. The first 20 settings match 179,200/179,200 pixels, the second ten match 64,000/64,000, and the thirteen fixed-field settings match 26,624/26,624. All 43 saved renders match **269,824/269,824 pixels**, maximum zero. Pattern Weave 2 qualifies for parity in the measured cases.
+
 ### Full Arc Pavement comparisons across shape selections and ordinary saves
 
 Arc Pavement matches **791,296/791,296 pixels across 93 distinct whole-graph settings** on release `bd12ea4`. Each setting matched on one processor, on eight and after an ordinary MaterialCraft SBS save opened in both applications. All maximum stored errors are zero. The original desktop buffers from the earlier comparisons also reproduce the fresh one-processor readbacks, including the 64² and 128² image-input cases.
