@@ -59,6 +59,25 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-27 root comparisons
 
+### Hue rotation and saturation in Replace Color
+
+Replace Color matches **170,240/170,240 pixels in 39 settings** on one reference processor, eight processors and after reopening a normal MaterialCraft save. All channels match exactly on each route. The earlier build matched 18 whole images and 158,780 pixels. The same 35,695-byte save reopened for the reference comparison was reproduced byte for byte with the corrected build.
+
+| Output | Settings | Exact pixels before | Maximum error before | Exact pixels after | Maximum error after |
+|---|---:|---:|---:|---:|---:|
+| U8 | 10 | 125,439/125,440 | 1 | 125,440/125,440 | 0 |
+| U16 | 9 | 13,734/13,824 | 1 | 13,824/13,824 | 0 |
+| F16 | 7 | 12,794/12,800 | .00048828125 | 12,800/12,800 | 0 |
+| F32 | 13 | 6,813/18,176 | .0000009983778 | 18,176/18,176 | 0 |
+
+Repeat the [31 established settings](#hue-and-chroma-rounding-near-equal-rgb-channels). Add two linear F32 inputs and render each in all four output formats. With zero-based coordinates and color channel c from 0 to 2, set RGB to ((7x + 11y + 3xy + 41c + 5cx + 13cy + 19j) modulo 259)/256 and alpha to ((31x + 13y + 5) modulo 129)/128. For j = 0 use 32 × 64, seed 5309719, source color (.25,.5,.75) and target (.6875,.125,.5625). For j = 1 use 64 × 16, seed 9072209, source (.75,.25,.375) and target (.375,.71875,.09375).
+
+The shared HSL adjustment adds the minimum-channel sector in the same multiply-add as the biased channel difference times the reciprocal chroma. It adds the slider displacement in sixths of a turn. Removing whole turns in a multiply-add preserves the small residuals seen at wrap boundaries. A second multiply-add applies the saturation shift before rounding. At saturation 1 and lightness .5, a .5 gray rotated with hue 1 gives RGB (1, 2⁻²³, 0). At hue .359375, saturation .8125 and lightness .5, the F32 input (.6109035,.6431967,.35680333) has output words 3f74a640, 3d359c00, 3f120e45.
+
+For a separate 32 × 8 linear field, use two grays, .5 and .25, followed by seven colors for each minimum channel in R, G, B order. The minimum is 1/8192 and the maximum is 1 − 1/8192. Set the channel pairs (B,G), (R,B) and (G,R), respectively, to give first − (second + 3/4096) equal to −.75, −.5, −.25, 0, .25, .5 and .75 while retaining that maximum. Repeat the 23 colors across x. Set alpha to ((23x + 29y) modulo 129)/128. At saturation 1 and lightness .5, render hue 0, .03125, .125, .21875, 1/3, .421875, .5, .5625, .625, .765625, .9375, 1 and the two adjacent F32 values on either side of .375. Use seed 9314041 + 13j, starting at j = 0. The 14 settings improved from 1,136/3,584 to **3,584/3,584** on each route, maximum error zero.
+
+The [five gray ramps, six-sector RGB fields, near-grays and shifted lightness controls](#hue-and-chroma-rounding-near-equal-rgb-channels) match 327,680/327,680, 24,576/24,576, 16,384/16,384 and 14,336/14,336 pixels respectively. A standalone HDR channel-offset comparison still matches 20,462/20,480, maximum .000001013279. On the 32 × 8 field, hold the seed at 9314041 and set hue to .5 + t/2 + q for t = −2048, −128, −16, −4, −2, −1, 0, 1, 2, 4, 16, 128 and 2048 and q = 0 or .125. This out-of-range sweep matches 4,672/6,656, maximum 1. The eight differing settings exceed the scalar parameter's current hard range of −16 to 17.
+
 ### Gradient warp on stretched pixels
 
 Liquid matches **820,480/820,480 pixels in 91 distinct settings** on one reference processor, eight processors and after reopening an ordinary MaterialCraft SBS save. The maximum stored error is zero in every format on each route.
