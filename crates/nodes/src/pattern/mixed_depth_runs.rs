@@ -388,7 +388,9 @@ impl MixedDepthRuns {
             return None;
         }
         if self.deepest == 9 && self.trees == 1 {
-            if !self.single_tree_window {
+            // Every recorded draw has at least one copy. A wider window keeps the same
+            // batch boundaries when none of those draws crosses a tiling edge.
+            if !self.single_tree_window && self.copies.as_ref().is_none_or(|copies| copies.copy_count() != self.draws) {
                 return None;
             }
             // Only a continuation splits this run. Rejoin the two retained

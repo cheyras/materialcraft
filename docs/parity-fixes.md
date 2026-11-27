@@ -59,6 +59,43 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-26 root comparisons
 
+### A complete quadrant tree with one physical copy per draw
+
+A single nine-level tree keeps the same submission order when a larger tiled window contains each draw once. The earlier evaluator used the window coordinates to select this order. It now also checks how many physical copies the draws produced in the common render and tiling region. A retained or discarded drawing stamp contributes at least one copy to this count.
+
+In the [two square Noise Dirt 5 comparisons](#shared-branch-expressions-and-all-sixty-noise-dirt-5-renders), expose the FX-Map alongside Levels and set the FX-Map output to F32. At 32 × 32 use seed 113. At 64 × 64 use seed 42. Use scale 2, disorder .37 and the default expansion setting. Put an integer Minimum after the outer iteration count and keep its original calculation and connections. A cap of one emits one complete tree. Four emits two trees and eight reproduces the complete original local FX-Map buffer at both sizes. The render and tiling regions both run from −.5 to 1.5 on each axis.
+
+| Cap · size | Earlier on one processor | Corrected on one | Corrected on eight | Ordinary save on one |
+|---|---:|---:|---:|---:|
+| 1 · 32 × 32 | 1,009/1,024 · 1.1920929e-07 | 1,024/1,024 · 0 | 1,004/1,024 · 1.1920929e-07 | 1,024/1,024 · 0 |
+| 1 · 64 × 64 | 4,031/4,096 · 1.1920929e-07 | 4,096/4,096 · 0 | 3,990/4,096 · 1.1920929e-07 | 4,096/4,096 · 0 |
+| 4 · 32 × 32 | 996/1,024 · 1.1920929e-07 | 996/1,024 · 1.1920929e-07 | 982/1,024 · 5.96046448e-08 | 996/1,024 · 1.1920929e-07 |
+| 4 · 64 × 64 | 3,976/4,096 · 1.1920929e-07 | 3,976/4,096 · 1.1920929e-07 | 3,937/4,096 · 1.1920929e-07 | 3,976/4,096 · 1.1920929e-07 |
+
+Each entry gives exact pixels / pixels compared and maximum absolute F32 error. The one-tree controls each have 344,064 draws and 344,064 physical copies before removing stamps that miss every sample. Their one-processor totals improve from 5,040/5,120 to 5,120/5,120. The ordinary saves also match all 5,120. Both two-tree local buffers retain their previous hashes. They contain 889 and 868 additional copies, respectively. Each reopened local FX-Map and Levels output matches its original. Both builds write byte-identical ordinary saves for these controls.
+
+For an independent comparison, use the [nine-level additive square construction](#single-branch-controls-in-complete-quadrant-trees) on white with only outer repetition 3 active. Use the same render and tiling window, with both tiling axes enabled except in the last row. At 256 × 256 use the first and second F32 gain settings, seeds 188119 and 188156. At 128 × 64 use the first gain setting with seed 292177 in F32 and U16. Reopen an ordinary save in both applications. At (72,64) and (64,80) in the centered 256 × 256 first setting, the earlier evaluator returned zero. The corrected release and the one-processor reference return 2⁻²⁵. At (64,64) and (80,64) both return zero.
+
+Each cell gives exact pixels / total, then the maximum F32 and U16 errors for its four settings.
+
+| X window · Y window | Earlier on one processor | Corrected on one | Earlier on eight | Corrected on eight | Ordinary save on one |
+|---|---:|---:|---:|---:|---:|
+| −.5 to 1.5 · −.5 to 1.5 | 146,368/147,456 · 2.98023224e-08 / 0 | 147,456/147,456 · 0 / 0 | 147,336/147,456 · 2.98023224e-08 / 0 | 146,248/147,456 · 2.98023224e-08 / 0 | 147,456/147,456 · 0 / 0 |
+| −.25 to 1.75 · −.25 to 1.75 | 146,368/147,456 · 2.98023224e-08 / 0 | 147,456/147,456 · 0 / 0 | 147,392/147,456 · 2.98023224e-08 / 0 | 146,432/147,456 · 2.98023224e-08 / 0 | 147,456/147,456 · 0 / 0 |
+| −.5 to 1.5 · −1.5 to 2.5 | 147,456/147,456 · 0 / 0 | 147,456/147,456 · 0 / 0 | 147,456/147,456 · 0 / 0 | 147,456/147,456 · 0 / 0 | 147,456/147,456 · 0 / 0 |
+| −.25 to .75 · −.5 to 1.5 | 145,280/147,456 · 2.98023224e-08 / 0 | 147,456/147,456 · 0 / 0 | 147,456/147,456 · 0 / 0 | 145,280/147,456 · 2.98023224e-08 / 0 | 147,456/147,456 · 0 / 0 |
+| −.5 to 1.5 · −.5 to 1.5, tiling off | 147,456/147,456 · 0 / 0 | 147,456/147,456 · 0 / 0 | 146,624/147,456 · 2.98023224e-08 / 0 | 146,624/147,456 · 2.98023224e-08 / 0 | 147,456/147,456 · 0 / 0 |
+
+All 20 corrected one-processor originals and all 20 ordinary saves match, 737,280/737,280 on each route, up from 732,928 on the original. Against the eight-processor captures the earlier total is 736,264/737,280 and the corrected total is 732,040/737,280. The centered, shifted and narrower-X rows lose exact pixels on this comparison.
+
+Repeat both large F32 settings in those three windows twice more on eight processors and once more on one, reversing the case order. Across the six settings the three eight-processor reads agree at 390,788 pixels. The earlier release matches 390,788 of these and the corrected release 388,044. In the narrower-X window all three eight-processor buffers reproduce the earlier release. They differ from the one-processor output at 1,152 pixels with seed 188119 and 1,024 with seed 188156. Across the original, reopened and repeated reads on both processor counts, 388,044 pixels keep the same word and the corrected release matches every one.
+
+An independent signed comparison assigns two original square draws to each readout over a white background, with gains −1 and 2⁻²⁵. Use a common window from −.5 to 1.5 on both axes and four children at each level. For one tree, all 16,383 adjacent depth-seven parent pairs follow the previously measured order with either assignment of the gains, giving 32,766/32,766 signed comparisons, maximum error zero. In the two-tree control all 65,534 signed comparisons reproduce the measured two-tree order. Four active trees still change the result.
+
+For a six-pixel four-tree control, number the depth-seven parents from 0 through 65,535 in tree order, visiting child ports 0 through 3. Use seed 188119, 256 × 256 F32, square size (.875,.875), zero roughness and unit opacity. Give each pair one pixel in the first row, starting at (0,0). The pairs are (38876,46939), (37383,45424), (53619,57876), (58083,61876), (61523,49776) and (57968,53899). Send other depth-seven draws to (252,248) with gain −1. Center all depth-eight and depth-nine draws at (.875,.875) in pattern space with gain .25. On one processor, unchanged reference recooks agree with the first capture at 2/6, 3/6 and 6/6 readouts, maximum 2⁻²⁵, 2⁻²⁵ and 0. Exchanging the gains gives 6/6, 5/6 and 6/6. A one-pair control using only (38876,46939) agrees on all four reads in each direction. A single fixed four-tree order cannot reproduce all the six-pixel captures.
+
+Repeat the [32 original and 32 reopened Dirt 3, Dirt 5, Dirt Gradient and Vertical Noise controls](#shared-branch-expressions-and-all-sixty-noise-dirt-5-renders) in all four formats. All 64 local buffers retain their prior hashes and all earlier raw scores apply. The complete Noise Dirt 5 root remains in progress.
+
 ### Shared branch expressions and all sixty Noise Dirt 5 renders
 
 The normal evaluator renders all 60 tiled Noise Dirt 5 originals and all 12 archived ordinary saves on the same release. Earlier runs finished 58 originals and 11 saves. The two remaining originals use 128 × 32, seed 433608, scale 3, disorder .046875 and non-square expansion enabled. Leave the other inputs at their defaults and set the final output to the requested storage. [Original series and parameter combinations](#sixty-whole-settings-for-three-directional-and-dirt-noise-packages) · [Ten earlier recovered settings](#ten-recovered-whole-noise-dirt-5-settings)

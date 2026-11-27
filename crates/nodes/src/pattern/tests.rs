@@ -689,6 +689,16 @@ fn single_branch_controls_keep_the_order_of_a_complete_nine_level_tree() {
     assert_eq!(samples, [0.0, tiny, tiny, 0.0], "one active tree through both iterators");
 }
 
+#[test]
+fn a_larger_tiled_window_keeps_the_draw_order_when_each_stamp_has_one_copy() {
+    let variables = BTreeMap::from([("$tiling".into(), Value::Int(3))]);
+    let window = [-0.5, 1.5, -0.5, 1.5];
+    let image = cook_in_regions(gated_mixed_depth_tree(true), &variables, 188119, [256; 2], [window; 2], 1.0).unwrap().remove(0);
+    let samples = [(64, 64), (72, 64), (64, 80), (80, 64)].map(|(x, y)| image.get_gray(x, y, false));
+    let tiny = f32::EPSILON * 0.25;
+    assert_eq!(samples, [0.0, tiny, tiny, 0.0]);
+}
+
 fn draw_white_image(mut graph: PatternGraph, filter: i32, axes: i32) -> craft_texture::Image {
     use craft_texture::Image;
 
