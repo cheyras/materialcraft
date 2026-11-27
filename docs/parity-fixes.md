@@ -59,6 +59,19 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-26 root comparisons
 
+### Two more whole outputs in Noise Clouds 1 v2
+
+Noise Clouds 1 v2 now renders **58/60 established originals** and **14/15 archived ordinary saves** across the recorded passes. The earlier measurements covered 56 originals and 13 saves. The two additional originals are 128 × 128 at seed 411810. Set scale to 3, disorder, disorder speed and disorder anisotropy to .65625, anisotropy angle to .40625, tile offset to (.3125, −.16796875) and non-square expansion off. Keep normal tiling and the other exposed defaults. Set U16 or F32 storage on the node connected to the output. [Earlier full series](#whole-and-saved-outputs-for-noise-clouds-1-v2-at-the-four-child-batch-boundary)
+
+| Storage | Original · one processor | Original · eight | Fresh ordinary save · one |
+|---|---:|---:|---:|
+| U16 | 16,377/16,384 · 1 | 16,377/16,384 · 1 | 16,377/16,384 · 1 |
+| F32 | 14,494/16,384 · 2.68220901e−7 | 14,618/16,384 · 2.38418579e−7 | 14,498/16,384 · 2.68220901e−7 |
+
+Both new saves reproduce their local original exactly. The earlier archived F32 save also produces the same local value at every pixel and matches 14,471/16,384 · 2.98023224e−7 against its original saved-file capture. Repeating the whole F32 case on the preceding release `ea1543c` gives the same full buffer as `bd12ea4`. The two recovered cases still have the raw differences shown above.
+
+The two rectangular settings in each of Noise Clouds 1 v2 and Noise Clouds 2 v2 still reach the execution limit on `bd12ea4`. Use 64 × 32 F32 and 32 × 64 U16, at seeds 103034 and 103035 for the first graph and 103056 and 103057 for the second. Set scale 5, disorder .8125, disorder speed 1.4375, disorder anisotropy .625, its angle −.21875, tile offset (−.3125, .4375) and non-square expansion on. All other exposed controls are at default. These four cases produced no local pixel comparison. [Depth-seven and terminal visit counts](#counting-terminal-draws-in-the-two-remaining-clouds-variants)
+
 ### Individual paraboloids and additive order in Noise BNW Spots 3 v2
 
 At 64 × 64 F32 and seed 411585, fifteen desktop readbacks agreed with one another and differed from MaterialCraft at three pixels. Record the background and nonzero additive draws there in MaterialCraft traversal order. Each pixel receives eleven paraboloids at depths six through nine. The diagnostic cook reproduces the complete checked release buffer. [Root parameters and full-image comparisons](#seeded-quadrant-properties-with-a-live-tint-multiplier)
@@ -1037,7 +1050,7 @@ Repeat the [grayscale and RGBA chunk controls](#streaming-equal-ranked-analytic-
 
 ### Counting terminal draws in the two remaining clouds variants
 
-For Noise Clouds 1 v2 and Noise Clouds 2 v2, the 64 × 32 F32 panel setting still exceeds the traversal limit. Use scale 5, disorder .8125 and non-square expansion on with all other controls at their defaults and the seeds below. In a disposable diagnostic keep the original outer switch, quadrant seeds and depth-seven iteration. Each comparison below retains one of the four original first-level child slots, preserving its slot identifier. Replace each depth-seven drawing quadrant after the iterate with a childless marker. Count the emitted markers from the evaluation trace. The removed children only publish a frame offset. The iteration count reads the graph anisotropy input and its own random stream. This diagnostic counts MaterialCraft visits.
+For Noise Clouds 1 v2 and Noise Clouds 2 v2, the 64 × 32 F32 panel setting still exceeds the traversal limit. Use scale 5, disorder .8125, disorder speed 1.4375, disorder anisotropy .625, its angle −.21875, tile offset (−.3125, .4375), non-square expansion on and the seeds below. In a disposable diagnostic keep the original outer switch, quadrant seeds and depth-seven iteration. Each comparison below retains one of the four original first-level child slots, preserving its slot identifier. Replace each depth-seven drawing quadrant after the iterate with a childless marker. Count the emitted markers from the evaluation trace. The removed children only publish a frame offset. The iteration count reads the graph anisotropy input and its own random stream. This diagnostic counts MaterialCraft visits.
 
 | Graph · seed | Depth-seven marker counts by original slot | Connected terminal children per marker | Combined drawing visits at depths seven and eight |
 |---|---|---:|---:|
