@@ -59,6 +59,58 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-26 root comparisons
 
+### Untiled Spots, Clouds, Directional Noise and Dirt at two rectangular sizes
+
+Release `0f01b25` includes the [per-axis background sampling change](#filtering-a-resized-pattern-background-on-each-axis). Open each Noise graph with tiling disabled. Use 16 × 32, seed 731257 and exposed defaults. At 32 × 16 use seed 731279, scale 1, disorder .4375 and non-square expansion enabled. Keep the other parameters at their defaults. Set output storage on the node connected to the graph output. Read the whole grayscale buffer, then save the package normally and reopen it in both applications. The [earlier Spots table](#untiled-spots-outputs-and-the-second-dirt-gradient-iteration) covers the 16 × 32 Spots 3 v2 setting.
+
+Each cell gives exact pixels / total pixels and maximum absolute error. Integer errors are storage levels. The original reference captures used one and eight processors. The saved comparison used one.
+
+| Graph · size | Route | U8 | U16 | F16 | F32 |
+|---|---|---:|---:|---:|---:|
+| BNW Spots 3 v2 · 32 × 16 | Original · one processor | 512/512 · 0 | 511/512 · 1 | 512/512 · 0 | 472/512 · 1.1920929e-07 |
+| BNW Spots 3 v2 · 32 × 16 | Original · eight | 512/512 · 0 | 512/512 · 0 | 512/512 · 0 | 464/512 · 1.1920929e-07 |
+| BNW Spots 3 v2 · 32 × 16 | Ordinary save · one | 512/512 · 0 | 511/512 · 1 | 512/512 · 0 | 470/512 · 1.1920929e-07 |
+| Clouds 1 v2 · 16 × 32 | Original · one processor | 512/512 · 0 | 512/512 · 0 | 512/512 · 0 | 467/512 · 1.1920929e-07 |
+| Clouds 1 v2 · 16 × 32 | Original · eight | 512/512 · 0 | 512/512 · 0 | 512/512 · 0 | 459/512 · 8.94069672e-08 |
+| Clouds 1 v2 · 16 × 32 | Ordinary save · one | 512/512 · 0 | 512/512 · 0 | 512/512 · 0 | 467/512 · 1.1920929e-07 |
+| Clouds 1 v2 · 32 × 16 | Original · one processor | 512/512 · 0 | 512/512 · 0 | 512/512 · 0 | 475/512 · 8.94069672e-08 |
+| Clouds 1 v2 · 32 × 16 | Original · eight | 512/512 · 0 | 511/512 · 1 | 512/512 · 0 | 474/512 · 1.1920929e-07 |
+| Clouds 1 v2 · 32 × 16 | Ordinary save · one | 512/512 · 0 | 512/512 · 0 | 512/512 · 0 | 468/512 · 1.1920929e-07 |
+| Clouds 2 v2 · 16 × 32 | Original · one processor | 512/512 · 0 | 512/512 · 0 | 512/512 · 0 | 507/512 · 5.96046448e-08 |
+| Clouds 2 v2 · 16 × 32 | Original · eight | 512/512 · 0 | 512/512 · 0 | 512/512 · 0 | 508/512 · 5.96046448e-08 |
+| Clouds 2 v2 · 16 × 32 | Ordinary save · one | 512/512 · 0 | 512/512 · 0 | 512/512 · 0 | 507/512 · 5.96046448e-08 |
+| Clouds 2 v2 · 32 × 16 | Original · one processor | 512/512 · 0 | 512/512 · 0 | 512/512 · 0 | 507/512 · 5.96046448e-08 |
+| Clouds 2 v2 · 32 × 16 | Original · eight | 512/512 · 0 | 512/512 · 0 | 512/512 · 0 | 507/512 · 5.96046448e-08 |
+| Clouds 2 v2 · 32 × 16 | Ordinary save · one | 512/512 · 0 | 512/512 · 0 | 512/512 · 0 | 507/512 · 5.96046448e-08 |
+| Directional Noise 1 v2 · 16 × 32 | Original · one processor | 512/512 · 0 | 510/512 · 1 | 512/512 · 0 | 346/512 · 1.1920929e-07 |
+| Directional Noise 1 v2 · 16 × 32 | Original · eight | 512/512 · 0 | 511/512 · 1 | 512/512 · 0 | 361/512 · 1.1920929e-07 |
+| Directional Noise 1 v2 · 16 × 32 | Ordinary save · one | 512/512 · 0 | 510/512 · 1 | 512/512 · 0 | 339/512 · 1.1920929e-07 |
+| Directional Noise 1 v2 · 32 × 16 | Original · one processor | 512/512 · 0 | 511/512 · 1 | 512/512 · 0 | 351/512 · 1.1920929e-07 |
+| Directional Noise 1 v2 · 32 × 16 | Original · eight | 512/512 · 0 | 511/512 · 1 | 512/512 · 0 | 357/512 · 1.78813934e-07 |
+| Directional Noise 1 v2 · 32 × 16 | Ordinary save · one | 512/512 · 0 | 511/512 · 1 | 512/512 · 0 | 346/512 · 1.1920929e-07 |
+| Directional Noise 2 v2 · 16 × 32 | Original · one processor | 512/512 · 0 | 512/512 · 0 | 511/512 · 0.000122070312 | 393/512 · 1.1920929e-07 |
+| Directional Noise 2 v2 · 16 × 32 | Original · eight | 512/512 · 0 | 512/512 · 0 | 511/512 · 0.000122070312 | 410/512 · 5.96046448e-08 |
+| Directional Noise 2 v2 · 16 × 32 | Ordinary save · one | 512/512 · 0 | 512/512 · 0 | 511/512 · 0.000122070312 | 371/512 · 8.94069672e-08 |
+| Directional Noise 2 v2 · 32 × 16 | Original · one processor | 512/512 · 0 | 512/512 · 0 | 512/512 · 0 | 360/512 · 8.94069672e-08 |
+| Directional Noise 2 v2 · 32 × 16 | Original · eight | 512/512 · 0 | 512/512 · 0 | 512/512 · 0 | 372/512 · 5.96046448e-08 |
+| Directional Noise 2 v2 · 32 × 16 | Ordinary save · one | 512/512 · 0 | 512/512 · 0 | 512/512 · 0 | 374/512 · 8.94069672e-08 |
+| Directional Noise 3 v2 · 16 × 32 | Original and saved | Visit limit | Visit limit | Visit limit | Visit limit |
+| Directional Noise 3 v2 · 32 × 16 | Original and saved | Visit limit | Visit limit | Visit limit | Visit limit |
+| Dirt 3 · 16 × 32 | Original · one processor | 512/512 · 0 | 512/512 · 0 | 512/512 · 0 | 510/512 · 5.96046448e-08 |
+| Dirt 3 · 16 × 32 | Original · eight | 512/512 · 0 | 512/512 · 0 | 512/512 · 0 | 511/512 · 5.96046448e-08 |
+| Dirt 3 · 16 × 32 | Ordinary save · one | 512/512 · 0 | 512/512 · 0 | 512/512 · 0 | 510/512 · 5.96046448e-08 |
+| Dirt 3 · 32 × 16 | Original · one processor | 512/512 · 0 | 512/512 · 0 | 512/512 · 0 | 509/512 · 2.98023224e-08 |
+| Dirt 3 · 32 × 16 | Original · eight | 512/512 · 0 | 512/512 · 0 | 512/512 · 0 | 512/512 · 0 |
+| Dirt 3 · 32 × 16 | Ordinary save · one | 512/512 · 0 | 512/512 · 0 | 512/512 · 0 | 509/512 · 2.98023224e-08 |
+| Dirt 3 v2 · 16 × 32 | Original · one processor | 512/512 · 0 | 512/512 · 0 | 512/512 · 0 | 509/512 · 2.98023224e-08 |
+| Dirt 3 v2 · 16 × 32 | Original · eight | 512/512 · 0 | 512/512 · 0 | 512/512 · 0 | 508/512 · 2.98023224e-08 |
+| Dirt 3 v2 · 16 × 32 | Ordinary save · one | 512/512 · 0 | 512/512 · 0 | 512/512 · 0 | 509/512 · 2.98023224e-08 |
+| Dirt 3 v2 · 32 × 16 | Original · one processor | 512/512 · 0 | 512/512 · 0 | 512/512 · 0 | 508/512 · 2.98023224e-08 |
+| Dirt 3 v2 · 32 × 16 | Original · eight | 512/512 · 0 | 512/512 · 0 | 512/512 · 0 | 509/512 · 2.98023224e-08 |
+| Dirt 3 v2 · 32 × 16 | Ordinary save · one | 512/512 · 0 | 512/512 · 0 | 512/512 · 0 | 507/512 · 2.98023224e-08 |
+
+52/60 original settings and their ordinary saves produced buffers. Every completed local save repeats its original pixel words. Whole-buffer agreement is 35/52 on one processor, 36/52 on eight and 35/52 after reopening. The baseline for the same completed U8 settings was 5,155/6,656 · 2 on one processor. It is now 6,656/6,656 · 0. The F16 baseline was 3,767/6,656 · 0.00439453125 and is now 6,655/6,656 · 0.000122070312.
+
 ### A complete quadrant tree with one physical copy per draw
 
 A single nine-level tree keeps the same submission order when a larger tiled window contains each draw once. The earlier evaluator used the window coordinates to select this order. It now also checks how many physical copies the draws produced in the common render and tiling region. A retained or discarded drawing stamp contributes at least one copy to this count.
