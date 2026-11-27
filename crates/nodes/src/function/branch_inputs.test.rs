@@ -2,6 +2,88 @@ use crate::function::{EvaluationContext, EvaluationState, FunctionScope, compile
 use materialcraft_core::{FunctionGraph, Value};
 use std::collections::BTreeMap;
 
+fn constant_call(graph: &mut FunctionGraph, value: f32) -> u32 {
+    let id = graph.add("instance", &[], None);
+    let node = graph.nodes.last_mut().unwrap();
+    node.instance = Some(materialcraft_core::GraphInstance {
+        graph: "constant".into(),
+        label: String::new(),
+        package: String::new(),
+        inputs: Vec::new(),
+        outputs: Vec::new(),
+        defaults: BTreeMap::new(),
+    });
+    node.source = Some(Ok(std::sync::Arc::new(FunctionGraph::constant(Value::Float(value)))));
+    id
+}
+
+#[test]
+fn a_closed_function_call_preserves_shared_draw_order_in_a_pattern_assignment() {
+    let mut graph = FunctionGraph::default();
+    let first = graph.add("get_bool", &[], Some(Value::Text("first".into())));
+    let unit = graph.add_constant(Value::Float(1.0));
+    let shared = graph.add("rand", &[unit], None);
+    let other = graph.add("rand", &[unit], None);
+    let chosen = graph.add("ifelse", &[first, shared, other], None);
+    let published = graph.add("set", &[chosen], Some(Value::Text("published".into())));
+    let quarter = graph.add_constant(Value::Float(0.25));
+    let weighted = graph.add("mul", &[shared, quarter], None);
+    let total = graph.add("add", &[published, weighted], None);
+    let angle = constant_call(&mut graph, std::f32::consts::PI);
+    let eighth = graph.add_constant(Value::Float(0.125));
+    let offset = graph.add("mul", &[angle, eighth], None);
+    graph.output = Some(graph.add("add", &[total, offset], None));
+
+    // Raw F32 tint words for the two choices on three independently measured stamp seeds.
+    for (seed, expected) in [(11_038_009, [0x3f00baf2, 0x3f1faf8a]), (9_766_418, [0x3fa910f3, 0x3f3da6cd]), (22_858_730, [0x3f878418, 0x3fcc33e4])] {
+        let program = compile(&graph, seed).unwrap();
+        for (first, word) in [false, true].into_iter().zip(expected) {
+            let variables = BTreeMap::from([("first".into(), Value::Bool(first))]);
+            let context = EvaluationContext {
+                scope: FunctionScope::FxMap,
+                position: [0.5; 2],
+                size: [16.0; 2],
+                images: &[],
+                image_formats: &[],
+                tile: true,
+                variables: &variables,
+            };
+            assert_eq!(program.evaluate(&context, &mut EvaluationState::default()).unwrap(), Value::Float(f32::from_bits(word)), "{seed}, {first}");
+        }
+    }
+}
+
+#[test]
+fn reading_one_packed_channel_before_a_pure_call_consumes_only_its_draw() {
+    for lane in [0, 1] {
+        let mut graph = FunctionGraph::default();
+        let unit = graph.add_constant(Value::Float(1.0));
+        let [a, b, next] = std::array::from_fn(|_| graph.add("rand", &[unit], None));
+        let pair = graph.add("vector2", &[a, b], None);
+        let selected = graph.add("swizzle1", &[pair], Some(Value::Int(lane)));
+        let saved = graph.add("set", &[selected], Some(Value::Text("published".into())));
+        let quarter = graph.add_constant(Value::Float(0.25));
+        let weighted = graph.add("mul", &[next, quarter], None);
+        let sum = graph.add("add", &[saved, weighted], None);
+        let offset = constant_call(&mut graph, 0.125);
+        graph.output = Some(graph.add("add", &[sum, offset], None));
+        let variables = BTreeMap::new();
+        let context = EvaluationContext {
+            scope: FunctionScope::FxMap,
+            position: [0.5; 2],
+            size: [16.0; 2],
+            images: &[],
+            image_formats: &[],
+            tile: true,
+            variables: &variables,
+        };
+        for (seed, word) in [(11_038_009, 0x3ea6d4ee), (9_766_418, 0x3f1e3da6), (22_858_730, 0x3f98c3fa)] {
+            let value = compile(&graph, seed).unwrap().evaluate(&context, &mut EvaluationState::default()).unwrap();
+            assert_eq!(value, Value::Float(f32::from_bits(word)), "{seed}, lane {lane}");
+        }
+    }
+}
+
 #[test]
 fn shared_conditional_draws_follow_their_arm_and_keep_their_original_position() {
     let mut graph = FunctionGraph::default();

@@ -18,7 +18,7 @@ pub(super) fn identify_pattern_components(program: &mut super::Program) {
     // A call can read state written elsewhere in this graph, without an argument wire.
     // Keep the original evaluation order when those dependencies are unknown.
     if instructions.iter().any(|op| op.definition.id == "set")
-        && instructions.iter().any(|op| op.call.as_ref().is_some_and(|call| call.pattern_arguments.is_none()))
+        && instructions.iter().any(|op| op.call.as_ref().is_some_and(|call| call.pattern_arguments.is_none() && !call.depends_only_on_arguments()))
     {
         return;
     }

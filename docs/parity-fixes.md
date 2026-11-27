@@ -59,6 +59,25 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-26 root comparisons
 
+### Shared draws and channel selection across pure pattern calls
+
+A quadrant expression can assign a value, call a function and later reuse a draw from a conditional arm. When each called function computes only from its declared arguments and constants, MaterialCraft now preserves the shared draw's position and evaluates only the selected channel of a packed value. The check follows nested calls. A call that draws a random value, samples an image, writes a variable or reads an undeclared name can observe evaluation order.
+
+Start with one ring and one stamp from the [circular geometry control](#circular-splatter-geometry-and-the-order-of-random-draws). Use a full-coverage additive square over black at 16 × 16 F32, offsets (0,0), size (1,1), and seeds 0, 113 and 137. In the opacity graph let A and B be independent Random(1) nodes. Choose A or B by comparing an exposed float of 0 or 1 with .5, assign the result to a named float and return that result plus A/4 plus π/8. Supply π through a constant-returning function. At seed 113 the F32 words for false and true are `3fa910f3` and `3f3da6cd`. Repeat with a literal in place of the call, with and without the assignment, and with another read of the assigned value added to the result.
+
+| F32 controls | Settings | Exact pixels before | Maximum error before | Exact pixels after | Maximum error after |
+|---|---:|---:|---:|---:|---:|
+| Shared draw, assignment, constant call and controls | 30 | 6,144/7,680 | 1.015005827 | 7,680/7,680 | 0 |
+| One or two calls computing from a declared argument | 12 | 1,536/3,072 | .435002476 | 3,072/3,072 | 0 |
+| Selecting channels of packed draws or their product | 12 | 0/3,072 | .578230530 | 3,072/3,072 | 0 |
+| Direct draws shared across two conditions and independent controls | 36 | 6,912/9,216 | .578230530 | 9,216/9,216 | 0 |
+
+For the argument cases, replace π/8 with a function that returns one eighth of its scalar input. Supply the switch as 0 or 1, directly or through an enclosing function. For the channel cases pack (A,B), select X or Y and store it, then add one quarter of a fresh draw and a function returning .125. Repeat with the X component of (A,B) × (C,D), and with its Y component also added at the end. For the two-condition cases store the first choice between A and B, then add one quarter of a second choice between A and C. Exercise all four switch combinations. Repeat with the first arms reversed and with the second condition using only independent draws. Supply the first switch divided by eight through a function.
+
+Both reference processor counts and the reference reopen of ordinary MaterialCraft saves matched **23,040/23,040** pixels in these 90 settings. The original and reopened MaterialCraft buffers also agreed. In the separate two-condition control where the shared draw happens inside a called function, only 1,536/3,072 pixels matched. When assigning an entire pairwise vector product, sum or interpolation before reading the result, each operation matched 0/1,536 pixels. At seed 113, interpolating (A,B) toward (C,D) by .375 gave (.496003091, .551222920) in the reference. Across all three seeds this matches drawing A, C, B, D.
+
+Grayscale Tile Generator retained **757,504/757,504** pixels in its 221 established settings. One or more archived renders of each of the 15 other qualified roots whose quadrant expressions combine assignments, calls and conditional or channel selection matched **227,840/227,840** pixels in 71 settings, maximum zero. The two circular splatter roots retained the same per-format counts and maxima in all 54 settings each on one processor, on eight and after saving. Both remain in progress. [Whole circular results](#circular-splatter-geometry-and-the-order-of-random-draws) · [Grayscale tile inputs and output formats](#selected-channels-in-pattern-expressions)
+
 ### Circular splatter geometry and the order of random draws
 
 The two roots in `pattern_splatter_circular.sbs` at `bd12ea4` matched every pixel in 13 of 54 distinct settings each. Both original reference processor counts and the one-processor reopen of an ordinary MaterialCraft SBS save gave identical raw buffers in all 54. Each application also reproduced its own originals after saving. The fresh reference buffers for all nine established settings agree with the archives in 132,096/132,096 pixels per root, maximum zero. [Earlier nine whole outputs](#other-roots-using-uniform-arc-tangents)

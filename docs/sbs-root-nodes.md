@@ -41,6 +41,8 @@ Writable quadrant tints now match 16,896/16,896 pixels in 44 settings across fou
 
 Six upstream filters now match 27,648/27,648 original and 27,648/27,648 reopened pixels across four output formats, up from 24,192 on each side. Both directions of an image connection through a graph instance also match 4,608/4,608 F32 pixels on each side. [Published filter properties, fixed controls and raw errors](parity-fixes.md#published-filter-properties-upstream-of-a-quadrant-draw)
 
+Shared draws and packed channel selections around pure pattern functions now match all 23,040 pixels in 90 procedural settings on both processor counts and on ordinary reopen. The 221 grayscale Tile Generator settings and 71 settings from 15 other qualified roots remain exact. Both circular splatter roots still match 13 of 54 whole settings each. [Exact counts, controls and remaining differences](parity-fixes.md#shared-draws-and-channel-selection-across-pure-pattern-calls)
+
 Pattern Fibers 1 matches all 24 established outputs and twelve further rectangular settings, on one processor, on eight and after saving. [Parameters and exact counts](parity-fixes.md#pattern-fibers-1-at-default-and-changed-tiling)
 
 Pattern Weave 2 matches all 95 whole settings on one and eight processors and after saving. All 43 earlier saved renders also match. [Whole results by storage format](parity-fixes.md#full-pattern-weave-2-comparisons-at-both-processor-counts)

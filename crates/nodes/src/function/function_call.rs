@@ -79,6 +79,22 @@ impl PatternArguments {
 }
 
 impl FunctionCall {
+    /// A call that only computes from its own arguments can share the caller's
+    /// pattern evaluation order. Hidden variable reads and random draws in a
+    /// nested call also observe that order.
+    pub(super) fn depends_only_on_arguments(&self) -> bool {
+        self.program.instructions.iter().all(|op| {
+            if let Some(callee) = &op.call {
+                return callee.depends_only_on_arguments();
+            }
+            let id = op.definition.id;
+            if id.starts_with("get_") || id == "isdefined" {
+                return matches!(&op.value, Some(Value::Text(name)) if self.defaults.contains_key(name));
+            }
+            id.starts_with("const_") || op.depends_only_on_operands()
+        })
+    }
+
     /// A function made entirely of argument reads, vector packs and swizzles can return
     /// caller components directly. Sampling one of its return channels then stays lazy.
     pub(super) fn packed_projection(&self, registers: &[usize], sources: &[[Option<super::vector::PatternComponent>; 4]]) -> Option<PatternArguments> {

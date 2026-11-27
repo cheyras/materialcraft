@@ -1,4 +1,4 @@
-use super::{Program, vector::PatternComponent};
+use super::{Program, function_call::FunctionCall, vector::PatternComponent};
 use materialcraft_core::Value;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -40,8 +40,11 @@ pub(super) fn identify(program: &mut Program) {
             .push(op.type_code == 256 && (op.literal || fixed_input || (op.definition.id == "rand" && op.inputs.iter().all(|&i| independent_range[i]))));
     }
     // A called graph can observe the caller's assignments without listing them among its inputs.
-    if written.is_empty() || instructions.iter().all(|op| op.call.is_none()) {
+    let has_calls_and_writes = !written.is_empty() && instructions.iter().any(|op| op.call.is_some());
+    if !has_calls_and_writes {
         program.processor_branches = shared_inputs(program, &independent_range, None);
+    }
+    if !has_calls_and_writes || instructions.iter().filter_map(|op| op.call.as_ref()).all(FunctionCall::depends_only_on_arguments) {
         program.pattern_branches = shared_inputs(program, &independent_range, Some(&program.pattern_components));
     }
 }
