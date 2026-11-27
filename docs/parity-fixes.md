@@ -114,6 +114,14 @@ For the outstanding live edit, keep the 128² pattern connected while removing t
 
 For a standalone reproduction, generate 128² byte fields `(13x + 7y + 3xy) mod 253` and `(31x + 19y + 5xy) mod 251`. Connect the first to a centered half-size image stamp, with unit opacity and a black background. At 32² F32, adding the second field as background while retaining the pattern gives 833/1,024 exact pixels with automatic filtering, maximum .001968503. Removing it gives 833/1,024, maximum .001968443. Rebinding the pattern or changing to 16² and back restores all 1,024. Explicit bilinear matches 12,544/12,544 across the 13 settings on one processor, eight and after ordinary reopen. Both tile roots retain their open live-edit comparison.
 
+### Sampling a retained input after an editor change
+
+Use the two 128² procedural byte fields and half-size image stamp above. Give the image input an absolute 32² or 32 × 64 output. Compare the direct connection with an identity Levels node that inherits the input dimensions and stores U8. For each bridge, set the stamp output to 32², 32 × 64, 64 × 32 and 64² in turn. At each size render F32, change only the stamp precision to U16, then return to F32. Keep the graph extent and binding in place during both precision changes.
+
+The direct reference result agrees with the base-level sample on the first render at each new extent and with the full mip chain after each precision change. Across 24 comparisons, these two paths account for **36,864/36,864 F32 pixels** and **18,432/18,432 U16 pixels**, maximum zero on one and eight processors. With the 32 × 64 bridge and 64 × 32 output, continuing to sample the base level on the second render gives 1,538/2,048 U16 pixels, maximum 23,644 levels. Temporarily setting a rectangular output to a square and back during a precision change starts a new extent and changes the result. Reapplying the same precision at the same extent before any other edit retained the initial 32² F32 output in the square control.
+
+Selecting between the two sampling paths offline also reproduces all 484,864 pixels of the earlier 221 sequential root settings. MaterialCraft's ordinary editor preview still uses the fresh-render path for both live background edits. The two roots remain in progress.
+
 ### Integer assignments read by pattern seeds
 
 The two roots in `tile_random.sbs` each match **142,592/142,592 pixels in all 19 established settings** on one reference processor, on eight and after reopening an ordinary MaterialCraft save. The previous grayscale and color totals were 111,207 and 111,194. The same 1,702,705-byte save was reproduced with the tested build. Both roots also match at 32² with a freshly connected image in the edit-order control described below. [Previous comparison](#returned-vectors-in-pattern-properties)
