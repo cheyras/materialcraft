@@ -84,6 +84,25 @@ Repeat the independent square-and-four-children control with the inner Iterate i
 
 The 64 × 32 and 32 × 64 Clouds 1 v2 and Clouds 2 v2 rectangles still reach the traversal limit. The 64 × 16 Directional Noise 3 v2 graph at seed 42 also reaches it. BNW Spots 3 v2 has repeat-dependent F32 differences, and Dirt 4 v2 retains the previously measured differences at other settings. [Repeated BNW measurements](#repeated-f32-captures-of-28-noise-roots) [Clouds rectangular settings](#two-more-whole-outputs-in-noise-clouds-1-v2)
 
+#### Ordinary saves and release cook times for the two rectangles
+
+Save each of the four configured output formats separately, close the package, and reopen it directly at its saved path. Use the BNW Spots 3 v2 and Dirt 4 v2 dimensions, seeds and parameters above. All eight saved MaterialCraft outputs reproduce their source words, **10,240/10,240 pixels** in total. The reference columns compare the positional raw values at the stored precision. The final two columns compare the reference’s own original and saved captures.
+
+| Root | Storage | MaterialCraft save · one · max | MaterialCraft save · eight · max | Reference original vs. save · one · max | Reference original vs. save · eight · max |
+|---|---|---:|---:|---:|---:|
+| BNW Spots 3 v2 | U8 | 2,048/2,048 · 0 | 2,048/2,048 · 0 | 2,048/2,048 · 0 | 2,048/2,048 · 0 |
+| BNW Spots 3 v2 | U16 | 2,047/2,048 · 1 | 2,047/2,048 · 1 | 2,047/2,048 · 1 | 2,046/2,048 · 1 |
+| BNW Spots 3 v2 | F16 | 2,048/2,048 · 0 | 2,048/2,048 · 0 | 2,048/2,048 · 0 | 2,048/2,048 · 0 |
+| BNW Spots 3 v2 | F32 | 1,771/2,048 · 2.38418579e-07 | 1,771/2,048 · 2.38418579e-07 | 1,752/2,048 · 2.38418579e-07 | 1,745/2,048 · 2.38418579e-07 |
+| Dirt 4 v2 | U8 | 512/512 · 0 | 512/512 · 0 | 512/512 · 0 | 512/512 · 0 |
+| Dirt 4 v2 | U16 | 512/512 · 0 | 512/512 · 0 | 512/512 · 0 | 512/512 · 0 |
+| Dirt 4 v2 | F16 | 512/512 · 0 | 512/512 · 0 | 512/512 · 0 | 512/512 · 0 |
+| Dirt 4 v2 | F32 | 512/512 · 0 | 512/512 · 0 | 512/512 · 0 | 512/512 · 0 |
+
+At 16² F32, alternate the previous and current release evaluators three times with a single cook thread. Use seed 0 and defaults for BNW Spots 3 v2 and seed 105526 and defaults for Dirt 4 v2. Time the engine cook with the package already loaded. Every run reproduced its original pixel hash. Median time on the measurement machine went from 9.62 to 4.39 seconds for BNW Spots 3 v2 and from 31.85 to 13.68 seconds for Dirt 4 v2.
+
+The 64 × 32 Directional Noise 2 v2 case at seed 195000 and the 128 × 32 Dirt 4 v2 case at seed 433595 still reach the execution limit in this release. On the latter, the one- and eight-processor reference captures agree at 4,064/4,096 pixels with a maximum difference of .00407773256. [Dimensions and changed Dirt 4 v2 parameters](#repeated-f32-captures-of-28-noise-roots)
+
 ### Repeated F32 captures of 28 noise roots
 
 At one fixed setting per root, compare one MaterialCraft render with five reference returns at one processor and five at eight. Between returns, render a second setting at a different size to invalidate the previous image. Read the raw F32 output after every return. The same processor count produced multiple buffers on 8 of the 28 roots at one processor and on 25 at eight.

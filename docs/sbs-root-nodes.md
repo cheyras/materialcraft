@@ -67,7 +67,7 @@ Arc Pavement matches all 93 whole settings on both processor counts and after an
 
 Noise Clouds 1 v2 now renders 58/60 established originals and 14/15 archived saves. Two 128 × 128 outputs and their ordinary saves render with the remaining differences measured below. [Raw word counts and the four remaining Clouds rectangles](parity-fixes.md#two-more-whole-outputs-in-noise-clouds-1-v2)
 
-Noise BNW Spots 3 v2 renders all 62 established originals and all 14 archived ordinary saves. Its last archived U8 rectangle matches 2,048/2,048 pixels on both processor counts. At 32 × 16, seed 105532, Dirt 4 v2 now matches 2,048/2,048 original pixels across four formats. [Bound arithmetic in seeded quadrant properties](parity-fixes.md#bound-arithmetic-in-seeded-quadrant-properties)
+Noise BNW Spots 3 v2 renders all 62 established originals and all 14 archived ordinary saves. Its last archived U8 rectangle matches 2,048/2,048 pixels on both processor counts. At 32 × 16, seed 105532, Dirt 4 v2 matches all 2,048 pixels across four formats on its originals and ordinary saves. Both roots reproduce their MaterialCraft originals on eight configured reopens, 10,240/10,240 pixels. [Saved outputs and cook times](parity-fixes.md#ordinary-saves-and-release-cook-times-for-the-two-rectangles) [Bound arithmetic in seeded quadrant properties](parity-fixes.md#bound-arithmetic-in-seeded-quadrant-properties)
 
 At three 64 × 64 F32 residuals in BNW Spots 3 v2, 33 individual stamps and nine ordered sums match every pixel on both processor counts and on ordinary reopen. [Stamp values and reduced trees](parity-fixes.md#individual-paraboloids-and-additive-order-in-noise-bnw-spots-3-v2)
 
