@@ -2,6 +2,7 @@ use super::ATOMIC;
 use super::input_resize::sampled_input;
 use crate::{CookContext, CookResult, NodeDefinition, node, texture_sampler};
 use craft_texture::Image;
+use materialcraft_core::Value;
 
 pub(super) fn definition() -> NodeDefinition {
     node("warp", "Warp", ATOMIC)
@@ -23,10 +24,12 @@ fn warp(context: &CookContext) -> CookResult {
     let same_size = (map.width(), map.height()) == (width, height);
     let (w, h) = (width as f32, height as f32);
     let (mw, mh) = (map.width() as f32, map.height() as f32);
-    let shorter = w.min(h);
-    let strength = context.f("intensity") * (shorter / 256.0);
-    // A difference spans one texel of the stored gradient. Both displacements scale in pixels of the shorter output axis.
-    let scale = [strength * (shorter / w) * (mw / w), strength * (shorter / h) * (mh / h)];
+    let stretched = context.vars.get("$pixelratio").and_then(Value::as_i32) == Some(0);
+    let [extent_x, extent_y] = if stretched { [w, h] } else { [w.min(h); 2] };
+    let intensity = context.f("intensity");
+    // A slope spans one stored gradient texel. Stretched pixels measure displacement separately along each output axis.
+    let axis_scale = |extent: f32, output: f32, gradient: f32| (intensity * (extent / 256.0)) * (extent / output) * (gradient / output);
+    let scale = [axis_scale(extent_x, w, mw), axis_scale(extent_y, h, mh)];
     let tile = context.tiling_axes();
     let nearest = context.b("nearest");
     Ok(vec![Image::generate(width, height, image.kind(), |x, y| {

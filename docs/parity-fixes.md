@@ -59,6 +59,44 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-27 root comparisons
 
+### Gradient warp on stretched pixels
+
+Liquid matches **820,480/820,480 pixels in 91 distinct settings** on one reference processor, eight processors and after reopening an ordinary MaterialCraft SBS save. The maximum stored error is zero in every format on each route.
+
+| Output | Settings | Exact pixels on each route |
+|---|---:|---:|
+| U8 | 11 | 102,912/102,912 |
+| U16 | 22 | 342,016/342,016 |
+| F16 | 12 | 104,960/104,960 |
+| F32 | 46 | 270,592/270,592 |
+
+The previous build matched 53/60 established settings and 702,029/785,664 pixels. The seven failures used rectangular outputs with non-square expansion disabled. At seed 106898, compare a 64 × 32 F32 output at scale 5 with disorder and warp intensity both .3125. The previous build matched 2/2,048 pixels, maximum .451499209. Holding the generator settings fixed and setting warp intensity to zero matched all 2,048. At seed 106898, cross 64 × 32, 32 × 16, 16 × 32 and 32² with both expansion settings and warp intensities 0, .03125 and .3125. Keep scale 5 and disorder .3125. This gives 24 F32 settings including the original. For two additional disabled-expansion cases in all four formats use 32 × 64, seed 7001129, scale 9, disorder .3125 and warp .5625, then 64 × 16, seed 8008137, scale 4, disorder .71875 and warp .1875.
+
+To reproduce the 60 established settings, combine the original 19 Liquid comparisons with the table below and count identical settings once. A single value in the disorder/warp column sets both controls. “All” means U8, U16, F16 and F32. [Original 19 settings](#liquid-fiber-and-related-noise-sources)
+
+| Size | Seed | Scale | Disorder/warp | Non-square expansion | Output |
+|---|---:|---:|---|---|---|
+| 16 × 32 | 0 | defaults | defaults | defaults | All |
+| 32 × 16 | 42 | 16 | .21875 | on | U16, F32 |
+| 64² | 433818 | 5 | .9375 | off | All |
+| 128 × 32 | 433855 | 11 | .046875 | on | U16, F32 |
+| 32 × 128 | 433892 | 27 | .5625 | off | All |
+| 128² | 0 | defaults | defaults | defaults | All |
+| 256 × 128 | 433966 | 19 | .328125 | off | U16, F32 |
+| 128 × 256 | 434003 | 32 | .8125 | on | U16, F32 |
+| 256² | 42 | defaults | defaults | defaults | All |
+| 512 × 128 | 434077 | 12 | .671875 | on | U16, F32 |
+| 16 × 32 | 300442 | defaults | defaults | defaults | U16, F32 |
+| 64 × 32 | 300521 | 1 | 0 | on | All |
+| 32 × 64 | 300600 | 13 | .8125 | on | All |
+| 64² | 300679 | 16 | .21875 | on | U16, F32 |
+
+Warp now uses the resolved pixel ratio when measuring displacement. With a gradient the same size as the output, its slope is the current texel minus the adjacent texel on that axis. At intensity one, multiply the slope by the squared axis length divided by 256 to get the displacement in stretched output pixels. The square-pixel setting uses the shorter axis as its length for both directions. For example, with a step of .5 horizontally and .25 vertically at the center of a 32 × 16 image, the center samples the source 2 pixels right and .25 pixels down in stretched mode. With square pixels it samples .5 pixels right and .25 down.
+
+For independent controls, use X and Y coordinate ramps with a single-pixel impulse or a two-axis step gradient. Cross both ramps and gradients with nearest and bilinear sampling at 16², 32 × 16, 16 × 32 and 64 × 32. Explicitly set the Warp pixel ratio to 0 (stretched) or 1 (square). These 64 settings match 53,248/53,248 F32 pixels on each route. The earlier build matched ten of 16 stretched settings per sampler, with 13,178/13,312 pixels in each. [Procedural fields, intensities and seeds](#gradient-warp-displacement-and-sampling)
+
+With stretched pixels, repeat the eight mixed-size settings in each of configurations 1 through 8 in the linked table. Across 64 settings, 64 whole images and 194,432/194,432 pixels match on each route. Maximum error is zero. The 14 other inventory roots with a reachable Warp retain 1,938,176/1,938,176 exact pixels across 185 regression settings. The 45,472-byte Liquid save produced by the tested build is byte-identical to the ordinary save used for the reference readback.
+
 ### Returned vectors in pattern properties
 
 The two roots in `pattern_tile_random.sbs` now match all **1,154,048 pixels across 283 distinct settings** on one processor, eight processors and after reopening an ordinary MaterialCraft save. Maximum error is zero in each format. The [preceding seed correction](#driven-seeds-in-pattern-nodes) had left 20 settings with differences in each of the two main comparison sets.
