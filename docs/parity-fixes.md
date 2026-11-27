@@ -99,7 +99,7 @@ Save each of the four configured output formats separately, close the package, a
 | Dirt 4 v2 | F16 | 512/512 · 0 | 512/512 · 0 | 512/512 · 0 | 512/512 · 0 |
 | Dirt 4 v2 | F32 | 512/512 · 0 | 512/512 · 0 | 512/512 · 0 | 512/512 · 0 |
 
-At 16² F32, alternate the previous and current release evaluators three times with a single cook thread. Use seed 0 and defaults for BNW Spots 3 v2 and seed 105526 and defaults for Dirt 4 v2. Time the engine cook with the package already loaded. Every run reproduced its original pixel hash. Median time on the measurement machine went from 9.62 to 4.39 seconds for BNW Spots 3 v2 and from 31.85 to 13.68 seconds for Dirt 4 v2.
+At 16² F32, run three paired timings of the previous and current releases with a single cook thread. Use both orders within the three pairs. Use seed 0 and defaults for BNW Spots 3 v2 and seed 105526 and defaults for Dirt 4 v2. Time the engine cook with the package already loaded. Every run reproduced its original pixel hash. Median time on the measurement machine went from 9.62 to 4.39 seconds for BNW Spots 3 v2 and from 31.85 to 13.68 seconds for Dirt 4 v2.
 
 The 64 × 32 Directional Noise 2 v2 case at seed 195000 and the 128 × 32 Dirt 4 v2 case at seed 433595 still reach the execution limit in this release. On the latter, the one- and eight-processor reference captures agree at 4,064/4,096 pixels with a maximum difference of .00407773256. [Dimensions and changed Dirt 4 v2 parameters](#repeated-f32-captures-of-28-noise-roots)
 
@@ -229,6 +229,19 @@ To check that the link stays live, use the four-point points-only, eight-point l
 For Waveform v2, keep the existing relative `curve_lookup.sbs` filename and the `sbs://functions.sbs` library link. Open the older relative file in MaterialCraft and save it at its own path. All seven function identifiers survive. The three caller files retained their bytes. Reuse the seven sizes, seeds, changed parameters and fixed fields of the earlier waveform series. The three groups respectively reproduce 109,056/109,056, 44,288/44,288 and 26,624/26,624 pixels of their earlier compatible-file captures. [Full waveform settings](#reopened-starburst-symmetry-tile-and-waveform-graphs)
 
 For the direct-open column, configure and save the callers **before** saving their dependencies. For points, use counts 4, 8, 12 and 0 with the four views above at 16², 32², 32 × 16 and 16² respectively. For waveform, use U8 at 64 × 32, seed 725259, U16 at 16², seed 725048, F16 at 32 × 64, seed 769164, and F32 at 32 × 128, seed 725470. Save the linked files in place, verify the eight caller hashes still match, and open the callers directly with their stored inputs, sizes, seeds and parameters. Both applications reproduced the previous same-setting buffers. The two roots remain in progress for caller-only saves where the external packages keep their older encoding.
+
+#### Ordinary Save in the reference app with the same live dependencies
+
+Open the four configured Points Preview callers and the 16² U16 Waveform v2 caller from the preceding comparison. Supply the generated point-list image at the caller’s declared path and the same licensed font at the spline package’s declared path. Keep the linked packages at version `0.1.3`. Use the reference app’s own ordinary Save on each caller. The saved callers retain their relative SBS dependency names and the linked package bytes keep their original hashes. The point-list images move to the sidecar directories named by the saved callers. Each copied image has the same file hash as its procedural input.
+
+The reference compiler rejected all five reference-saved callers while the external packages still carried their three-part headers. It reported the version of the linked file as unreadable. The previous caller-only saves from MaterialCraft gave the same compiler result. In a separate directory keep the reference-saved callers and all their image sidecars byte-for-byte identical. Open and save the five linked point packages or the single waveform hash package at their respective paths in MaterialCraft. The compiler then accepted every caller.
+
+| Reference-saved caller opened directly | Stored pixels exact at one processor | At eight | Against earlier compatible caller | Maximum |
+|---|---:|---:|---:|---:|
+| Four Points Preview views, U8 | 2,048/2,048 | 2,048/2,048 | 2,048/2,048 | 0 |
+| Waveform v2, U16, seed 725048 | 256/256 | 256/256 | 256/256 | 0 |
+
+As an independent control, use the 16² F32 caller returning (called value + .21875, 0, .53125, .75) at seed 596087. Set the file-based function result to .34375. Ordinary Save in the reference app retained the relative function name with either dependency header. The four-part input compiled directly. The three-part input compiled after saving the function file at its original path. Both gave **256/256 RGBA pixels** at each processor count, maximum error zero. Points Preview and Waveform v2 remain in progress for the older detached files. [Original scalar control and tested headers](#reopening-a-portable-copy-with-detached-function-packages)
 
 ### Half-precision inputs to Sharpen
 
