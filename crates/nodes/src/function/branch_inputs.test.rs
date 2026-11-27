@@ -305,3 +305,125 @@ fn a_pattern_conditional_with_a_literal_test_leaves_unused_draws_for_later() {
         }
     }
 }
+
+fn pattern_sample(graph: &FunctionGraph, seed: u32, variables: &BTreeMap<String, Value>) -> Value {
+    let context =
+        EvaluationContext { scope: FunctionScope::FxMap, position: [0.5; 2], size: [16.0; 2], images: &[], image_formats: &[], tile: true, variables };
+    compile(graph, seed).unwrap().evaluate(&context, &mut EvaluationState::default()).unwrap()
+}
+
+fn sample_function(graph: &mut FunctionGraph, body: FunctionGraph, argument: Option<(&str, u32)>) -> u32 {
+    let wires: Vec<_> = argument.iter().map(|(_, id)| *id).collect();
+    let result = graph.add("instance", &wires, None);
+    let node = graph.nodes.last_mut().unwrap();
+    node.instance = Some(materialcraft_core::GraphInstance {
+        graph: "sample".into(),
+        package: String::new(),
+        label: String::new(),
+        outputs: Vec::new(),
+        inputs: argument.iter().map(|(s, _)| materialcraft_core::GraphPort { identifier: (*s).into(), type_code: 256 }).collect(),
+        defaults: argument.iter().map(|(s, _)| ((*s).into(), Value::Float(0.0))).collect(),
+    });
+    node.source = Some(Ok(std::sync::Arc::new(body)));
+    result
+}
+
+#[test]
+fn pattern_draws_in_a_shared_inner_choice_stay_conditional() {
+    for called in [false, true] {
+        let mut graph = FunctionGraph::default();
+        let first = graph.add("get_bool", &[], Some(Value::Text("outer".into())));
+        let second = graph.add("get_bool", &[], Some(Value::Text("inner".into())));
+        let one = graph.add_constant(Value::Float(1.0));
+        let a = graph.add("rand", &[one], None);
+        let t = if called {
+            let mut body = FunctionGraph::default();
+            let unit = body.add_constant(Value::Float(1.0));
+            body.output = Some(body.add("rand", &[unit], None));
+            sample_function(&mut graph, body, None)
+        } else {
+            graph.add("rand", &[one], None)
+        };
+        let fallback = graph.add_constant(Value::Float(0.3125));
+        let inner = graph.add("ifelse", &[second, t, fallback], None);
+        let shared = graph.add("add", &[a, inner], None);
+        let constant = graph.add_constant(Value::Float(0.1875));
+        let choice = graph.add("ifelse", &[first, shared, constant], None);
+        let name = Some(Value::Text("chosen".into()));
+        let saved = graph.add("set", &[choice], name.clone());
+        let read = graph.add("get_float1", &[], name);
+        let next = graph.add("rand", &[one], None);
+        let half = graph.add_constant(Value::Float(0.5));
+        let quarter = graph.add_constant(Value::Float(0.25));
+        let eighth = graph.add_constant(Value::Float(0.125));
+        let offset = graph.add("mul", &[next, half], None);
+        let later = graph.add("mul", &[shared, quarter], None);
+        let stored = graph.add("mul", &[read, eighth], None);
+        let sum = graph.add("add", &[offset, later], None);
+        let result = graph.add("add", &[sum, stored], None);
+        graph.output = Some(graph.add("sequence", &[saved, result], None));
+        for (seed, words) in [
+            (11038009, [0x3e380f7c, 0x3e898718, 0x3e5fb8ee, 0x3e8d7364]),
+            (9766418, [0x3f19b678, 0x3f3bbfde, 0x3f269ff5, 0x3f5a223a]),
+            (22858730, [0x3f0e09b6, 0x3f12c15a, 0x3f30d34c, 0x3f392892]),
+        ] {
+            for ((outer, inner), word) in [(false, false), (false, true), (true, false), (true, true)].into_iter().zip(words) {
+                let variables = BTreeMap::from([("outer".into(), Value::Bool(outer)), ("inner".into(), Value::Bool(inner))]);
+                assert_eq!(pattern_sample(&graph, seed, &variables), Value::Float(f32::from_bits(word)), "{seed}, {outer}, {inner}, {called}");
+            }
+        }
+    }
+}
+
+#[test]
+fn pattern_draws_with_computed_arguments_keep_their_place_across_a_choice() {
+    for (called, expected) in [
+        (false, [(11038009, [0x3f0468bc, 0x3ec2006a]), (9766418, [0x3f94855e, 0x3f70a852]), (22858730, [0x402f3ff5, 0x3ff5be5e])]),
+        (true, [(11038009, [0xbeafa1b4, 0xbe474368]), (9766418, [0x3f4de37f, 0x3f33e37f]), (22858730, [0x3f16768b, 0x3ef8ed16])]),
+    ] {
+        let mut graph = FunctionGraph::default();
+        let flag = graph.add("get_bool", &[], Some(Value::Text("switch".into())));
+        let unit = graph.add_constant(Value::Float(1.0));
+        let half = graph.add_constant(Value::Float(0.5));
+        let sample = if called {
+            let weight = graph.add("get_float1", &[], Some(Value::Text("weight".into())));
+            let chance = graph.add("mul", &[weight, half], None);
+            let mut body = FunctionGraph::default();
+            let one = body.add_constant(Value::Float(1.0));
+            let u = body.add("rand", &[one], None);
+            let p = body.add("get_float1", &[], Some(Value::Text("chance".into())));
+            let test = body.add("lr", &[u, p], None);
+            let minus_one = body.add_constant(Value::Float(-1.0));
+            body.output = Some(body.add("ifelse", &[test, minus_one, one], None));
+            sample_function(&mut graph, body, Some(("chance", chance)))
+        } else {
+            let count = graph.add("get_integer1", &[], Some(Value::Text("count".into())));
+            let pair = graph.add("ivector2", &[count, count], None);
+            let floats = graph.add("tofloat2", &[pair], None);
+            let scale = graph.add("swizzle1", &[floats], Some(Value::Int(0)));
+            let zero = graph.add_constant(Value::Float(0.0));
+            let bound = graph.add("max", &[zero, scale], None);
+            graph.add("rand", &[bound], None)
+        };
+        let fixed = graph.add_constant(Value::Float(0.1875));
+        let choice = graph.add("ifelse", &[flag, fixed, sample], None);
+        let name = Some(Value::Text("picked".into()));
+        let saved = graph.add("set", &[choice], name.clone());
+        let read = graph.add("get_float1", &[], name);
+        let next = graph.add("rand", &[unit], None);
+        let quarter = graph.add_constant(Value::Float(0.25));
+        let eighth = graph.add_constant(Value::Float(0.125));
+        let offset = graph.add("mul", &[next, half], None);
+        let weighted = graph.add("mul", &[sample, quarter], None);
+        let old = graph.add("mul", &[read, eighth], None);
+        let sum = graph.add("add", &[offset, weighted], None);
+        let result = graph.add("add", &[sum, old], None);
+        graph.output = Some(graph.add("sequence", &[saved, result], None));
+        for (seed, words) in expected {
+            for (flag, word) in [false, true].into_iter().zip(words) {
+                let variables = BTreeMap::from([("switch".into(), Value::Bool(flag)), ("weight".into(), Value::Float(0.5)), ("count".into(), Value::Int(7))]);
+                assert_eq!(pattern_sample(&graph, seed, &variables), Value::Float(f32::from_bits(word)), "{seed}, {flag}, {called}");
+            }
+        }
+    }
+}

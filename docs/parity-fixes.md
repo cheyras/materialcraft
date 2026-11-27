@@ -59,6 +59,53 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-27 root comparisons
 
+### Circular pattern angles and random draws with computed bounds
+
+Both roots in `pattern_splatter_circular.sbs` now match **216,064/216,064 pixels across 70 distinct settings per root**. The earlier evaluator at `02f2e7d` matched 14/70 complete images per root, including 13/54 in the established series. The original on one processor, the original on eight and the one-processor reopen of the ordinary MaterialCraft SBS save all gave the same result. A color pixel counts as exact only when all four stored channels agree. [Established settings and input formulas](#circular-splatter-geometry-and-the-order-of-random-draws)
+
+| Storage | Settings per root | Earlier grayscale exact · maximum | Earlier color exact · maximum | Current exact per root on each route | Current maximum |
+|---|---:|---:|---:|---:|---:|
+| U8 | 4 | 7,978/9,216 · 243 | 6,831/9,216 · 254 | 9,216/9,216 | 0 |
+| U16 | 8 | 122,131/123,904 · 62,451 | 121,002/123,904 · 65,535 | 123,904/123,904 | 0 |
+| F16 | 4 | 7,967/9,216 · 0.952941895 | 6,831/9,216 · 0.996078491 | 9,216/9,216 | 0 |
+| F32 | 54 | 69,451/73,728 · 1 | 68,484/73,728 · 1 | 73,728/73,728 | 0 |
+
+Start with the 54 linked settings for each root. For the additional F32 geometry comparisons, use the connected 64 × 32 setting at seed 70031 and its seven original input fields. Compare separate changes to unconnected patterns, pivot zero, rotation zero, and symmetry mode zero. Set all three of pivot, rotation and symmetry mode to zero together. Try one ring and one pattern, one ring alone, and one ring with three patterns. Disable the five varying terms together. Repeat the original at 32², at seed 113, and at 32² seed 113 with pivot, rotation and symmetry mode zero. The original occurs in both series and counts once.
+
+For four more F32 settings on each root, use that same connected control with the following symmetry probabilities. Keep the other exposed values and the original grayscale or RGBA input fields.
+
+| Size | Seed | Connected patterns | Symmetry mode | Symmetry probability |
+|---|---:|---|---:|---:|
+| 64 × 32 | 70031 | On | 0 | .375 |
+| 32 × 64 | 113 | On | 1 | .625 |
+| 32² | 42 | Off | 2 | .8125 |
+| 64 × 32 | 0 | Off | 2 | .375 |
+
+In the connected setting, the angle already differed before drawing the first stamp. Both engines used the third unit draw for the later angle increments. Replacing the computed random range with the same literal, the same exposed scalar, or a unit draw multiplied by the range preserved the reference image. The separate rotation difference followed a function that makes a random choice using a computed symmetry probability. In the shared pattern evaluator, a draw can take its range or a called sampler’s arguments from expressions over immutable inputs. A shared inner conditional now consumes its draws when that conditional runs. Assignments and sampled image reads retain their order.
+
+For an independent full-coverage additive square at 16² F32, use three seeds (0, 113 and 137) and both values of an exposed switch. Store S = switch ? .1875 : A, then return (E × .5 + A × .25) + S × .125, with E a separate Random(1). For A, compare Random(7), Random(exposed 7), Random(max(0, X of the converted integer pair (7,7))) and Random(1) × 7. The second family calls a function returning −1 when its own Random(1) is below its argument and +1 otherwise. Supply .25, a public .25, or half a public .5. At seed 113 the range outputs are `3f94855e` and `3f70a852` in switch order off/on. The probability outputs are `3f4de37f` and `3f33e37f`.
+
+| Independent F32 controls | Settings | Earlier exact · maximum | Current exact on each route · maximum |
+|---|---:|---:|---:|
+| Four random bounds | 24 | 5,376/6,144 · 0.725004077 | 6,144/6,144 · 0 |
+| Three probability arguments | 18 | 2,304/4,608 · 0.290001631 | 4,608/4,608 · 0 |
+| Exposed and nested choices | 72 | 10,752/18,432 · 0.151002526 | 18,432/18,432 · 0 |
+| Circular graph scalar field reads | 48 | 48,978/49,152 · 0.423094749 | 49,152/49,152 · 0 |
+
+The 48 field outputs read the stamp index, angles, radii, positions, offsets, sizes, rotation and tint on the connected, disconnected and one-stamp controls. Each of the two older circular roots retained all 190,720 pixels across 62 settings. The 221 grayscale Tile Generator settings and 175 settings across 35 other qualified roots retained all 1,350,656 pixels. The 141 vector settings, 90 pure-call settings and raw output words of 56 Pixel Processor programs stayed unchanged. Two new Rust regressions failed on the earlier evaluator. All 588 node and evaluator release tests, formatting, strict workspace Clippy, dependency layers and WebAssembly passed. [Nested choice and field reproduction](#compile-time-conditions-before-a-shared-pattern-draw) · [Older circular roots](#splatter-circular-color-and-assignments-before-a-later-function-call)
+
+### Three related tile roots with the current evaluator
+
+The same evaluator also rendered the established whole settings for the color Tile Generator and the two Tile Random roots. These counts compare the unmodified roots with the archived raw buffers. The earlier column comes from the [original tile series](#selected-blend-inputs-and-odd-sized-float-backgrounds-in-tile-generators) and includes changes across intervening revisions. All three roots remain open.
+
+| Root | Exact settings | Earlier exact pixels | Current exact pixels | Maximum U8 / U16 / F16 / F32 error |
+|---|---:|---:|---:|---|
+| Tile Generator Color | 206/331 | 621,344/765,184 | 634,737/765,184 | 27 / 12,307 / 0.104003906 / 0.341796875 |
+| Tile Random | 32/52 | 291,084/316,672 | 300,698/316,672 | 254 / 65,535 / 1 / 1.00000006 |
+| Tile Random Color | 104/126 | 498,989/619,776 | 601,273/619,776 | 255 / 65,535 / 1 / 1.00000006 |
+
+For the current color generator, the 32² one-tile test with pattern 2, the input pins open, seed 31 and hue randomness .5 still differs. In a private control, sending the randomized three-component value directly to the tint bypassed its color conversion and matched 14,336/14,336 F32 pixels across 14 settings at seeds 31 and 12071. Leaving the conversion in place and fixing all four draws to half their bounds also matched 14,336/14,336. The shared function evaluator’s handling of a packed argument is under investigation. [Single-tile settings and procedural fields](#selected-blend-inputs-and-odd-sized-float-backgrounds-in-tile-generators)
+
 ### Compile-time conditions before a shared pattern draw
 
 A quadrant can use the same random value in an optional assignment and in a later calculation. With a compile-time condition, the discarded arm consumes no draws. If the condition reads an exposed variable, the reference can schedule the shared value while it evaluates the assignment. An unwired argument of a called function behaves as a constant in this comparison. MaterialCraft now keeps this distinction when compiling pattern branches.

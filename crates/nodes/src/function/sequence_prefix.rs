@@ -3,11 +3,16 @@ use super::instruction::Instruction;
 /// The part of a pattern expression whose branches and packed channels can be planned
 /// without moving a draw or assignment across an opaque call.
 pub(super) fn pattern_planning_end(program: &super::Program) -> usize {
+    use super::function_call::PatternAccess;
     let instructions = &program.instructions;
-    if !instructions.iter().any(|op| op.definition.id == "set") {
+    // A closed sampler advances the same stamp stream as a direct draw. Its call site
+    // participates in branch planning even when the surrounding expression assigns variables.
+    if !instructions.iter().any(|op| op.definition.id == "set")
+        || instructions.iter().filter_map(|op| op.call.as_ref()).all(|call| call.pattern_access != PatternAccess::Context)
+    {
         return instructions.len();
     }
-    let Some(first_call) = instructions.iter().position(|op| op.call.as_ref().is_some_and(|call| !call.depends_only_on_arguments())) else {
+    let Some(first_call) = instructions.iter().position(|op| op.call.as_ref().is_some_and(|call| call.pattern_access != PatternAccess::Arguments)) else {
         return instructions.len();
     };
     let Some(root) = instructions.get(program.output) else { return 0 };

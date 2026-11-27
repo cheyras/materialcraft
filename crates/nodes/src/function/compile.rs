@@ -183,6 +183,7 @@ fn compile_nested(graph: &FunctionGraph, seed: u32, depth: usize, remaining: &mu
                 program.instructions.iter().any(|instruction| instruction.definition.id == "set" || instruction.call.as_ref().is_some_and(|call| call.exports));
             let pattern_arguments = super::function_call::PatternArguments::identify(&program, &names, &defaults, &inputs);
             Some(super::function_call::FunctionCall {
+                pattern_access: super::function_call::PatternAccess::identify(&program, &defaults),
                 program,
                 inputs: names,
                 defaults,
