@@ -217,14 +217,15 @@ fn package_for_save(session: &Session, path: Option<&str>) -> Package {
         let in_place = session.path.as_deref().is_some_and(|current| current == path || current == crate::document_path::normalize(path));
         let mut packages = std::collections::BTreeMap::new();
         for instance in package.graphs.iter_mut().flat_map(|graph| graph.instances_mut()) {
-            if !instance.package.is_empty() {
-                let source = std::mem::take(&mut instance.package);
-                let reference = packages.entry(source).or_insert_with_key(|source| {
-                    // A disk link must still reach the same file when the caller reopens with another library configured.
-                    if in_place { crate::document_path::relative(path, source) } else { package_reference(session, path, source) }
-                });
-                instance.package.clone_from(reference);
+            // Catalog links follow the selected library even when the caller is saved inside it.
+            if instance.package.is_empty() || (in_place && instance.package.starts_with("sbs://")) {
+                continue;
             }
+            let source = std::mem::take(&mut instance.package);
+            let reference = packages
+                .entry(source)
+                .or_insert_with_key(|source| if in_place { crate::document_path::relative(path, source) } else { package_reference(session, path, source) });
+            instance.package.clone_from(reference);
         }
     }
     package

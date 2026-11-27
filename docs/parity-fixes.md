@@ -285,13 +285,29 @@ Use ordinary Save on configured cases and reopen without edits. The 16 direct fi
 
 ### Keeping an explicit file link when the configured library changes
 
-Ordinary Save now keeps a graph or function reference tied to the file it resolved when the caller was opened. Previously, a caller outside the configured library could acquire a catalog alias when its explicitly linked package matched bundled bytes. Changing the configured library then redirected that saved caller to a different file.
+Ordinary Save keeps an explicit file reference tied to the file it resolved when the caller was opened. Previously, a caller outside the configured library could acquire a catalog alias when its explicitly linked package matched bundled bytes. Changing the configured library then redirected that saved caller to a different file.
 
 Use the four configured Waveform v2 callers with U8, U16, F16 and F32 outputs. Put two copies of the hash package in separate library directories. Keep the first original. In the second, set the result of the two-component hash function to .375. Keep the general math dependency equal in both. Open the callers outside either library with the first library configured and use ordinary Save. For each size try the relative filename pointing into the first directory and an explicitly authored catalog alias. Verify both linked file hashes before and after each caller save. Then save the first hash package at its own path so the reference compiler can read its version. Keep the saved callers fixed and reopen them with each directory configured. [Caller dimensions, settings and original function edit](#editing-the-linked-function-with-a-waveform-caller-open)
 
 With the second library configured, the previous relative-file saves matched **8,410/8,448** pixels of the original-function captures. All 38 differences were in the 16² U16 case at seed 725048, with a maximum of 65,535 levels. The corrected relative-file saves match **8,448/8,448** under either library, maximum zero. The four explicit catalog callers follow the configured library, matching all 8,448 original-function pixels with the first library and all 8,448 edited-function pixels with the second. Each comparison uses the raw words from both one and eight reference processors. A fresh open of the four corrected relative-file saves in the reference app also reproduced **8,448/8,448** original pixels at each processor count.
 
 The regression starts with an explicit disk reference to a bundled grayscale switch. It checks the resolved file after saving and reopening the caller and the catalog alias in a separate portable copy. Its in-place assertion failed on the previous engine. The older detached-package compiler behavior is recorded separately. [Reference app’s ordinary Save](#ordinary-save-in-the-reference-app-with-the-same-live-dependencies)
+
+#### Keeping catalog links when saving a caller inside its library
+
+An ordinary Save previously converted an explicit catalog link to a relative filename when the caller was inside the selected library. A later change of library still picked the old function. The in-place writer now preserves the authored choice for both graph instances and function calls.
+
+Create two library directories with the same general math package. Put the original hash function in the first and set its two-component hash result to .375 in the second. Under the first directory, create a child folder for callers. Use the four configured Waveform v2 inputs from the preceding comparison. In each configuration create one caller pointing to the hash package by its parent-relative filename and one using its catalog URI. Both use the catalog URI for the general math functions. With the first library selected, save each caller at its existing path. Keep all four external package files fixed and verify their hashes. Reopen all eight saved callers with each library selected. [Sizes, seeds and output formats](#saving-older-linked-packages-at-their-existing-paths)
+
+| Authored hash link | Selected library on reopen | Expected hash function | Previous exact · maximum | Current exact · maximum |
+|---|---|---|---:|---:|
+| Relative file | First or second | Original file in first | 8,448/8,448 · 0 | 8,448/8,448 · 0 |
+| Catalog | First | Original in selected library | 8,448/8,448 · 0 | 8,448/8,448 · 0 |
+| Catalog | Second | Edited in selected library | 8,410/8,448 · 65,535 U16 levels | 8,448/8,448 · 0 |
+
+Each count holds separately against the one- and eight-processor reference buffers. At 16², seed 725048, the corrected catalog caller reproduced all 256 edited U16 pixels. The earlier file choice reproduced 218. The U8, F16 and F32 cases reproduced all 8,192 pixels with either hash function. The regression saves two graph instances pointing to the same bundled switch through different link forms. Previously both serialized as the same filename.
+
+Ordinary Save in the reference app preserved both catalog URIs in all four catalog callers. Opening those files afresh there reproduced the original **8,448/8,448** pixels on each processor count, maximum zero. The same fresh-open comparison of the four MaterialCraft-saved catalog callers also reproduced **8,448/8,448**. The older external-file compiler limitation remains recorded for Waveform v2. [Older linked packages](#ordinary-save-in-the-reference-app-with-the-same-live-dependencies)
 
 ### Editing the linked function with a waveform caller open
 

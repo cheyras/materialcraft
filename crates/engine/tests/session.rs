@@ -281,6 +281,42 @@ fn saving_in_place_keeps_a_file_reference_to_a_bundled_graph() {
 }
 
 #[test]
+fn saving_inside_the_library_preserves_distinct_catalog_and_file_references() {
+    use materialcraft_engine::{
+        core::{Graph, GraphInstance, Package},
+        file_cmds::{open_bytes, save_files_at},
+        formats::sbs::{library, read_sbs, write_sbs},
+    };
+
+    let file = "blend_switch.sbs";
+    let catalog = "sbs://blend_switch.sbs";
+    let mut graph = Graph::new("Caller");
+    for reference in [catalog, file] {
+        let id = graph.add_node("graph_instance", [0.0; 2]);
+        graph.node_mut(id).unwrap().instance = Some(GraphInstance {
+            package: reference.into(),
+            graph: "switch_grayscale".into(),
+            label: String::new(),
+            inputs: Vec::new(),
+            outputs: Vec::new(),
+            defaults: Default::default(),
+        });
+    }
+    let mut package = Package::new("Caller");
+    package.graphs.push(graph);
+
+    // Exercise the in-library save path entirely in memory.
+    let caller = library::root().join("catalog-link-caller.sbs");
+    let path = caller.to_str().unwrap();
+    let mut session = sample_session();
+    open_bytes(&mut session, &write_sbs(&package).unwrap(), Some(path.into())).unwrap();
+    let saved = save_files_at(&session, session.path.as_deref().unwrap()).unwrap();
+    let parsed = read_sbs(saved.xml().unwrap(), path, &|_| None).unwrap();
+    let links: Vec<_> = parsed.pkg.graphs[0].instances().map(|instance| instance.package.as_str()).collect();
+    assert_eq!(links, [catalog, file]);
+}
+
+#[test]
 fn a_changed_or_detached_function_file_keeps_its_disk_identity() {
     use materialcraft_engine::formats::sbs::library;
     use std::path::Path;
