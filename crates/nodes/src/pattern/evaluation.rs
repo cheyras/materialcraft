@@ -373,6 +373,19 @@ fn evaluate(context: &CookContext, base_level_only: &[bool], visit_limit: usize,
     } else {
         BTreeMap::new()
     };
+    // A literal empty quadrant can move its children. Its unused drawing fields cannot execute.
+    let branch_offsets: BTreeSet<_> = graph
+        .nodes
+        .iter()
+        .filter(|node| {
+            node.kind == PatternNodeKind::Quadrant
+                && node.parameters.get("patterntype").is_none_or(|v| v.as_i32() == Some(0))
+                && functions.contains_key(&(node.id, "branchoffset"))
+                && !functions.contains_key(&(node.id, "randomseed"))
+                && !functions.contains_key(&(node.id, "randominherited"))
+        })
+        .map(|node| node.id)
+        .collect();
     let mut conditional_stamps = ConditionalStamps::default();
     let mut expressions = DrawingExpressions::default();
 
@@ -397,9 +410,11 @@ fn evaluate(context: &CookContext, base_level_only: &[bool], visit_limit: usize,
     let mut max_depth = 0;
     let mut state = EvaluationState::default();
     let mut terminal_siblings: Option<TerminalSiblings> = None;
-    let mut reused_terminal_misses = 0_usize;
+    let mut covered_terminal_misses = 0_usize;
     let mut remaining = visit_limit;
     let mut discard_allowance = visit_limit;
+    // Only work already saved by completed bound evaluations can cover additional cache hits.
+    let mut saved_property_work = 0_usize;
     let mut property_work = visit_limit.saturating_mul(5).saturating_mul(DrawingExpressions::FULL_COST);
     let mut cached_stream_allowance = visit_limit;
     let mut accounted_stamps = 0;
@@ -489,7 +504,12 @@ fn evaluate(context: &CookContext, base_level_only: &[bool], visit_limit: usize,
         let tint_plan = tint_plans.get(&node.id);
         let scale = tint_plan.and_then(|plan| plan.scale(&variables.drawing));
         let mut base_tint = None;
-        let mut bound = tint_plan.zip(scale).and_then(|(tint, scale)| expressions.for_draw(&visit, tint, scale, &functions, &variables.drawing, &assigned));
+        let tint = tint_plan.zip(scale);
+        let mut bound = if tint.is_some() || branch_offsets.contains(&node.id) {
+            expressions.for_draw(&visit, tint, &functions, &variables.drawing, &assigned)
+        } else {
+            None
+        };
         let property_cost = bound.as_ref().map_or(DrawingExpressions::FULL_COST, |plan| plan.cost);
 
         let mut evaluate = |id: &str, random: &mut FunctionRandom| -> Result<Option<Value>, String> {
@@ -589,6 +609,7 @@ fn evaluate(context: &CookContext, base_level_only: &[bool], visit_limit: usize,
         let active = |id: &str| !matches!(id, "patterntype" | "randomseed" | "randominherited") && uses_property(node.kind, id, pattern);
         if !reused {
             property_work = property_work.checked_sub(property_cost).ok_or("pattern graph exceeded its execution budget")?;
+            saved_property_work = saved_property_work.saturating_add(DrawingExpressions::FULL_COST - property_cost);
             for parameter in definition.params.iter().filter(|p| active(p.id)) {
                 let mut stream = FunctionRandom::pattern(visit.seed, parameter.id);
                 let value = evaluate(parameter.id, stream.as_mut().unwrap_or(&mut random))?.unwrap_or_else(|| parameter.default.clone());
@@ -712,24 +733,30 @@ fn evaluate(context: &CookContext, base_level_only: &[bool], visit_limit: usize,
                         let reusable_parent = scale.is_some() || matches!(cache, Some((_, Storage::BranchTint { .. } | Storage::Geometry { .. })));
                         // These siblings have no children. Each has already evaluated its own
                         // properties and failed the sample-grid test in the original draw order.
-                        if !reused && property_cost < DrawingExpressions::FULL_COST {
-                            // This visit paid for the bound expressions and every property ran. The
-                            // grid proved it emits no samples. Its children still cost their own visits.
-                            remaining += 1;
-                        } else if let Some(siblings) = &mut terminal_siblings {
+                        let compact = property_cost < DrawingExpressions::FULL_COST;
+                        if let Some(siblings) = &mut terminal_siblings {
                             siblings.discarded = true;
-                            reused_terminal_misses = reused_terminal_misses.saturating_add(usize::from(reused));
+                            covered_terminal_misses = covered_terminal_misses.saturating_add(usize::from(reused || compact));
                             remaining += 1;
                         } else if quadrant_children == QuadrantChildren::AllTerminal
-                            && ((reused && cached_stream_allowance > 0) || (!reused && reused_terminal_misses > 0 && reusable_parent))
+                            && ((reused && cached_stream_allowance > 0) || (!reused && covered_terminal_misses > 0 && reusable_parent))
                         {
-                            // A full evaluation already paid for this parent. One skipped leaf
+                            // A full evaluation already paid for this parent. One covered leaf
                             // covers its missed draw. A cached parent uses a streaming credit.
                             if reused {
                                 cached_stream_allowance -= 1;
                             } else {
-                                reused_terminal_misses -= 1;
+                                covered_terminal_misses -= 1;
                             }
+                            remaining += 1;
+                        } else if compact && !reused {
+                            // The bound properties and their writes ran before the footprint test.
+                            remaining += 1;
+                        } else if compact && discard_allowance == 0 && saved_property_work >= property_cost && property_work >= property_cost {
+                            // A reused off-grid stamp can spend work saved by earlier bound arithmetic.
+                            // Charge the same cost as recomputing its properties and retain both ceilings.
+                            saved_property_work -= property_cost;
+                            property_work -= property_cost;
                             remaining += 1;
                         } else {
                             discarded_draw = true;
@@ -827,16 +854,21 @@ fn evaluate(context: &CookContext, base_level_only: &[bool], visit_limit: usize,
             && let Some(siblings) = terminal_siblings.take()
             && siblings.discarded
         {
-            // Each skipped property evaluation pays for one group's first discarded draw.
+            // One reused or compact property pass covers the group's first discarded draw.
             // Sibling groups can reuse different numbers of stamps. Parents and visible
             // stamps still pay for their own visits, and full evaluations stay bounded.
-            if reused_terminal_misses > 0 {
-                reused_terminal_misses -= 1;
+            if covered_terminal_misses > 0 {
+                covered_terminal_misses -= 1;
             } else if discard_allowance > 0 {
                 discard_allowance -= 1;
             } else {
                 remaining = remaining.checked_sub(1).ok_or("pattern graph exceeded its execution budget")?;
             }
+        }
+        if node.kind == PatternNodeKind::Quadrant && pattern == 0 && !children.is_empty() && property_cost < DrawingExpressions::FULL_COST {
+            // This routing quadrant paid for its bound branch expression. The stack
+            // and every scheduled child retain their own visit and draw limits.
+            remaining += 1;
         }
         if discard_allowance > 0 && (discarded_draw || empty_quadrant) {
             discard_allowance -= 1;

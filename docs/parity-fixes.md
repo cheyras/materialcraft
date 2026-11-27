@@ -59,6 +59,37 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-27 root comparisons
 
+### Rectangular Clouds and Directional Noise graphs with seeded quadrant offsets
+
+Clouds 1 v2 and Clouds 2 v2 each produce whole images for all **60/60 established originals and 15/15 archived saves** across the recorded passes. Each previously produced 58 originals and 14 saves. The 64 × 16 Directional Noise 3 v2 at seed 42 now matches **4,096/4,096** original pixels across four formats and another **4,096/4,096** after opening its four ordinary saves, at both reference processor counts. Earlier same-setting reference differences still leave the three roots in progress. [Earlier Cloud rectangles](#two-more-whole-outputs-in-noise-clouds-1-v2) · [Earlier Directional Noise results](#a-recovered-rectangle-and-repeated-outputs-in-directional-noise-3-v2)
+
+An empty quadrant can still move its children. When the shape and seed mode are literal and its only active expression is a pure branch offset, the evaluator binds the fixed operands and evaluates its seeded arithmetic for each visit. It schedules all children in their original order. A terminal group can also reuse a discarded stamp’s already-evaluated properties. After the allowance for discarded draws is spent, another cached miss must pay its arithmetic cost out of both the remaining property allowance and work saved on earlier evaluations. Drawing, repetition, stack and cache limits still apply. No package edits are needed.
+
+Use the grayscale output and retain tiling on both axes. For the Clouds settings use scale 5, disorder .8125, speed 1.4375, anisotropy .625, anisotropy angle −.21875, tile offset (−.3125,.4375) and non-square expansion on. Use seed 103034 for Clouds 1 v2 at 64 × 32. For Directional Noise 3 v2 at 64 × 16 use scale 2, disorder, speed, anisotropy and angle randomness .03125, both angles −.21875, tile offset (−.3125,.37890625) and non-square expansion on. Leave every other exposed property at its default. Set the precision on the node feeding the output. Save each configuration separately and reopen it at its stored size and seed. Both roots generate their inputs procedurally.
+
+| Root | Storage | Original · one · max | Original · eight · max | Saved · one · max | Saved · eight · max |
+|---|---|---:|---:|---:|---:|
+| Clouds 1 v2 | U8 | 2,048/2,048 · 0 | 2,048/2,048 · 0 | 2,048/2,048 · 0 | 2,048/2,048 · 0 |
+| Clouds 1 v2 | U16 | 2,047/2,048 · 1 | 2,046/2,048 · 1 | 2,047/2,048 · 1 | 2,047/2,048 · 1 |
+| Clouds 1 v2 | F16 | 2,048/2,048 · 0 | 2,048/2,048 · 0 | 2,048/2,048 · 0 | 2,048/2,048 · 0 |
+| Clouds 1 v2 | F32 | 1,822/2,048 · 2.08616257e-07 | 1,821/2,048 · 2.68220901e-07 | 1,821/2,048 · 1.78813934e-07 | 1,821/2,048 · 1.78813934e-07 |
+| Directional Noise 3 v2 | U8 | 1,024/1,024 · 0 | 1,024/1,024 · 0 | 1,024/1,024 · 0 | 1,024/1,024 · 0 |
+| Directional Noise 3 v2 | U16 | 1,024/1,024 · 0 | 1,024/1,024 · 0 | 1,024/1,024 · 0 | 1,024/1,024 · 0 |
+| Directional Noise 3 v2 | F16 | 1,024/1,024 · 0 | 1,024/1,024 · 0 | 1,024/1,024 · 0 | 1,024/1,024 · 0 |
+| Directional Noise 3 v2 | F32 | 1,024/1,024 · 0 | 1,024/1,024 · 0 | 1,024/1,024 · 0 | 1,024/1,024 · 0 |
+
+All eight saved MaterialCraft outputs reproduce their source words, **12,288/12,288**. For the other panel rectangles use the same Clouds parameters, changing only the dimensions, seed and storage. The two tall comparisons include the last archived saved setting of each root. A dash marks an unmeasured file route.
+
+| Root | Size · seed · storage | Original · one · max | Original · eight · max | Archived save · one · max | Archived save · eight · max |
+|---|---|---:|---:|---:|---:|
+| Clouds 1 v2 | 32 × 64 · 103035 · U16 | 2,047/2,048 · 1 | 2,048/2,048 · 0 | 2,046/2,048 · 1 | 2,047/2,048 · 1 |
+| Clouds 2 v2 | 64 × 32 · 103056 · F32 | 2,031/2,048 · 5.96046448e-08 | 2,029/2,048 · 5.96046448e-08 | — | — |
+| Clouds 2 v2 | 32 × 64 · 103057 · U16 | 2,048/2,048 · 0 | 2,048/2,048 · 0 | 2,048/2,048 · 0 | 2,048/2,048 · 0 |
+
+For an independent control, route a square through a quadrant with no shape. Connect its top-left and bottom-right children to the same square. Use four versions of the branch offset. Give the two components one shared random draw, two separate draws, a polar offset with seeded angle and radius, or an offset assigned to a local that the child's frame reads. Use three repeats for the shared draw and five otherwise. Set the square size to (.5,.25) and its grayscale swatch to .1875. Use 16² at seed 0, 32 × 16 at seed 42 and 16 × 32 at seed 329779 in each format. All 48 originals and 48 saved settings match **20,480/20,480** on each route, maximum zero on one and eight processors. The earlier 24 controls with seeded drawing tints reproduce **10,240/10,240** on each route. [Drawing tint controls](#bound-arithmetic-in-seeded-quadrant-properties)
+
+Two 4 × 4 regressions compare all sixteen values with the full expression evaluator. A four-by-32 iterate with a seeded branch translation previously exhausted a 64-visit budget and now completes. A six-by-40 iterate with shared terminal offsets and a live tint previously exhausted a 256-visit budget and now completes. The two graphs still reach their budgets at 32 and 160 respectively.
+
 ### Bound arithmetic in seeded quadrant properties
 
 BNW Spots 3 v2 now produces images for all **62/62 established settings and 14/14 archived saves**. Dirt 4 v2 at 32 × 16, seed 105532, now renders all four output formats with **2,048/2,048** whole pixels exact on both processor counts. These rectangles previously returned a work-budget error.
@@ -82,7 +113,7 @@ The earlier one- and eight-processor F32 captures of the BNW original gave 1,777
 
 Repeat the independent square-and-four-children control with the inner Iterate inheriting the outer seed. Use four outer iterations with gain (1 + number) × .25 and seven with gain (1 + number) × .125, two inner repeats and the existing three size/seed pairs in U8, U16, F16 and F32. The 24 originals and 24 ordinary reopens each match **10,240/10,240** pixels on one and eight processors, maximum zero. Resetting the inner seed also preserves the 24 original and 24 archived saved comparisons. In the 4 × 4 regression, six outer and forty inner iterations complete with a visit limit of 96. Before the change the same case exhausted its budget. The sixteen output values match the equivalent graph with a computed frame offset and a larger budget. [Procedural controls and size settings](#seeded-quadrant-properties-with-a-live-tint-multiplier)
 
-The 64 × 32 and 32 × 64 Clouds 1 v2 and Clouds 2 v2 rectangles still reach the traversal limit. The 64 × 16 Directional Noise 3 v2 graph at seed 42 also reaches it. BNW Spots 3 v2 has repeat-dependent F32 differences, and Dirt 4 v2 retains the previously measured differences at other settings. [Repeated BNW measurements](#repeated-f32-captures-of-28-noise-roots) [Clouds rectangular settings](#two-more-whole-outputs-in-noise-clouds-1-v2)
+This revision still stopped at the two Clouds rectangles and the 64 × 16 Directional Noise 3 v2 graph. The subsequent traversal change produces complete images for those settings. [Raw comparisons](#rectangular-clouds-and-directional-noise-graphs-with-seeded-quadrant-offsets) BNW Spots 3 v2 has repeat-dependent F32 differences, and Dirt 4 v2 retains the previously measured differences at other settings. [Repeated BNW measurements](#repeated-f32-captures-of-28-noise-roots) [Clouds rectangular settings](#two-more-whole-outputs-in-noise-clouds-1-v2)
 
 #### Ordinary saves and release cook times for the two rectangles
 

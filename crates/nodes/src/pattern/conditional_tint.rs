@@ -117,13 +117,12 @@ impl<'a> DrawingExpressions<'a> {
     pub(super) fn for_draw(
         &mut self,
         visit: &super::pattern_visit::PatternVisit,
-        tint: &ConditionalTint<'_>,
-        scale: TintScale,
+        tint: Option<(&ConditionalTint<'_>, TintScale)>,
         programs: &'a super::evaluation::PropertyPrograms<'_>,
         variables: &BTreeMap<String, Value>,
         assigned: &BTreeSet<&str>,
     ) -> Option<&mut DrawingFields<'a>> {
-        let scaled = matches!(scale, TintScale::Multiply(_));
+        let scaled = matches!(tint, Some((_, TintScale::Multiply(_))));
         let key = (visit.node, visit.depth, scaled);
         // A graph can share a quadrant at many depths. Cap retained programs and failed bindings together.
         if self.0.len() >= 64 && !self.0.contains_key(&key) {
@@ -134,9 +133,12 @@ impl<'a> DrawingExpressions<'a> {
             .or_insert_with(|| {
                 let mut fields = BTreeMap::new();
                 let (mut compact, mut ordinary) = (16, 16);
-                for field in ["opacity", "branchoffset", "patternsize", "patternrotation"] {
+                let drawn = ["opacity", "branchoffset", "patternsize", "patternrotation"];
+                let active = if tint.is_some() { &drawn[..] } else { &["branchoffset"][..] };
+                for &field in active {
                     if let Some((program, _)) = programs.get(&(visit.node, field)) {
-                        let expression = PatternExpression::bind(program, variables, assigned, (field == "opacity").then_some((tint.base, scaled)))?;
+                        let tint = tint.filter(|_| field == "opacity").map(|(tint, _)| (tint.base, scaled));
+                        let expression = PatternExpression::bind(program, variables, assigned, tint)?;
                         let (steps, visits) = expression.work();
                         compact += steps;
                         ordinary += visits;

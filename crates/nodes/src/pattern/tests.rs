@@ -2330,8 +2330,7 @@ fn repeated_image_space_offsets_and_rotations_reuse_the_parent_draw() {
     assert!(limited.data().iter().any(|value| *value > 1.0));
 }
 
-#[test]
-fn repeated_quadrants_reapply_the_live_tint_scale_and_publish_the_frame_offset() {
+fn quadrants_with_a_live_tint() -> (PatternGraph, PatternGraph) {
     let mut graph = nested_square_draws(40);
     graph.nodes[7].parameters.insert("numberadded".into(), Value::Int(6));
     graph.nodes[8].parameters.insert("randominherited".into(), Value::Bool(false));
@@ -2387,6 +2386,12 @@ fn repeated_quadrants_reapply_the_live_tint_scale_and_publish_the_frame_offset()
     for node in &mut ordinary.nodes[9..11] {
         node.parameters.insert("frameoffset".into(), Value::Function(Box::new(computed.clone())));
     }
+    (graph, ordinary)
+}
+
+#[test]
+fn repeated_quadrants_reapply_the_live_tint_scale_and_publish_the_frame_offset() {
+    let (mut graph, mut ordinary) = quadrants_with_a_live_tint();
     let expected = render_with_visit_limit(&ordinary, 4096).unwrap().remove(0);
     assert!(expected.data().iter().any(|&v| v > 1.0));
     assert!(render_with_visit_limit(&ordinary, 192).unwrap_err().contains("execution budget"));
@@ -2403,6 +2408,52 @@ fn repeated_quadrants_reapply_the_live_tint_scale_and_publish_the_frame_offset()
     assert_eq!(render_with_visit_limit(&graph, 96).unwrap()[0].data(), expected.data());
     graph.nodes[7].parameters.insert("numberadded".into(), Value::Int(10));
     assert!(render_with_visit_limit(&graph, 96).unwrap_err().contains("execution budget"));
+}
+
+#[test]
+fn reused_terminal_offsets_and_compact_parent_draws_share_bounded_work() {
+    let (mut graph, mut ordinary) = quadrants_with_a_live_tint();
+    for drawing in [&mut graph, &mut ordinary] {
+        drawing.nodes[8].parameters.insert("randominherited".into(), Value::Bool(true));
+        // Three additional branches inherit distinct seeds. Their terminal children
+        // reset theirs, so the same offset is published again in a different parent.
+        let branch = drawing.add(PatternNodeKind::Quadrant).unwrap();
+        drawing.nodes[12].parameters = drawing.nodes[10].parameters.clone();
+        drawing.nodes[12].children = drawing.nodes[9].children.clone();
+        drawing.nodes[9].children[..3].fill(Some(branch));
+        drawing.nodes[10].parameters.insert("randominherited".into(), Value::Bool(false));
+    }
+    let expected = render_with_visit_limit(&ordinary, 65_536).unwrap().remove(0);
+    assert!(expected.data().iter().any(|value| *value > 1.0));
+    assert_eq!(render_with_visit_limit(&graph, 256).unwrap()[0].data(), expected.data());
+    assert!(render_with_visit_limit(&graph, 160).unwrap_err().contains("execution budget"));
+}
+
+#[test]
+fn a_seeded_branch_offset_keeps_every_scheduled_child() {
+    let mut graph = nested_square_draws(32);
+    let leaf = graph.add(PatternNodeKind::Quadrant).unwrap();
+    graph.nodes[9].children[0] = Some(leaf);
+    graph.nodes[9].parameters.clear();
+    let mut offset = FunctionGraph::default();
+    let span = offset.add_constant(Value::Float(0.875));
+    let x = offset.add("rand", &[span], None);
+    let y = offset.add("rand", &[span], None);
+    offset.output = Some(offset.add("vector2", &[x, y], None));
+    graph.nodes[9].parameters.insert("branchoffset".into(), Value::Function(Box::new(offset.clone())));
+    graph.nodes[10].parameters =
+        BTreeMap::from([("patterntype".into(), Value::Int(2)), ("patternsize".into(), Value::Float2([96.0, 48.0])), ("opacity".into(), Value::Float(0.125))]);
+    let mut ordinary = graph.clone();
+    // An equivalent Sequence uses the general evaluator and leaves the random stream intact.
+    let value = offset.output.unwrap();
+    let zero = offset.add_constant(Value::Float(0.0));
+    offset.output = Some(offset.add("sequence", &[zero, value], None));
+    ordinary.nodes[9].parameters.insert("branchoffset".into(), Value::Function(Box::new(offset)));
+    let expected = render_with_visit_limit(&ordinary, 8192).unwrap().remove(0);
+    assert!(expected.data().windows(2).any(|v| v[0] != v[1]));
+    assert!(render_with_visit_limit(&ordinary, 64).unwrap_err().contains("execution budget"));
+    assert_eq!(render_with_visit_limit(&graph, 64).unwrap()[0].data(), expected.data());
+    assert!(render_with_visit_limit(&graph, 32).unwrap_err().contains("execution budget"));
 }
 
 #[test]
