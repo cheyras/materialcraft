@@ -59,6 +59,25 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-26 root comparisons
 
+### Circular splatter geometry and the order of random draws
+
+The two roots in `pattern_splatter_circular.sbs` at `bd12ea4` matched every pixel in 13 of 54 distinct settings each. Both original reference processor counts and the one-processor reopen of an ordinary MaterialCraft SBS save gave identical raw buffers in all 54. Each application also reproduced its own originals after saving. The fresh reference buffers for all nine established settings agree with the archives in 132,096/132,096 pixels per root, maximum zero. [Earlier nine whole outputs](#other-roots-using-uniform-arc-tangents)
+
+| Root | U8 exact pixels · max levels | U16 exact pixels · max levels | F16 exact pixels · max error | F32 exact pixels · max error |
+|---|---:|---:|---:|---:|
+| Grayscale | 7,978/9,216 · 243 | 122,131/123,904 · 62,451 | 7,967/9,216 · 0.952941895 | 41,608/44,032 · 1 |
+| Color | 6,831/9,216 · 254 | 121,002/123,904 · 65,535 | 6,831/9,216 · 0.996078491 | 40,425/44,032 · 1 |
+
+Start the 32 × 32 F32 control at seed 113 with pattern 3, two rings, seven patterns, radius .35, pattern size (.7,1.2) and scale .8. Set amount random, radius random, angle random, spiral factor and rotation random to (.2,.15,.2,.1,.3). Use the 32² procedural fields numbered one for the background and two through seven for the six pattern image pins. Render with all fields, just the background, just the pattern inputs, or all pins open. Also render exposed defaults, seed 42, 64 × 16, 16 × 64, and the original 32² setting at U8, U16 and F16. [Procedural field formulas](#four-format-inventory-comparison)
+
+At 32² vary the ring count to one or three and the pattern count to one, three or five, including one of each. Toggle each of the five varying terms off separately. At both one ring and one pattern and the original two rings and seven patterns, enable each varying term alone, the first three together, the last two together, all five or none. Add the nine earlier cases. At 64 × 32 seed 70031 enable connected patterns, set the pivot to 2, rotation to .125 and symmetry random mode to 1. At 32 × 64 seed 74571 use pattern 1, three image inputs, distribution 0, rotation −.1875, five patterns and three rings. Render these two rectangles in all four formats. Duplicate settings count once.
+
+In the independent seed-113 setting both roots differ at the same 21 of 1,024 pixels. Maximum F32 errors are .921568625 in grayscale and .996078431 in color. With one ring and one pattern, the two roots each match 882/1,024. Radius variation alone gives 1,020/1,024, rotation variation alone gives 872/1,024, and disabling all five varying terms gives 1,024/1,024.
+
+To read the geometry, retain the Iterate and Switch graph, the original count expressions and every assignment of the quadrant opacity function. Reset a scalar draw counter before the outer count. After evaluating opacity, increment the counter and use the requested published scalar as the opacity of an additive square of size (.025,.025). Place successive squares at distinct pixel centers starting at (0,0) in a black, untiled 32² F32 field. The independent control has 12 draws and the one-ring, one-pattern control has one. In the latter, the initial angle 3.103569269 and initial radius .331919193 match. MaterialCraft then publishes radius .277020574 and rotation .457172245, where the reference gives .281947523 and .538937986. Pattern size and tint match.
+
+For a separate stream control, replace the quadrant expression with 24 consecutive assignments of Random(1) and read each assigned value. The two seeds 113 and 137 match 49,152/49,152 F32 pixels on both processor counts and on reopen, maximum zero. At seed 113 the second, sixth and seventh samples are .858505130, .288028121 and .560580373. With only radius variation enabled, MaterialCraft uses sample seven and the reference uses sample two. With only rotation variation enabled, MaterialCraft uses sample six and the reference uses sample seven. These indices reproduce every observed scalar word at seeds 0, 113, 137, 12071 and 68119. For radius use `r + (r * (r * u) − r) * .15` with r = .35 and unit draw u. For rotation use the starting angle of three quarters of a turn, interpolate in radians toward `2πu − π` by .3, then divide by 2π. Round each operation to F32. Both roots remain in progress.
+
 ### Pattern Fibers 1 at default and changed tiling
 
 Pattern Fibers 1 now matches **438,528/438,528 pixels across 36 whole settings** on one processor, on eight and when reopened from an ordinary MaterialCraft SBS save. All 24 earlier whole settings now match their original archived buffers, including the 7,393 pixels that differed in the previous comparison. This version of the graph takes no image inputs and exposes tiling and non-square expansion. [Established 24 settings, dimensions and seeds](#fibers-and-fluid-pattern-stages) · [Earlier differences by storage format](#pattern-rotation-phase)
