@@ -415,10 +415,11 @@ pass `merge: true` to continue one gesture; an ordinary request ends that merge.
 still coalesce until release. `material_export` uses the headless write-root capability and does not
 expose unrestricted engine file paths.
 
-Bitmap Color space selects sRGB or Linear. `graph.input.bind` accepts `linear: true` for normal,
-height and other data maps. Input preview bindings persist in native SBS graph options with the
-`materialcraft.previewImage.` and `materialcraft.previewLinear.` prefixes; these options describe
-MaterialCraft editor previews and do not establish external application interoperability.
+SBS image inputs store the package resource URL in the input bridge's `bitmapresourcepath`.
+On import, an image bound by this field uses the resource file's color interpretation.
+`graph.input.bind` accepts `linear: true` to keep the original levels of normal, height and other
+data maps, or `linear: false` for sRGB color. MaterialCraft preserves its explicit preview
+interpretations in graph options and reads bindings from older files that use those options.
 
 ### Shared graph items and classification metadata
 

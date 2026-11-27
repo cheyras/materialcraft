@@ -8,7 +8,7 @@ use crate::{
 };
 use craft_texture::{Image, Kind};
 use materialcraft_core::{Node, OutputFormat, Package, Value};
-use materialcraft_nodes::{CookContext, GraphVariables, find};
+use materialcraft_nodes::{BitmapColorSpace, CookContext, GraphVariables, find};
 use std::{
     collections::BTreeMap,
     sync::{Arc, Mutex},
@@ -226,7 +226,14 @@ pub(crate) fn cook_node(
         }
         let graph = package.graphs.get(graph_index)?;
         let binding = graph.input_images.get(&name)?;
-        let image = (options.resource)(&craft_texture::resource_key(binding, graph.input_images_linear.contains(&name)))?;
+        let space = if graph.input_images_from_file.contains(&name) {
+            BitmapColorSpace::FromFile
+        } else if graph.input_images_linear.contains(&name) {
+            BitmapColorSpace::Linear
+        } else {
+            BitmapColorSpace::Srgb
+        };
+        let image = (options.resource)(&space.resource_key(binding))?;
         let bitmap =
             if image.integer_sampling() { package.resource(binding).and_then(|r| materialcraft_core::png_sample_format(r.bytes.as_slice())) } else { None };
         Some((image, None, bitmap, false))

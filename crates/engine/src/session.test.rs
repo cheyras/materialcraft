@@ -42,6 +42,9 @@ fn bitmap_nodes_read_default_colors_from_the_file_and_keep_explicit_data_reads()
         graph.format = OutputFormat::U8;
         let bitmap = graph.add_node("bitmap", [0.0; 2]);
         let data = graph.add_node("bitmap", [0.0, 80.0]);
+        let input = graph.add_node("input_color", [0.0, 160.0]);
+        graph.input_images.insert("input".into(), "field".into());
+        graph.input_images_from_file.insert("input".into());
         for id in [bitmap, data] {
             graph.node_mut(id).unwrap().params.insert("resource".into(), Value::Text("field".into()));
         }
@@ -52,6 +55,11 @@ fn bitmap_nodes_read_default_colors_from_the_file_and_keep_explicit_data_reads()
         let pixel = |id| cook.image(id, 0).unwrap().get(0, 0, false).map(|v| (v * 255.0).round() as u8);
         assert_eq!(pixel(bitmap), expected);
         assert_eq!(pixel(data), [64, 128, 192, 97]);
+        assert_eq!(pixel(input), expected);
+        crate::execute(&mut session, "graph.input.bind", &serde_json::json!({"identifier":"input", "resource":"field", "linear":true})).unwrap();
+        assert!(!session.graph().unwrap().input_images_from_file.contains("input"));
+        let rebound = session.cook().image(input, 0).unwrap().get(0, 0, false).map(|v| (v * 255.0).round() as u8);
+        assert_eq!(rebound, [64, 128, 192, 97]);
     }
 }
 

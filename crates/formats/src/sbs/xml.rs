@@ -1,5 +1,11 @@
 use roxmltree::Node as XmlNode;
 
+pub(super) fn string_parameter<'a>(implementation: XmlNode<'a, '_>, name: &str) -> Option<&'a str> {
+    let parameters = child_element(implementation, "parameters")?;
+    let parameter = children_named(parameters, "parameter").find(|p| child_value(*p, "name") == Some(name))?;
+    child_value(child_element(parameter, "paramValue")?, "constantValueString")
+}
+
 pub(super) fn parse_floats(text: &str) -> Vec<f32> {
     text.split_whitespace().take(16).map(|t| t.parse::<f32>().ok().filter(|v| v.is_finite()).unwrap_or(0.0)).collect()
 }

@@ -5,7 +5,7 @@ use super::constant::NODE_HALF_SIZE;
 use super::filter_map::filter_by_def;
 use super::function_graph;
 use super::node_identifiers::NodeIdentifiers;
-use super::node_parameter::{param_xml, special_filter_params_xml, text_param};
+use super::node_parameter::{param_xml, resource_parameter_xml, special_filter_params_xml, text_param};
 use super::output::output_type;
 use super::sbs_value::{exposed_type_code, input_default_xml};
 use super::type_code;
@@ -143,7 +143,7 @@ impl SbsWriter {
 
             out.push_str("<compImplementation>");
             let ids = NodeIdentifiers { input_entry: input_entries.get(&node.id).copied(), graph_output: output_uids.get(&node.id).copied(), self_uid };
-            self.write_implementation(out, node, outputs, ids, pkg)?;
+            self.write_implementation(out, node, outputs, ids, graph, pkg)?;
             out.push_str("</compImplementation></compNode>");
         }
 
@@ -272,6 +272,7 @@ impl SbsWriter {
         node: &Node,
         outputs: &[(String, u32, u64)],
         ids: NodeIdentifiers,
+        graph: &Graph,
         package: &Package,
     ) -> Result<()> {
         // The reader assigns a native default when a processor omits format
@@ -282,7 +283,14 @@ impl SbsWriter {
                 let _ = write!(out, "<compOutputBridge><output v=\"{}\"/></compOutputBridge>", ids.graph_output.unwrap_or(0));
             }
             "input_color" | "input_grayscale" | "input_value" => {
-                let _ = write!(out, "<compInputBridge><entry v=\"{}\"/><parameters>{base}</parameters></compInputBridge>", ids.input_entry.unwrap_or(0));
+                let _ = write!(out, "<compInputBridge><entry v=\"{}\"/><parameters>{base}", ids.input_entry.unwrap_or(0));
+                if node.def != "input_value"
+                    && let Some(name) = graph.input_images.get(&text_param(node, "identifier", "input"))
+                    && !name.is_empty()
+                {
+                    out.push_str(&resource_parameter_xml("bitmapresourcepath", name, ids.self_uid, package));
+                }
+                out.push_str("</parameters></compInputBridge>");
             }
             "graph_instance" => {
                 let sub_graph = node.instance.as_ref().map(|instance| instance.graph.clone()).unwrap_or_else(|| text_param(node, "graph", ""));

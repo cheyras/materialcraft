@@ -69,6 +69,9 @@ pub struct Graph {
     pub input_images: BTreeMap<String, String>,
     #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
     pub input_images_linear: BTreeSet<String>,
+    /// SBS image bindings without an explicit preview interpretation use the resource's file transfer.
+    #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
+    pub input_images_from_file: BTreeSet<String>,
     #[serde(default)]
     pub attributes: Attributes,
     /// The id the next node, frame, comment or pin gets
@@ -119,6 +122,7 @@ impl Graph {
             presets: Vec::new(),
             input_images: BTreeMap::new(),
             input_images_linear: BTreeSet::new(),
+            input_images_from_file: BTreeSet::new(),
             attributes: Attributes::default(),
             next_id: 1,
         }

@@ -236,6 +236,7 @@ fn bind(s: &mut Session, p: &J) -> Result<J> {
         let linear = p.get("linear").and_then(J::as_bool).unwrap_or(false);
         let g = s.graph_mut()?;
         g.input_images.insert(id.clone(), res.clone());
+        g.input_images_from_file.remove(&id);
         if linear {
             g.input_images_linear.insert(id.clone());
         } else {
@@ -261,8 +262,10 @@ fn read_image_file(cmd: &str, _: &str) -> Result<(String, Vec<u8>)> {
 fn unbind(s: &mut Session, p: &J) -> Result<J> {
     let id = strp(p, "identifier").ok_or_else(|| bad("graph.input.unbind", "`identifier` is required"))?.to_string();
     s.edit("Clear input preview image", |s| {
-        s.graph_mut()?.input_images_linear.remove(&id);
-        Ok(J::Bool(s.graph_mut()?.input_images.remove(&id).is_some()))
+        let graph = s.graph_mut()?;
+        graph.input_images_linear.remove(&id);
+        graph.input_images_from_file.remove(&id);
+        Ok(J::Bool(graph.input_images.remove(&id).is_some()))
     })
 }
 
