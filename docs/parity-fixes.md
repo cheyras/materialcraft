@@ -59,6 +59,19 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-26 root comparisons
 
+### Full Arc Pavement comparisons across shape selections and ordinary saves
+
+Arc Pavement matches **791,296/791,296 pixels across 93 distinct whole-graph settings** on release `bd12ea4`. Each setting matched on one processor, on eight and after an ordinary MaterialCraft SBS save opened in both applications. All maximum stored errors are zero. The original desktop buffers from the earlier comparisons also reproduce the fresh one-processor readbacks, including the 64² and 128² image-input cases.
+
+The first 47 settings repeat the original archive, precision controls, analytic profiles, image filters and seven output sizes with the procedural grayscale input. At 64² and 128² also select each shape 0 through 9, once with the established counts and once with scale and all three counts set to one, amount randomness, color randomness and height decrease zero. At each size separately set pattern variation, color randomness, height decrease and amount randomness to zero from the original changed setting. Two of these 48 comparisons coincide with established settings. [Exact input field, seeds, dimensions and parameter table](#isolated-arc-pavement-draws-in-a-nonunit-render-region)
+
+| Whole output series | Distinct settings | U8 exact | U16 exact | F16 exact | F32 exact |
+|---|---:|---:|---:|---:|---:|
+| Established whole settings | 47 | 30,720/30,720 | 155,904/155,904 | 30,720/30,720 | 102,912/102,912 |
+| Additional selector and parameter settings | 46 | — | — | — | 471,040/471,040 |
+
+The same counts apply separately to both original processor counts and the fresh saved-file comparison. The two earlier ordinary saves, covering 30 renders, match all 153,344/153,344 pixels against their archived reference buffers, maximum zero. The earlier scaled-window ramp at (32, 62) also matches. Across five isolated 64 × 64 ramp settings the result is 20,480/20,480 on both processor counts and on ordinary reopen. Arc Pavement qualifies for parity in the measured cases.
+
 ### Two more whole outputs in Noise Clouds 1 v2
 
 Noise Clouds 1 v2 now renders **58/60 established originals** and **14/15 archived ordinary saves** across the recorded passes. The earlier measurements covered 56 originals and 13 saves. The two additional originals are 128 × 128 at seed 411810. Set scale to 3, disorder, disorder speed and disorder anisotropy to .65625, anisotropy angle to .40625, tile offset to (.3125, −.16796875) and non-square expansion off. Keep normal tiling and the other exposed defaults. Set U16 or F32 storage on the node connected to the output. [Earlier full series](#whole-and-saved-outputs-for-noise-clouds-1-v2-at-the-four-child-batch-boundary)
