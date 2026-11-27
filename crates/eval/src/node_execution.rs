@@ -310,7 +310,7 @@ pub(crate) fn cook_node(
     let started_ms = now_ms();
     let mut output_bases: Option<Arc<[_]>> = None;
     let result: Result<Vec<NodeOutput>, String> = if node.disabled {
-        let input = if let Some(primary) = definition.and_then(|definition| definition.primary_input) {
+        let input = if let Some(primary) = definition.and_then(|definition| definition.bypass_input) {
             input_ports.iter().position(|port| port.id == primary).and_then(|index| incoming.get(index)).copied().flatten()
         } else {
             incoming.iter().find_map(|output| *output)

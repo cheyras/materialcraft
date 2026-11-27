@@ -59,6 +59,18 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-27 root comparisons
 
+### Input-relative size and precision on a pattern background
+
+The FX-Map uses its connected background for input-relative size and precision. The 20 outputs in the paired-instance comparison now match **32,256/32,256 pixels**. Eight previously had the wrong dimensions. Together with the child image bridges, all 140 outputs match **235,520/235,520** on one and eight reference processors. The separate 26-output instance comparison now matches 25,856/25,856. [Paired instances and original input fields](#input-relative-dimensions-on-a-child-image-bridge)
+
+Give a standalone FX-Map a 16 × 32 background and a 32² stamp. With the parent at 32 × 16, omitted or explicit input-relative dimensions produce 16 × 32. A (−1,+1) input-relative exponent offset produces 8 × 64. Parent-relative dimensions give 32 × 16. A disconnected background leaves the parent as the size source even with the stamp wired. Repeat inside a child fixed at 64² with a wired and an unwired background, then fix the background bridge on the child and on the caller. Across 60 output reads at three parent extents, **93,952/93,952** pixels match, maximum error zero.
+
+Set the background bridge to U16, the stamp bridge to F32 and the parent to U8. Keep the draw's format input-relative. At parent sizes 16², 32 × 16 and 16 × 32, test both inputs, background only, stamp only and both disconnected. The first two configurations inherit U16 and the last two inherit U8. Both the actual storage type and dimensions match in **12/12 cases**, up from 5/12. Raw PNG exports and direct reads of configured files agree with the reference originals on **5,632/5,632 pixels**. Selecting an explicit format in the editor switches that property to absolute inheritance. Preserve the authored mode for this comparison.
+
+For each of U8, U16, F16 and F32, set the connected background bridge to that precision and leave the FX-Map's precision input-relative. Read the bridge directly and through the draw with the stamp disconnected. Use original grayscale byte fields at 8², 16 × 32 and 128², with the bridge fixed to 16 × 32. For the two smaller fields set byte (x,y) to (17x + 43y + 23(xy mod 7)) mod 251. The 128² field is the linked background used above. All **12,288/12,288** pixels match. Opening the four normally saved draw configurations with the 128² source in the reference app reproduces **2,048/2,048** pixels at each processor count. Maximum error is zero.
+
+The seven measured roots with an input-relative pattern and a connected background retain their recorded results. Bevel Smooth's position helper retains 354,560/354,560 pixels on both original and saved paths. Paths Trace retains 73,984/73,984 original and 28,928/28,928 saved pixels, and the irradiance UV helper retains 16,384/16,384 on each route. The two newer Tile Random roots retain 180,224/180,224 and the two older roots retain 484,864/484,864 on the originals and again on ordinary saves.
+
 ### Dense seeded quadrants in Moisture Noise and Dirt 4
 
 Moisture Noise at 128 × 32, seed 433959, now renders under the existing execution limits. The intact root matches **16,384/16,384 stored pixels** across U8, U16, F16 and F32 on both one and eight reference processors. Saving each configured format and reopening it before any edit gives another **16,384/16,384** on each processor count. Maximum error is zero. Each of the two U16 pattern stages independently matches 4,096/4,096 pixels in the same graph. Both stages previously stopped before producing an image.

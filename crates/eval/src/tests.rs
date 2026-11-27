@@ -1837,10 +1837,50 @@ fn cooked_parameters_retain_values_without_processor_graph_copies() {
 }
 
 #[test]
-fn enabled_generators_use_parent_size_and_seed_with_input_image_properties() {
+fn a_pattern_uses_only_its_background_for_input_relative_size_and_precision() {
+    use materialcraft_core::{OutputFormat, ParameterInheritance, SizeMode};
+
+    let mut graph = Graph::new("Pattern inputs");
+    graph.size = [5, 4];
+    graph.format = OutputFormat::U8;
+    let stamp = graph.add_node("uniform", [0.0; 2]);
+    let back = graph.add_node("uniform", [0.0; 2]);
+    for (id, size, format) in [(stamp, [6; 2], OutputFormat::F32), (back, [4, 5], OutputFormat::U16)] {
+        let base = &mut graph.node_mut(id).unwrap().base;
+        base.size_mode = SizeMode::Absolute;
+        base.size = size;
+        base.format = format;
+    }
+    let draw = graph.add_node("fx_map", [100.0, 0.0]);
+    graph.node_mut(draw).unwrap().base.format_mode = ParameterInheritance::RelativeToInput;
+    graph.connect(stamp, "output", draw, "pattern0").unwrap();
+    graph.connect(back, "output", draw, "background").unwrap();
+    let mut package = Package::new("Pattern input inheritance");
+    package.graphs.push(graph);
+    let cache = Mutex::new(Cache::default());
+    let result = |package: &Package| {
+        let cooked = cook(package, 0, &Options::new(&no_res), &cache);
+        let item = &cooked.nodes[&draw];
+        assert_eq!(item.error, None);
+        (item.base.size, item.base.format)
+    };
+    assert_eq!(result(&package), ([16, 32], OutputFormat::U16));
+    package.graphs[0].node_mut(draw).unwrap().base.size = [-1, 1];
+    assert_eq!(result(&package), ([8, 64], OutputFormat::U16));
+    assert!(package.graphs[0].disconnect(draw, "background"));
+    assert_eq!(result(&package), ([16, 32], OutputFormat::U8));
+    // Bypassing this draw still passes through the available stamp texture.
+    package.graphs[0].node_mut(draw).unwrap().disabled = true;
+    assert_eq!(result(&package), ([64, 64], OutputFormat::F32));
+}
+
+#[test]
+fn enabled_nodes_resolve_size_from_the_graph_or_their_primary_image() {
     use materialcraft_core::{BaseParameter, FunctionGraph, OutputFormat, ParameterInheritance, SizeMode, ValueType};
 
-    for (definition, port) in [("pixel_processor", "input0"), ("svg", "background"), ("fx_map", "background")] {
+    for (definition, port, size, preview) in
+        [("pixel_processor", "input0", [64_u32, 32], (16, 8)), ("svg", "background", [64, 32], (16, 8)), ("fx_map", "background", [32, 64], (8, 16))]
+    {
         for dynamic in [false, true] {
             let mut graph = Graph::new("Generator sizes");
             graph.size = [6, 5];
@@ -1864,9 +1904,9 @@ fn enabled_generators_use_parent_size_and_seed_with_input_image_properties() {
             }
             if dynamic {
                 let mut function = FunctionGraph::input("$sizelog2", ValueType::Float2);
-                let size = function.output.unwrap();
-                let parent = function.add_constant(Value::Float2([6.0, 5.0]));
-                let difference = function.add("sub", &[size, parent], None);
+                let actual = function.output.unwrap();
+                let expected = function.add_constant(Value::Float2(size.map(|axis| axis.ilog2() as f32)));
+                let difference = function.add("sub", &[actual, expected], None);
                 function.output = Some(function.add("toint2", &[difference], None));
                 graph.node_mut(generator).unwrap().base.functions.insert(BaseParameter::OutputSize, function);
             }
@@ -1881,8 +1921,8 @@ fn enabled_generators_use_parent_size_and_seed_with_input_image_properties() {
             let result = &cooked.nodes[&generator];
 
             assert_eq!(result.error, None, "{definition}");
-            assert_eq!(result.base.size, [64, 32], "{definition}, dynamic: {dynamic}");
-            assert_eq!(cooked.image(generator, 0).map(|image| (image.width(), image.height())), Some((16, 8)));
+            assert_eq!(result.base.size, size, "{definition}, dynamic: {dynamic}");
+            assert_eq!(cooked.image(generator, 0).map(|image| (image.width(), image.height())), Some(preview));
             assert_eq!(result.base.seed, 0);
             assert_eq!(result.base.format, OutputFormat::F32);
             assert_eq!(result.base.tiling, [false, true]);
@@ -1892,7 +1932,7 @@ fn enabled_generators_use_parent_size_and_seed_with_input_image_properties() {
             if !dynamic {
                 assert_eq!(
                     node_size(&package.graphs[0], materialcraft_nodes::find(definition), package.graphs[0].node(generator).unwrap(), Some((32, 64)), Some(16)),
-                    (16, 8)
+                    preview
                 );
             }
 
