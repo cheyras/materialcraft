@@ -101,6 +101,12 @@ At Blur itself the three F16 cases improved from 1,334/1,792 · 0.0001220703125 
 
 Use ordinary Save on configured cases and reopen without edits. The 16 direct filter files reproduce 15,360/15,360 pixels. The 10 whole Dirt 1 files reproduce 6,656/6,656 pixels. Each also matches the corresponding pre-save reference on one and eight processors, maximum zero. Dirt 1 remains in progress for its earlier processor-dependent results. [Original Dirt 1 comparison](#four-child-pattern-order-as-a-tile-copy-batch-fills)
 
+### Editing the linked function with a waveform caller open
+
+Use the four configured Waveform v2 files and the relative function package. In a single MaterialCraft session, open a caller and export its Waveform output as raw linear F32. Open `curve_lookup.sbs` in another tab, set the result of `hash21` to a scalar constant .375 and save the linked file. Return to the caller tab and export again. Undo the function edit in its tab, save there, return to the caller and export a third time. Leave the caller open throughout and verify its file hash before and after. [Configured callers and dependency](#saving-older-linked-packages-at-their-existing-paths)
+
+Compare each export at the caller’s stored precision with reference captures at one and eight processors. Original, edited and restored states each match **8,448/8,448 pixels**, maximum zero. At 16², seed 725048, 38 of the 256 U16 pixels changed, with a maximum change of 65,535 levels. Undo restored all 256 original values. The U8, F16 and F32 settings retained all 8,192 of their original pixels after the edit. All four caller files kept the same bytes and relative function path. Opening the same callers afresh in MaterialCraft also reproduced both the edited and restored images.
+
 ### Saving older linked packages at their existing paths
 
 An ordinary Save in MaterialCraft can update an older linked SBS at the same relative path. Both callers below then reopen in the reference app with their original connections. Saving just the caller leaves the older linked files at version `0.1.3`. The reference compiler rejected both configured callers in that state. After saving the linked files, it accepted the same caller bytes. All counts below compare whole pixels at native storage precision on both one and eight reference processors.
