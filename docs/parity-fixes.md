@@ -134,6 +134,34 @@ At 16² F32, run three paired timings of the previous and current releases with 
 
 The 64 × 32 Directional Noise 2 v2 case at seed 195000 and the 128 × 32 Dirt 4 v2 case at seed 433595 still reach the execution limit in this release. On the latter, the one- and eight-processor reference captures agree at 4,064/4,096 pixels with a maximum difference of .00407773256. [Dimensions and changed Dirt 4 v2 parameters](#repeated-f32-captures-of-28-noise-roots)
 
+### Addition and maximum blending in Directional Noise 1 v2
+
+At 16² F32, seed 103813 and defaults, the first two FX-Maps match all 16 and 64 U8 pixels on all six reads. With the final draws disabled, the background alone matches all 256 F32 pixels. The complete final draw with its original background gives 158/256 on each of three one-processor reads. Disconnecting the background leaves differences in the additive result. Changing the final wave stamps to maximum blending gives all 256 pixels exact on every read, with 256 distinct values in the image.
+
+To reproduce, alternate the 16² setting with 32² at seed 113. At 32² set scale 2, disorder .37, speed .6, anisotropy .3, anisotropy angle and angle .125, angle randomness .2 and tile offset (.17,.29). Keep the other defaults and use the grayscale F32 output. Read each setting three times on one reference processor and three times on eight. The two initial FX-Maps at 32² also match all 64 and 256 U8 pixels on every read. For the background-only control, give the drawing quadrants of the last FX-Map the empty shape. In the disconnected cases preserve the drawing data and original seeds. For the one-path control retain only child slots 0, 3, 1, 2, 0 and 3 in the first six quadrant subdivisions. Keep both Iterate nodes and all lower connections.
+
+| Final FX-Map | 16² · one · max | 16² · eight · max | 32² · one · max | 32² · eight · max |
+|---|---:|---:|---:|---:|
+| Original graph | 158/256 · 1.78813934e-07 | 149–169/256 · 1.1920929e-07 | 604/1,024 · 2.38418579e-07 | 615/1,024 · 2.38418579e-07 |
+| Background only | 256/256 · 0 | 256/256 · 0 | 1,024/1,024 · 0 | 1,024/1,024 · 0 |
+| Disconnected background, additive waves | 125/256 · 8.94069672e-08 | 146–161/256 · 1.1920929e-07 | 491/1,024 · 8.94069672e-08 | 537/1,024 · 1.1920929e-07 |
+| Disconnected background, maximum of waves | 256/256 · 0 | 256/256 · 0 | 1,024/1,024 · 0 | 1,024/1,024 · 0 |
+| Disconnected background, maximum of squares | 256/256 · 0 | 256/256 · 0 | 1,024/1,024 · 0 | 1,024/1,024 · 0 |
+| Disconnected background, one path through six subdivisions | 256/256 · 0 | 256/256 · 0 | 1,024/1,024 · 0 | 1,024/1,024 · 0 |
+
+The 16² columns give the range of exact pixels and the largest absolute error over three returns. The 32² columns use the first return on each processor count. Combining the six new 16² full outputs with the earlier ten gives 55 positions with the same word in every capture. MaterialCraft matches 54. At (6,9) the difference is 2.98023224e−8. Each application produced full images at both sizes. [Earlier ten captures](#repeated-f32-captures-of-28-noise-roots)
+
+Configure the disconnected wave controls at each size and use ordinary Save. Open all four files without changing their stored parameters. All 2,560 MaterialCraft pixels reproduce their respective pre-save words.
+
+| Reopened wave control | Size | One processor · max | Eight processors · max |
+|---|---|---:|---:|
+| Additive | 16² | 125/256 · 8.94069672e-08 | 125/256 · 8.94069672e-08 |
+| Additive | 32² | 537/1,024 · 8.94069672e-08 | 537/1,024 · 8.94069672e-08 |
+| Maximum | 16² | 256/256 · 0 | 256/256 · 0 |
+| Maximum | 32² | 1,024/1,024 · 0 | 1,024/1,024 · 0 |
+
+The maximum-blend and isolated-path comparisons provide controls for the stamp arithmetic. A repeatable overlap order that reproduces the additive images remains unresolved.
+
 ### Repeated F32 captures of 28 noise roots
 
 At one fixed setting per root, compare one MaterialCraft render with five reference returns at one processor and five at eight. Between returns, render a second setting at a different size to invalidate the previous image. Read the raw F32 output after every return. The same processor count produced multiple buffers on 8 of the 28 roots at one processor and on 25 at eight.
