@@ -59,6 +59,54 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-26 root comparisons
 
+### Individual paraboloids and additive order in Noise BNW Spots 3 v2
+
+At 64 × 64 F32 and seed 411585, fifteen desktop readbacks agreed with one another and differed from MaterialCraft at three pixels. Record the background and nonzero additive draws there in MaterialCraft traversal order. Each pixel receives eleven paraboloids at depths six through nine. The diagnostic cook reproduces the complete checked release buffer. [Root parameters and full-image comparisons](#seeded-quadrant-properties-with-a-live-tint-multiplier)
+
+To isolate a draw, use a zero background, the same render and tiling intervals and a single additive paraboloid. Set its branch offset to (−.5, −.5). Supply its absolute center, two dimensions and rotation as exposed floats. Set roughness to zero and global opacity to one. Supply its observed scalar tint multiplied in F32 by its depth opacity. On one processor, on eight and after an ordinary SBS save, all 33 individual images match **135,168/135,168 F32 pixels**, maximum zero. At the three selected pixels every individual contribution also equals its corresponding value in the full MaterialCraft render.
+
+For the sum controls, restore the two upstream maps as the background. Connect one drawing Quadrant to the repeated branch of an eleven-count Iterate. Use the repetition number to select each recorded center, dimensions, rotation and tint. Run each group in traversal order, reversed and in the third order shown below. Number the draws 0 through 10 in traversal order. All nine complete images match **36,864/36,864 F32 pixels**, maximum zero on each processor count and ordinary reopen. The forward sum gives the full MaterialCraft value at each selected pixel. Both other orders give the observed full reference word.
+
+| Pixel | Background word | Forward sum | Reversed and third sum | Third order |
+|---|---|---|---|---|
+| (9, 9) | `0x3eecaced` | `0x3efb6504` | `0x3efb6505` | 1, 0, 6, 10, 2, 4, 8, 9, 3, 5, 7 |
+| (33, 41) | `0x3f13a394` | `0x3f0d59a0` | `0x3f0d59a1` | 1, 6, 8, 3, 5, 10, 7, 4, 2, 9, 0 |
+| (46, 33) | `0x3f117191` | `0x3f1d2b80` | `0x3f1d2b7f` | 7, 6, 8, 3, 2, 5, 9, 10, 0, 4, 1 |
+
+For a direct arithmetic replay, interpret each word below as an IEEE binary32 addend. Start at the background word above and round after each addition.
+
+| Pixel | Addends 0 through 10, hexadecimal |
+|---|---|
+| (9, 9) | `bb099c21 bb265fee 3c85b53d bc50a193 3ac2eb52 bb17681c 3bf2fcfe 3d04b40d b954f349 bb57489b bbbae64f` |
+| (33, 41) | `b8f3de8b b9254daf 39801678 bc578327 bbf6df9d bb108f40 babee2ea bb91c340 bbbb5b83 3c02e67b 3b026ca1` |
+| (46, 33) | `bc24af84 bb2e0f62 bc92ce6d bb977f92 3d185f5f 3cc996f0 3a2f311a 3b930c49 3c9319d8 ba1fdcfe bb553cf7` |
+
+With the stored background and eleven addends held fixed, 30,987,036 of 39,916,800 permutations give the reference word at (9, 9). At each of the other two pixels, 19,958,400 permutations give each of the two possible words. These results establish that addition order suffices to reproduce the three differences. The execution order of the full reference tree remains unresolved.
+
+Keep the complete source graph and change just the outer Iterate count on its final FX-Map. Evaluate its original count first in a Sequence, then return zero, one or two. Use the [four established sizes, settings and seeds](#seeded-quadrant-properties-with-a-live-tint-multiplier) in F32. At zero repeats all **23,552/23,552** background pixels match on both processor counts and after saving, maximum zero. The local ordinary save reproduces the original at every count and size.
+
+| Outer repeats · size | Original · one processor | Original · eight | Ordinary save · one |
+|---|---:|---:|---:|
+| 1 · 64 × 16 | 1,015/1,024 · 1.1920929e−7 | 1,016/1,024 · 5.96046448e−8 | 1,018/1,024 · 1.1920929e−7 |
+| 1 · 64 × 64 | 4,036/4,096 · 1.1920929e−7 | 4,029/4,096 · 1.49011612e−7 | 4,039/4,096 · 1.78813934e−7 |
+| 1 · 128 × 128 | 16,123/16,384 · 2.38418579e−7 | 16,196/16,384 · 1.78813934e−7 | 16,121/16,384 · 1.78813934e−7 |
+| 1 · 64 × 32 | 2,031/2,048 · 1.49011612e−7 | 2,033/2,048 · 1.1920929e−7 | 2,028/2,048 · 1.1920929e−7 |
+| 2 · 64 × 16 | 1,019/1,024 · 1.1920929e−7 | 1,017/1,024 · 5.96046448e−8 | 1,017/1,024 · 1.1920929e−7 |
+| 2 · 64 × 64 | 3,981/4,096 · 1.1920929e−7 | 3,975/4,096 · 1.1920929e−7 | 3,981/4,096 · 1.1920929e−7 |
+| 2 · 128 × 128 | 15,888/16,384 · 1.78813934e−7 | 15,920/16,384 · 1.78813934e−7 | 15,883/16,384 · 2.38418579e−7 |
+| 2 · 64 × 32 | 2,017/2,048 · 1.1920929e−7 | 2,007/2,048 · 1.1920929e−7 | 2,015/2,048 · 1.49011612e−7 |
+
+To narrow the 64 × 16 and 64 × 64 differences, keep one outer repetition. Vary how many of the first six empty Quadrants retain all four connections. Below the last full subdivision, keep just the slot at that depth from the zero-based sequence 0, 3, 1, 2, 0, 3. Preserve the original slot identifiers and all downstream programs. With one, four, sixteen or sixty-four connected paths, the four controls match **20,480/20,480** pixels on each route, maximum zero. With sixty-four paths the draw changes eight pixels at 64 × 16 and sixty-four at 64 × 64 relative to the background.
+
+| Connected paths · size | Original · one | Original · eight | Ordinary save · one |
+|---|---:|---:|---:|
+| 256 · 64 × 16 | 1,024/1,024 · 0 | 1,024/1,024 · 0 | 1,024/1,024 · 0 |
+| 256 · 64 × 64 | 4,094/4,096 · 2.98023224e−8 | 4,095/4,096 · 2.98023224e−8 | 4,095/4,096 · 2.98023224e−8 |
+| 1,024 · 64 × 16 | 1,022/1,024 · 2.98023224e−8 | 1,024/1,024 · 0 | 1,023/1,024 · 2.98023224e−8 |
+| 1,024 · 64 × 64 | 4,083/4,096 · 5.96046448e−8 | 4,089/4,096 · 5.96046448e−8 | 4,088/4,096 · 5.96046448e−8 |
+
+For each 64 × 64 reduced tree, switch from seed 411585 to each of 411586, 411587 and 411588, returning to 411585 after every change on both processor counts. Include the original one-processor, eight-processor and saved readbacks. At 256 paths MaterialCraft matches all 4,093/4,093 invariant pixels and gives an observed word at all 4,096 positions. At 1,024 paths it matches 4,074/4,076 invariant pixels, maximum 2.98023224e−8. At (30, 33) its F32 word is `0x3efe38ce` and all nine reference readbacks give `0x3efe38cd`. At (27, 44) the words are `0x3efd0339` and `0x3efd033a`. The full root stays in progress.
+
 ### Seeded quadrant properties with a live tint multiplier
 
 A grayscale quadrant can set a two-component frame offset and then choose between a seeded scalar and that same scalar multiplied by a live gain. MaterialCraft now reuses the seed-dependent draw properties for a repeated seed, node, depth and selected branch. It reapplies the current gain and publishes the offset in its original drawing scope before visiting children. The other computed fields must depend only on the seed, depth and fixed inputs. A direct read must connect the assigned offset to the frame. Each draw retains its original position in the traversal.
