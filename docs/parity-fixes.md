@@ -74,6 +74,25 @@ At 16² F32 with default exposed parameters, compare the two reference buffers f
 
 These are reference-to-reference counts. On the 32 × 16 F32 Spots 1 setting at seed 456654, MaterialCraft still differs at seven of 370 pixels that stayed constant across repeated one-processor reads. The inventory retains the measured cross-processor and implementation differences. [Whole-root and invariant-pixel measurements](#receiving-quadrant-subtrees-after-the-second-pair-fills)
 
+### Reference variation in eight further roots
+
+Each row compares a reference image against the same setting on eight allowed processors, starting from one. The first and seventh rows use the first of three paired captures. Integer differences are storage levels. All inputs and unspecified parameters use the linked settings or their defaults.
+
+| Root | Size · seed · format | Equal reference pixels | Maximum difference |
+|---|---|---:|---:|
+| Noise Moisture Noise (295) | 64² · 433922 · F32 | 4,094/4,096 | 1.52587891e−5 |
+| Noise Moisture Noise 1 v2 (296) | 16 × 32 · 732011 · U16 | 511/512 | 1 |
+| Noise Moisture Noise 2 (297) | 16 × 32 · 732011 · F32 | 280/512 | 1.78813934e−7 |
+| RT Caustics Base (451) | 64² · 4127 · U16 | 4,095/4,096 | 1 |
+| Scratches 2 (464) | 16² · 115727 · F32 | 248/256 | 5.96046448e−8 |
+| Vertical Noise (534) | 32 × 16 · 739049 · U16 | 501/512 | 1 |
+| Wood Fibers 1 (544) | 64² · 703748 · F32 | 4,084/4,096 | 1.81198120e−5 |
+| Wood Fibers 2 (545) | 256² · 0 · U16 | 65,336/65,536 | 2 |
+
+For root 295 use scale 1, disorder .9375, pattern size (1.140625,.85546875), angle .6875, random angle .9375 and global opacity 2.1328125. Disable non-square expansion. For root 451 use the procedural height, normal and noise fields, photon grid size 1, surface height scale .3125, surface height position .75, surface IOR 1.375, photon size 5.5, jitter .3125 and light position (.3125,.6875). Set Disorder to .3 for Vertical Noise and .375 for Wood Fibers 1. [Moisture comparisons](#recovered-dirt-4-and-moisture-renders-at-seed-113) · [Caustic procedural inputs](#paths-caustics-and-cell-fields-after-pattern-sampling) · [Fiber comparison settings](#repeated-wood-fiber-renders-and-isolated-drawing-depths)
+
+Return to each 64² F32 setting in rows one and seven three times, rendering the other sizes in between. On one processor all 4,096 pixels repeated on both returns in both graphs. On eight, Noise Moisture Noise gave 4,093/4,096 exact on both returns, maximum 1.52587891e−5. Wood Fibers 1 gave 4,089/4,096 and 4,095/4,096, maximum 1.81198120e−5 in each comparison. Across all six captures per graph, MaterialCraft at `fc5ad59` matched 4,090/4,091 invariant pixels in Noise Moisture Noise and 4,080/4,082 in Wood Fibers 1, with maxima 1.52587891e−5 and 1.75237656e−5. Noise Moisture Noise at 128 × 32, seed 433959, still reached the local pattern execution budget.
+
 ### Saved image inputs and automatic filtering in Tile Random
 
 Bind generated gray and color images to graph inputs and use an ordinary **Save As**. The two tile roots previously stored the resource names only in editor options. Opening the saved 32² F32 files in the reference app gave 0/4,096 exact pixels across the four files. For a 1 × 1 grid with both images connected, the maximum errors were .501960814 grayscale and .937254906 color. With only the pattern connected to a regular 2 × 2 grid, they were .694605947 and .854413688. An independently authored one-input package shows the resource URL on the image bridge's `bitmapresourcepath` parameter. Adding that field to the four test files recovered 4,096/4,096 on one and eight processors, maximum zero.
