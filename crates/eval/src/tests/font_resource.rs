@@ -74,7 +74,7 @@ fn package_font_outlines_render_and_invalidate_the_parent_instance() {
     package.resources.push(Resource::new("Ink", "Ink.ttf", ResourceBytes::new(rectangle_font(512, [768, -256, 0]))));
     let cache = Mutex::new(Cache::default());
     let options = Options::new(&no_res);
-    for (height, first_row) in [(512, 8), (256, 12)] {
+    for (height, first_row) in [(512, 8), (256, 12), (1024, 4)] {
         package.resources[0].bytes = ResourceBytes::new(rectangle_font(height, [768, -256, 0]));
         let direct = cook(&package, 1, &options, &cache);
         assert!(direct.nodes[&text].error.is_none(), "{:?}", direct.nodes[&text].error);
@@ -115,6 +115,25 @@ fn package_font_uses_horizontal_height_and_line_gap() {
     for y in 0..64 {
         for x in 0..64 {
             let ink = (30..34).contains(&x) && ((28..32).contains(&y) || (48..52).contains(&y));
+            assert_eq!(image.get_gray(x, y, false), f32::from(ink), "({x}, {y})");
+        }
+    }
+}
+
+#[test]
+fn package_font_clips_overhang_at_the_outside_of_the_text_block() {
+    let (mut package, id) = text_sample(
+        [6, 6],
+        [768, -256, 0],
+        &[("text", Value::Text("A\nA".into())), ("fontsize", Value::Float(0.25)), ("position", Value::Float2([0.0, -0.25]))],
+    );
+    package.resources[0].bytes = ResourceBytes::new(rectangle_font(1024, [768, -256, 0]));
+    let cooked = cook(&package, 0, &Options::new(&no_res), &Mutex::new(Cache::default()));
+    assert_eq!(cooked.nodes[&id].error, None);
+    let image = cooked.image(id, 0).unwrap();
+    for y in 0..64 {
+        for x in 0..64 {
+            let ink = (28..36).contains(&x) && (4..32).contains(&y);
             assert_eq!(image.get_gray(x, y, false), f32::from(ink), "({x}, {y})");
         }
     }

@@ -59,6 +59,23 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-27 root comparisons
 
+### Text block bounds for linked font outlines
+
+The shared Text renderer now clips glyph ink to the outward-rounded bounds of the transformed text block. It uses the horizontal header ascent and descent, line spacing and aligned line widths. An overhang may extend between two lines of the same block. A wrapped copy carries the same clip to its new position.
+
+For an original TrueType reproduction, use 1,024 units per em, ascent 768, descent −256 and advance 640. Give A a stem from (0,0) to (96,512). Add rectangles from (128,640) to (256,1024) and (320,832) to (512,960) above the stem, and from (128,−512) to (256,−128) and (320,−512) to (512,−384) below it. At 64² with size .5, left alignment, identity transform and zero offset, both overhangs must stay within rows 8 through 39. The old output matched 3,984/4,096 pixels, maximum 1. The corrected output matches all 4,096. Moving down half a pixel extends coverage into row 40. A quarter-turn moves the clip onto the horizontal axis. Fifteen original F32 cases cover upper and lower ink, translation, rotation, shear, changed header metrics, real line breaks and overlapping glyph advances. They improved from 60,482/61,440 pixels to **61,440/61,440**, maximum 1 to zero.
+
+The following four separately configured graphs reopened in both applications after an ordinary SBS save. Each current count applies independently to the original and reopened graph on one and eight reference processors. The input is the face above. The two-line case uses A followed by a newline and B, with B drawn from (64,64) to (256,704). All reference original/reopen comparisons are exact.
+
+| Changed Text setting | Size · seed · format | Previous exact pixels · maximum | Current exact pixels · maximum |
+|---|---|---:|---:|
+| Wrapped, offset (.4375,.4375) | 32 × 64 · 0 · U8 | 1,992/2,048 · 255 levels | 2,048/2,048 · 0 |
+| Two lines, size .25, offset (−.25,−.25) | 64 × 32 · 42 · U16 | 2,038/2,048 · 65,535 levels | 2,048/2,048 · 0 |
+| Wrapped, quarter-turn, offset (.4375,−.40625) | 32 × 64 · 261017 · F16 | 1,992/2,048 · 1 | 2,048/2,048 · 0 |
+| Ascent 640, descent −384, offset (−.125,0) | 64² · 903331 · F32 | 3,984/4,096 · 1 | 4,096/4,096 · 0 |
+
+The 96 existing rectangle and diagonal controls retain 261,700/262,144 pixels, maximum .584313743. An overhanging triangle with vertices (128,−512), (384,1024) and (640,−512) at a half-pixel vertical offset gives 4,010/4,096, maximum .168627471. Replaying the 30 Points Preview settings with the same licensed font in both applications gives **17,869/17,920**, maximum .164705887. The saved-library label-only group remains 5,338/5,376. The catalog-path comparison gives 17,545/17,920, maximum .380392157. The root remains in progress for the visible label edges. [Root cases and font selection](#font-line-height-and-coverage-over-a-constant-background)
+
 ### Reference repeatability across 31 open noise roots
 
 Compare the archived original outputs directly between one and eight allowed reference processors. Pair the same graph, output, parameter values, dimensions, seed, input bindings and storage format. Both captures restored the graph settings and recorded the requested processor count. The 31 roots are inventory indices 236–239, 244–247, 251–258, 261–271, 279–280 and 285–286. All 31 have at least one measured difference. The first eleven unresolved roots precede this group and also have differing reference captures. [Whole noise series](#whole-and-saved-outputs-for-the-two-gaussian-spots-2-noise-generators) · [Directional series](#directional-noise-and-scratch-pattern-sources) · [Earlier reference processor comparisons](#patterns-with-an-explicit-reference-worker-count)

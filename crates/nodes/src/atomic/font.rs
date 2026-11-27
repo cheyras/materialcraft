@@ -71,7 +71,7 @@ struct Drawing {
 }
 
 impl Drawing {
-    fn glyph(&mut self, ink: &Glyph, transform: Affine) -> Result<(), String> {
+    fn glyph(&mut self, ink: &Glyph, transform: Affine, text_bounds: Rect) -> Result<(), String> {
         if ink.path.elements().is_empty() {
             return Ok(());
         }
@@ -80,6 +80,12 @@ impl Drawing {
         if !bounds.is_finite() {
             return Err("non-finite text outline transform".into());
         }
+        let clip = (!text_bounds.contains_rect(bounds)).then(|| text_bounds.to_path(0.1));
+        let bounds = bounds.intersect(text_bounds);
+        if bounds.is_zero_area() {
+            return Ok(());
+        }
+        let elements = ink.path.elements().len() + clip.as_ref().map_or(0, |path| path.elements().len());
         let columns = copies(bounds.x0, bounds.x1, width, self.tiled[0])?;
         let rows = copies(bounds.y0, bounds.y1, height, self.tiled[1])?;
         if (!self.tiled[0] && (bounds.x1 <= 0.0 || bounds.x0 >= width)) || (!self.tiled[1] && (bounds.y1 <= 0.0 || bounds.y0 >= height)) {
@@ -87,10 +93,17 @@ impl Drawing {
         }
         for row in rows {
             for column in columns.clone() {
-                self.remaining = self.remaining.checked_sub(ink.path.elements().len()).ok_or("text outlines exceed the drawing budget")?;
+                self.remaining = self.remaining.checked_sub(elements).ok_or("text outlines exceed the drawing budget")?;
                 let offset = Affine::translate((f64::from(column) * width, f64::from(row) * height));
+                if let Some(path) = &clip {
+                    self.context.set_transform(offset);
+                    self.context.push_clip_layer(path);
+                }
                 self.context.set_transform(offset * transform);
                 self.context.fill_path(&ink.path);
+                if clip.is_some() {
+                    self.context.pop_layer();
+                }
             }
         }
         Ok(())
@@ -105,7 +118,9 @@ pub fn text_with_font(context: &CookContext<'_>, bytes: &[u8]) -> CookResult {
     }
     let font = harfrust::FontRef::from_index(bytes, 0).map_err(|e| e.to_string())?;
     let header = font.hhea().map_err(|e| e.to_string())?;
-    let height_units = f64::from(header.ascender().to_i16()) - f64::from(header.descender().to_i16());
+    let ascent = f64::from(header.ascender().to_i16());
+    let descent = f64::from(header.descender().to_i16());
+    let height_units = ascent - descent;
     if height_units <= 0.0 {
         return Err("font has no positive horizontal line height".into());
     }
@@ -133,6 +148,8 @@ pub fn text_with_font(context: &CookContext<'_>, bytes: &[u8]) -> CookResult {
     let text = context.text("text").chars().take(super::text::MAX_CHARS).collect::<String>().replace("\\n", "\n");
     let mut cache = BTreeMap::new();
     let mut outline_budget = MAX_ELEMENTS;
+    let mut positioned = Vec::new();
+    let mut text_bounds: Option<Rect> = None;
     for (line_index, line) in text.split('\n').enumerate() {
         let glyphs = shape_line(line, &shaper, &plans)?;
         let mut cursor = 0.0;
@@ -160,10 +177,19 @@ pub fn text_with_font(context: &CookContext<'_>, bytes: &[u8]) -> CookResult {
             2 => left - right,
             _ => (left - right) * 0.5,
         };
-        for (id, x, y) in positions {
-            if let Some(ink) = cache.get(&id) {
-                drawing.glyph(ink, frame * Affine::translate((x + shift, y)))?;
-            }
+        let line_bounds = Rect::new(left + shift, baseline + descent, right + shift, baseline + ascent).abs();
+        text_bounds = Some(text_bounds.map_or(line_bounds, |bounds| bounds.union(line_bounds)));
+        positioned.extend(positions.into_iter().map(|(id, x, y)| (id, x + shift, y)));
+    }
+    // The transformed text block occupies whole pixels. Ink may extend into another
+    // line within the block, including when a tiled copy crosses the image edge.
+    let text_bounds = frame.transform_rect_bbox(text_bounds.unwrap_or_default()).expand();
+    if !text_bounds.is_finite() {
+        return Err("non-finite text bounds".into());
+    }
+    for (id, x, y) in positioned {
+        if let Some(ink) = cache.get(&id) {
+            drawing.glyph(ink, frame * Affine::translate((x, y)), text_bounds)?;
         }
     }
     let mut target = Pixmap::new(width, height);
