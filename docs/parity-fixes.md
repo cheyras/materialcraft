@@ -59,6 +59,16 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-27 root comparisons
 
+### A recovered rectangle and repeated outputs in Directional Noise 3 v2
+
+Disable tiling on both axes and leave the exposed parameters at their defaults. At 16 × 32 and seed 731257 the previous evaluator stopped at its work limit. With seeded quadrant geometry reuse, the original and four individually configured ordinary saves render under the same limit. U8, U16 and F32 each match **512/512** against both reference processor counts on both file routes, maximum zero. F16 gives **99/512** on each comparison, maximum .0009765625. For each format, the two reference originals and both reference file reopens agree on all 512 pixels. [Dense quadrant regression](#dense-seeded-quadrants-in-moisture-noise-and-dirt-4)
+
+The three pattern stages feeding Levels have U8 storage at 2 × 4, 4 × 8 and 16 × 32. Set the Levels input low, mid and high to .350414991, .479999989 and .92156899 respectively and disable intermediate clamping. Rounding only the matching F32 output toward zero to F16 reproduces 99/512 stored reference values. Rounding the normalized U8 input toward zero to half before evaluating the curve in F32 and storing the result in half reproduces 512/512. This comparison measures that rectangle and curve.
+
+At 32², enable the original tiling, use seed 103867 and the [recorded directional parameters](#reference-repeatability-across-31-open-noise-roots). For U16 the original one- and eight-processor captures differ at (18,16). MaterialCraft gives 28,554, matching 1,023/1,024 on one processor and 1,024/1,024 on eight, maximum 446 and zero. Its F32 output matches 1,024/1,024 on both.
+
+To repeat the stage comparison, switch to 16², seed 103865 and default exposed parameters before returning to the 32² U16 and F32 pair. Make two returns on each processor count. All four U16 reads match MaterialCraft at the 4², 8² and 32² patterns and at the 32² Levels output. One eight-processor graph output instead returns 28,108 at (18,16). On a one-processor F32 return the last U8 pattern differs by one level there, and the Levels stage reads .428904921 while the graph output reads .435707599. The remaining three F32 stage-to-output reads match at every pixel. The root remains in progress.
+
 ### Input-relative size and precision on a pattern background
 
 The FX-Map uses its connected background for input-relative size and precision. The 20 outputs in the paired-instance comparison now match **32,256/32,256 pixels**. Eight previously had the wrong dimensions. Together with the child image bridges, all 140 outputs match **235,520/235,520** on one and eight reference processors. The separate 26-output instance comparison now matches 25,856/25,856. [Paired instances and original input fields](#input-relative-dimensions-on-a-child-image-bridge)
