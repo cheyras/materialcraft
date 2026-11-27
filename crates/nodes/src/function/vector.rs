@@ -50,7 +50,7 @@ pub(super) fn identify_pattern_components(program: &mut super::Program, end: usi
         } else if let Some(call) = &op.call {
             if let Some(arguments) = &call.pattern_arguments {
                 lanes = arguments.channels.map(|register| register.map(PatternComponent::Register));
-            } else if let Some(projection) = call.packed_projection(&op.inputs, &sources) {
+            } else if let Some(projection) = call.packed_projection(&op.inputs, &sources).or_else(|| call.packed_arithmetic(&op.inputs, &sources)) {
                 lanes = projection.channels.map(|register| register.map(PatternComponent::Register));
                 projections.push((index, projection));
             }

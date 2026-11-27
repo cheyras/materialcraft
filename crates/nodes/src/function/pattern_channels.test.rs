@@ -100,3 +100,103 @@ fn assigning_a_computed_pattern_vector_draws_the_operands_of_each_channel_togeth
         }
     }
 }
+
+fn weighted_pattern_argument(width: usize, order: Option<[i32; 3]>, repeat_swizzle: bool) -> FunctionGraph {
+    let (getter, default) = match width {
+        2 => ("get_float2", Value::Float2([0.0; 2])),
+        3 => ("get_float3", Value::Float3([0.0; 3])),
+        4 => ("get_float4", Value::Float4([0.0; 4])),
+        _ => panic!("unsupported fixture width"),
+    };
+    let mut body = FunctionGraph::default();
+    let point = body.add(getter, &[], Some(Value::Text("point".into())));
+    body.output = Some(if let Some(order) = order {
+        let mut terms = Vec::new();
+        for (lane, weight) in order.into_iter().zip([0.5, 0.25, 0.125]) {
+            let channel = if repeat_swizzle {
+                let repeated = body.add("swizzle3", &[point], Some(Value::Int3([lane; 3])));
+                body.add("swizzle1", &[repeated], Some(Value::Int(0)))
+            } else {
+                body.add("swizzle1", &[point], Some(Value::Int(lane)))
+            };
+            let weight = body.add_constant(Value::Float(weight));
+            terms.push(body.add("mul", &[channel, weight], None));
+        }
+        let pair = body.add("add", &terms[..2], None);
+        body.add("add", &[pair, terms[2]], None)
+    } else {
+        body.add_constant(Value::Float(0.375))
+    });
+
+    let mut graph = FunctionGraph::default();
+    let unit = graph.add_constant(Value::Float(1.0));
+    let draws: Vec<_> = (0..width).map(|_| graph.add("rand", &[unit], None)).collect();
+    let next = graph.add("rand", &[unit], None);
+    let mut packed = graph.add("vector2", &draws[..2], None);
+    for (&draw, operation) in draws[2..].iter().zip(["vector3", "vector4"]) {
+        packed = graph.add(operation, &[packed, draw], None);
+    }
+    let sample = graph.add("instance", &[packed], None);
+    let node = graph.nodes.last_mut().unwrap();
+    node.instance = Some(materialcraft_core::GraphInstance {
+        graph: "weighted_components".into(),
+        label: String::new(),
+        package: String::new(),
+        inputs: vec![materialcraft_core::GraphPort { identifier: "point".into(), type_code: crate::function::value_type::type_code(&default) }],
+        outputs: vec![],
+        defaults: BTreeMap::from([("point".into(), default)]),
+    });
+    node.source = Some(Ok(std::sync::Arc::new(body)));
+    let weight = graph.add_constant(Value::Float(0.0625));
+    let tail = graph.add("mul", &[next, weight], None);
+    graph.output = Some(graph.add("add", &[sample, tail], None));
+    graph
+}
+
+fn measured_pattern_argument(graph: &FunctionGraph, seed: u32) -> Value {
+    let variables = BTreeMap::new();
+    let context = EvaluationContext {
+        scope: FunctionScope::FxMap,
+        position: [0.5; 2],
+        size: [16.0; 2],
+        images: &[],
+        image_formats: &[],
+        tile: true,
+        variables: &variables,
+    };
+    compile(graph, seed).unwrap().evaluate(&context, &mut EvaluationState::default()).unwrap()
+}
+
+#[test]
+fn arithmetic_in_a_called_pattern_function_reads_packed_components_on_first_use() {
+    let all = [0x3e37_3b24, 0x3eed_4df9, 0x3f29_859c];
+    for (order, repeat_swizzle, words) in [
+        ([0, 1, 2], false, all),
+        ([2, 1, 0], false, all),
+        ([1, 2, 0], false, all),
+        ([2, 0, 0], false, [0x3e0e_9eda, 0x3f03_aff7, 0x3f2a_7d9c]),
+        ([1, 1, 2], false, [0x3e2d_9372, 0x3ebd_2261, 0x3f4c_d582]),
+        ([2, 1, 0], true, all),
+    ] {
+        let graph = weighted_pattern_argument(3, Some(order), repeat_swizzle);
+        for (seed, word) in [11_038_009, 9_766_418, 22_858_730].into_iter().zip(words) {
+            assert_eq!(measured_pattern_argument(&graph, seed), Value::Float(f32::from_bits(word)), "{order:?}, {repeat_swizzle}, {seed}");
+        }
+    }
+}
+
+#[test]
+fn padded_and_unused_components_of_pattern_arguments_consume_no_draw() {
+    for (width, order, word) in [
+        (2, Some([1, 0, 1]), 0x3e1e_1926),
+        (2, Some([3, 1, 3]), 0x3d4d_a9dc),
+        (2, Some([3, 2, 3]), 0x3c3d_4b90),
+        (3, Some([3, 0, 2]), 0x3d9d_db54),
+        (3, None, 0x3ec5_ea5c),
+        (4, Some([3, 1, 0]), 0x3e37_3b24),
+        (4, Some([2, 3, 2]), 0x3e1e_1926),
+    ] {
+        let graph = weighted_pattern_argument(width, order, false);
+        assert_eq!(measured_pattern_argument(&graph, 11_038_009), Value::Float(f32::from_bits(word)), "{width}, {order:?}");
+    }
+}

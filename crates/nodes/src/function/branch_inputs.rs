@@ -84,7 +84,7 @@ fn operands<'a>(instructions: &'a [Instruction], index: usize, components: Optio
             .call
             .as_ref()
             .and_then(|call| call.pattern_arguments.as_ref())
-            .filter(|plan| components.is_some() && matches!(plan.target, super::function_call::PatternTarget::ReturnedChannels))
+            .filter(|plan| components.is_some() && !matches!(plan.target, super::function_call::PatternTarget::Arguments(_)))
             .map_or(&node.inputs, |plan| &plan.registers),
     }
 }

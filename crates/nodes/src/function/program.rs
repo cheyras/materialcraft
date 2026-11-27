@@ -307,6 +307,8 @@ impl Program {
                         storage.argument_factors = factors;
                         storage.variables.clone_from(&state.variables);
                         storage.variables.extend(call.defaults.clone());
+                        let packed = pattern.map(|plan| plan.target.packed_argument(arguments)).transpose()?.flatten();
+                        let arguments = packed.as_ref().map_or(arguments, std::slice::from_ref);
                         for (i, value) in arguments.iter().enumerate() {
                             let slot = match pattern.map(|plan| &plan.target) {
                                 Some(super::function_call::PatternTarget::Arguments(slots)) => *slots.get(i).ok_or("missing function argument slot")?,

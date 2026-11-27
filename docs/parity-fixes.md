@@ -59,6 +59,49 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-27 root comparisons
 
+### Component reads in color tile function arguments
+
+The color graph in `pattern_tile_generator.sbs` matches all **777,472 RGBA pixels in 339 distinct settings** on one processor, on eight processors, and after opening a regular MaterialCraft save in the reference app. A pixel counts only when all four stored channels match. The earlier evaluator matched 206 complete settings. The fresh single-processor renders also reproduced the 765,184 archived pixels in the [331 established settings](#three-related-tile-roots-with-the-current-evaluator).
+
+| Storage | Settings | Earlier exact pixels · maximum error | Current exact pixels on each of the three routes · maximum error |
+|---|---:|---:|---:|
+| U8 | 9 | 20,575/24,064 · 88 | 24,064/24,064 · 0 |
+| U16 | 23 | 146,922/158,208 · 22,635 | 158,208/158,208 · 0 |
+| F16 | 21 | 33,806/37,376 · 0.345214844 | 37,376/37,376 · 0 |
+| F32 | 286 | 436,635/557,824 · 0.345388740 | 557,824/557,824 · 0 |
+
+For the eight new settings, use image filter 0, global opacity .75, rotation −.09375 turns, pattern rotation randomness .125, position randomness (.1875, .3125) and non-square expansion. Keep other controls at defaults. Render each of the following at all four precisions.
+
+| Size · seed | Pattern · grid · input count · blend mode | Color · component randomness | Input pins |
+|---|---|---|---|
+| 16 × 64 · 504108 | 1 · 4 × 3 · 4 · 1 | (.25, .625, .875, .6875) · (.4375, .25, .3125, .125) | Connect all seven generated 32 × 16 U8 fields |
+| 64 × 32 · 504131 | 3 · 2 × 5 · 6 · 0 | (.875, .375, .125, .9375) · (.25, .4375, .125, .375) | Leave the pins open |
+
+For the connected fields, index the background and the six pattern inputs by m = 0 through 6 and channels by c = 0 through 3. At texel (x,y), take h = ((67x + 43y + 13xy + 11cx + 29m + 59c + 112713) mod 383)/382. Use .75h plus .25 wherever (5x + 7y + 3m + c) mod 17 exceeds 9. Set channel c to one at ((3c + 8) mod 32, (m + 4) mod 16). Round to the nearest U8 level. The complete 560,378-byte SBS written by the corrected build matched the file used for the reference reopens byte for byte.
+
+The randomized tint passes three components to a straight-line arithmetic function. Reversing the pack and reversing the selection inside that function preserved the reference output and reproduced the correct draw order in the earlier evaluator. The shared pattern evaluator now evaluates packed scalar inputs when the called arithmetic first reads their components. A repeated component reuses its value. An unused component and a swizzle into zero padding consume no draws. The change applies to function calls in FX-Maps.
+
+To reproduce this independently, pack separate Random(1) draws into a vector and call a function that reads three channels a, b, c in the indicated order. Return .5a + .25b + .125c. Add .0625 times a separate Random(1) after the call and use the result as the opacity of a full-coverage additive square over black. Render F32 at 16², seed 0, at 32 × 16, seed 113, and at 16 × 32, seed 137.
+
+| Independent functions | Earlier exact pixels · maximum error | Current exact pixels on each route · maximum error |
+|---|---:|---:|
+| Float3 in XYZ, ZYX, YZX, ZXX and YYZ order, plus ZYX through replicated swizzles | 1,280/7,680 · 0.406245291 | 7,680/7,680 · 0 |
+| Float2 YXY, WYW and WZW, Float4 WYX and ZWZ, Float3 WXZ, and a function returning .375 with its argument unused | 0/8,960 · 0.364476055 | 8,960/8,960 · 0 |
+
+At seed 0 the F32 word for XYZ and ZYX is `3e373b24`. The two-component WYW and WZW functions give `3d4da9dc` and `3c3d4b90`. Returning .375 gives `3ec5ea5c` after the outer draw. The two Rust regressions reproduced the first-use and zero-padding errors separately.
+
+The single-channel color series matches **128,000/128,000 F32 pixels** in 320 additional archived settings. The earlier evaluator matched 71,680/128,000, with maximum error .625. Use one tile, pattern 1, a 32² opaque white U8 image in the first pattern input and the other pins open. Select one input, filter 2, blend mode 0, full size and opacity, zero rotation and position randomness, and disable non-square expansion. Use the five base colors (.6875,.375,.8125,.78125), (.25,.5,.125,.25), (.9375,.3125,.5625,1), (.5,.625,.4375,.5) and (1,1,1,.375). Vary just one of the four randomness channels. Use seeds 0, 1, 17, 31, 97, 213, 3019, 12071, 42191, 68047, 133107 and 631883, cycling through 16², 32 × 16 and 16 × 32 in that order. Set the varying channel to .25 and .75 at seed indices 0, 3, 7 and 9, and to .5 at every other seed. [Earlier single-tile configuration and stock comparisons](#selected-blend-inputs-and-odd-sized-float-backgrounds-in-tile-generators)
+
+The 221 grayscale tile settings and 175 settings from 35 other qualified roots retained all 1,350,656 pixels. Both modern circular roots retained 70 exact settings each and the older pair retained 62 each. The 141 vector settings, 90 pure-call settings and raw outputs of 56 Pixel Processor programs retained their earlier values. All 590 node and evaluator release tests passed, along with formatting, strict workspace Clippy, dependency layers and WebAssembly.
+
+### Rectangular expansion in the two random tile roots
+
+The shared function change also corrected two whole RGBA settings in `pattern_tile_random.sbs`. Repeating the [established random tile settings](#three-related-tile-roots-with-the-current-evaluator) gives 106/126 complete settings and 602,588/619,776 exact pixels in color, up from 104/126 and 601,273. Grayscale retains 32/52 settings and 300,698/316,672 pixels. Maximum errors in U8, U16, F16 and F32 are 255, 65,535, 1 and 1.00000006 for color and 254, 65,535, 1 and 1.00000006 for grayscale. Both roots remain open.
+
+At F32 with open pins and seed 845872, the two roots have the same pattern of differing pixels. Run 20 single-processor settings per root. Start at defaults at 16 × 32, then separately set the grid to (1,1), set both size randomness values to zero, and apply both changes together. Set the split threshold to zero and one with the default grid and with the single-tile grid. Try split mode zero with each grid. At (1,1), combine split threshold one, zero interstice and zero size randomness. With the default grid, set interstice to zero, then separately set interstice mode to zero. Try (2,1), (1,2), and disabling non-square expansion. Repeat defaults at seeds 0 and 113. Finally compare 32² and 32 × 16 at seed 845872. Each root gives 10 complete settings and **10,414/10,752** exact pixels, maximum error 1. At the tall default the count is 472/512. Turning expansion off or disabling both size variations gives 512/512. The square default gives 1,024/1,024.
+
+For the grayscale default, keep the outer Switch and its assignments and add a filter on the segment number it publishes. Allow all visits, then numbers zero through eight separately. The tall output has 245 nonzero center-segment pixels on both sides and matches 512/512 when only that segment runs. Selecting segment five preserves all 40 discrepancies. At 32 × 16, the center also matches 512/512 and selecting segment three preserves all 54 discrepancies. The other seven segment selections on either rectangle return black in both applications.
+
 ### Circular pattern angles and random draws with computed bounds
 
 Both roots in `pattern_splatter_circular.sbs` now match **216,064/216,064 pixels across 70 distinct settings per root**. The earlier evaluator at `02f2e7d` matched 14/70 complete images per root, including 13/54 in the established series. The original on one processor, the original on eight and the one-processor reopen of the ordinary MaterialCraft SBS save all gave the same result. A color pixel counts as exact only when all four stored channels agree. [Established settings and input formulas](#circular-splatter-geometry-and-the-order-of-random-draws)
@@ -96,7 +139,7 @@ The 48 field outputs read the stamp index, angles, radii, positions, offsets, si
 
 ### Three related tile roots with the current evaluator
 
-The same evaluator also rendered the established whole settings for the color Tile Generator and the two Tile Random roots. These counts compare the unmodified roots with the archived raw buffers. The earlier column comes from the [original tile series](#selected-blend-inputs-and-odd-sized-float-backgrounds-in-tile-generators) and includes changes across intervening revisions. All three roots remain open.
+The same evaluator also rendered the established whole settings for the color Tile Generator and the two Tile Random roots. These counts compare the unmodified roots with the archived raw buffers. The earlier column comes from the [original tile series](#selected-blend-inputs-and-odd-sized-float-backgrounds-in-tile-generators) and includes changes across intervening revisions. All three roots were open at that revision.
 
 | Root | Exact settings | Earlier exact pixels | Current exact pixels | Maximum U8 / U16 / F16 / F32 error |
 |---|---:|---:|---:|---|
@@ -104,7 +147,7 @@ The same evaluator also rendered the established whole settings for the color Ti
 | Tile Random | 32/52 | 291,084/316,672 | 300,698/316,672 | 254 / 65,535 / 1 / 1.00000006 |
 | Tile Random Color | 104/126 | 498,989/619,776 | 601,273/619,776 | 255 / 65,535 / 1 / 1.00000006 |
 
-For the current color generator, the 32² one-tile test with pattern 2, the input pins open, seed 31 and hue randomness .5 still differs. In a private control, sending the randomized three-component value directly to the tint bypassed its color conversion and matched 14,336/14,336 F32 pixels across 14 settings at seeds 31 and 12071. Leaving the conversion in place and fixing all four draws to half their bounds also matched 14,336/14,336. The shared function evaluator’s handling of a packed argument is under investigation. [Single-tile settings and procedural fields](#selected-blend-inputs-and-odd-sized-float-backgrounds-in-tile-generators)
+At that revision, the 32² one-tile color generator test with pattern 2, the input pins open, seed 31 and hue randomness .5 still differs. In a private control, sending the randomized three-component value directly to the tint bypassed its color conversion and matched 14,336/14,336 F32 pixels across 14 settings at seeds 31 and 12071. Leaving the conversion in place and fixing all four draws to half their bounds also matched 14,336/14,336. The subsequent [component-read comparison](#component-reads-in-color-tile-function-arguments) records the fix. [Single-tile settings and procedural fields](#selected-blend-inputs-and-odd-sized-float-backgrounds-in-tile-generators)
 
 ### Compile-time conditions before a shared pattern draw
 
