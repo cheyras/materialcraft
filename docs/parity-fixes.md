@@ -59,6 +59,31 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-27 root comparisons
 
+### Bound arithmetic in seeded quadrant properties
+
+BNW Spots 3 v2 now produces images for all **62/62 established settings and 14/14 archived saves**. Dirt 4 v2 at 32 × 16, seed 105532, now renders all four output formats with **2,048/2,048** whole pixels exact on both processor counts. These rectangles previously returned a work-budget error.
+
+A grayscale quadrant can publish a frame offset and use a seeded tint with a live multiplier. For short arithmetic expressions in its offset, tint, branch translation, size and rotation, the evaluator binds fixed operands at the current drawing depth. Each visit executes the remaining operations in dependency order. A shared random register draws once, including across function arguments and the two tint branches. The frame assignment reaches the children and the current multiplier still applies. The evaluator charges at least a quarter of an ordinary property pass to a prepared draw. It tests coverage after the properties run.
+
+Both roots have no image inputs. For BNW Spots 3 v2 use 64 × 32, seed 194535, scale 3 and .34375 for disorder, speed and anisotropy. Set anisotropy angle .09375 and tile offset (0,.10546875). For Dirt 4 v2 use 32 × 16, seed 105532, scale 2, disorder .8125, speed 1.4375, anisotropy .625, angle −.21875 and tile offset (−.3125,.4375). Enable non-square expansion and leave the remaining properties at their defaults. Set the precision on the node feeding the output. Compare raw words after a fresh reference capture at each processor count. Integer errors are storage levels.
+
+| Root | Storage | Original · one · maximum | Original · eight · maximum |
+|---|---|---:|---:|
+| BNW Spots 3 v2 | U8 | 2,048/2,048 · 0 | 2,048/2,048 · 0 |
+| BNW Spots 3 v2 | U16 | 2,048/2,048 · 0 | 2,047/2,048 · 1 |
+| BNW Spots 3 v2 | F16 | 2,048/2,048 · 0 | 2,048/2,048 · 0 |
+| BNW Spots 3 v2 | F32 | 1,756/2,048 · 1.1920929e-07 | 1,758/2,048 · 2.08616257e-07 |
+| Dirt 4 v2 | U8 | 512/512 · 0 | 512/512 · 0 |
+| Dirt 4 v2 | U16 | 512/512 · 0 | 512/512 · 0 |
+| Dirt 4 v2 | F16 | 512/512 · 0 | 512/512 · 0 |
+| Dirt 4 v2 | F32 | 512/512 · 0 | 512/512 · 0 |
+
+The earlier one- and eight-processor F32 captures of the BNW original gave 1,777/2,048 and 1,746/2,048 respectively, maximum 1.78813934e−7. The remaining archived U8 save at the same setting now matches all 2,048 pixels on both processor counts. An ordinary F32 save opened directly with its stored settings reproduces the original MaterialCraft F32 words. Its comparison with the two saved-file reference captures is 1,771/2,048 · 2.38418579e-07 on one and 1,771/2,048 · 2.38418579e-07 on eight. [Earlier original and archived settings](#seeded-quadrant-properties-with-a-live-tint-multiplier)
+
+Repeat the independent square-and-four-children control with the inner Iterate inheriting the outer seed. Use four outer iterations with gain (1 + number) × .25 and seven with gain (1 + number) × .125, two inner repeats and the existing three size/seed pairs in U8, U16, F16 and F32. The 24 originals and 24 ordinary reopens each match **10,240/10,240** pixels on one and eight processors, maximum zero. Resetting the inner seed also preserves the 24 original and 24 archived saved comparisons. In the 4 × 4 regression, six outer and forty inner iterations complete with a visit limit of 96. Before the change the same case exhausted its budget. The sixteen output values match the equivalent graph with a computed frame offset and a larger budget. [Procedural controls and size settings](#seeded-quadrant-properties-with-a-live-tint-multiplier)
+
+The 64 × 32 and 32 × 64 Clouds 1 v2 and Clouds 2 v2 rectangles still reach the traversal limit. The 64 × 16 Directional Noise 3 v2 graph at seed 42 also reaches it. BNW Spots 3 v2 has repeat-dependent F32 differences, and Dirt 4 v2 retains the previously measured differences at other settings. [Repeated BNW measurements](#repeated-f32-captures-of-28-noise-roots) [Clouds rectangular settings](#two-more-whole-outputs-in-noise-clouds-1-v2)
+
 ### Repeated F32 captures of 28 noise roots
 
 At one fixed setting per root, compare one MaterialCraft render with five reference returns at one processor and five at eight. Between returns, render a second setting at a different size to invalidate the previous image. Read the raw F32 output after every return. The same processor count produced multiple buffers on 8 of the 28 roots at one processor and on 25 at eight.

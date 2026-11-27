@@ -2392,6 +2392,17 @@ fn repeated_quadrants_reapply_the_live_tint_scale_and_publish_the_frame_offset()
     assert!(render_with_visit_limit(&ordinary, 192).unwrap_err().contains("execution budget"));
     let cached = render_with_visit_limit(&graph, 192).unwrap().remove(0);
     assert_eq!(cached.data(), expected.data());
+
+    // Inheriting the outer seed gives different random offsets and tints on later
+    // iterations. A bound arithmetic pass keeps the offset, gain and every draw.
+    for drawing in [&mut graph, &mut ordinary] {
+        drawing.nodes[8].parameters.insert("randominherited".into(), Value::Bool(true));
+    }
+    let expected = render_with_visit_limit(&ordinary, 4096).unwrap().remove(0);
+    assert!(expected.data().iter().any(|&v| v > 1.0));
+    assert_eq!(render_with_visit_limit(&graph, 96).unwrap()[0].data(), expected.data());
+    graph.nodes[7].parameters.insert("numberadded".into(), Value::Int(10));
+    assert!(render_with_visit_limit(&graph, 96).unwrap_err().contains("execution budget"));
 }
 
 #[test]

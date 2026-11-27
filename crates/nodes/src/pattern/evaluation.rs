@@ -1,7 +1,7 @@
 use materialcraft_core::{PatternNode, PatternNodeKind, Value, ValueType};
 use std::collections::{BTreeMap, BTreeSet};
 
-use super::conditional_tint::{ConditionalStamps, ConditionalTint};
+use super::conditional_tint::{ConditionalStamps, ConditionalTint, DrawingExpressions};
 use super::mixed_depth_runs::MixedDepthRuns;
 use super::stamp_cache::{self, StampCache, Storage};
 use super::{catalog, footprint::SampleGrid, pattern_stamp::PatternStamp, pattern_visit::PatternVisit, raster, variables::PatternVariables};
@@ -11,7 +11,7 @@ use crate::{CookContext, CookResult};
 
 // A 512-by-512 quadtree takes 349,525 visits. Retained, discarded and streamed
 // draws have bounded allowances. At most four terminal draws share a parent's
-// visit, and full property evaluations keep their five-allowance ceiling.
+// visit. Five ordinary property evaluations per visit bound the drawing work.
 const MAX_VISITS: usize = 1_048_576;
 
 // Overlapping squares establish the order of the sixteen grandchildren in a regular seven-level tree.
@@ -25,7 +25,7 @@ enum QuadrantChildren {
 }
 
 type PatternNodes<'a> = BTreeMap<u32, (&'a PatternNode, bool, QuadrantChildren)>;
-type PropertyPrograms<'a> = BTreeMap<(u32, &'a str), (Program, BTreeMap<String, ValueType>)>;
+pub(super) type PropertyPrograms<'a> = BTreeMap<(u32, &'a str), (Program, BTreeMap<String, ValueType>)>;
 
 fn reusable_properties(
     node: &PatternNode,
@@ -374,6 +374,7 @@ fn evaluate(context: &CookContext, base_level_only: &[bool], visit_limit: usize,
         BTreeMap::new()
     };
     let mut conditional_stamps = ConditionalStamps::default();
+    let mut expressions = DrawingExpressions::default();
 
     let image_slots: Vec<_> =
         context.inputs.iter().skip(1).take(crate::MAX_IMAGE_INPUTS).enumerate().filter_map(|(i, image)| image.as_ref().map(|_| i as i32)).collect();
@@ -399,7 +400,7 @@ fn evaluate(context: &CookContext, base_level_only: &[bool], visit_limit: usize,
     let mut reused_terminal_misses = 0_usize;
     let mut remaining = visit_limit;
     let mut discard_allowance = visit_limit;
-    let mut full_evaluations = visit_limit.saturating_mul(5);
+    let mut property_work = visit_limit.saturating_mul(5).saturating_mul(DrawingExpressions::FULL_COST);
     let mut cached_stream_allowance = visit_limit;
     let mut accounted_stamps = 0;
     let stream_chunk = (visit_limit / 4).clamp(1, 4_096);
@@ -488,6 +489,8 @@ fn evaluate(context: &CookContext, base_level_only: &[bool], visit_limit: usize,
         let tint_plan = tint_plans.get(&node.id);
         let scale = tint_plan.and_then(|plan| plan.scale(&variables.drawing));
         let mut base_tint = None;
+        let mut bound = tint_plan.zip(scale).and_then(|(tint, scale)| expressions.for_draw(&visit, tint, scale, &functions, &variables.drawing, &assigned));
+        let property_cost = bound.as_ref().map_or(DrawingExpressions::FULL_COST, |plan| plan.cost);
 
         let mut evaluate = |id: &str, random: &mut FunctionRandom| -> Result<Option<Value>, String> {
             let Some((program, names)) = functions.get(&(node.id, id)) else { return Ok(node.parameters.get(id).cloned()) };
@@ -499,6 +502,21 @@ fn evaluate(context: &CookContext, base_level_only: &[bool], visit_limit: usize,
             // An unbound direct link leaves the field at its default. A getter inside an expression still evaluates to its typed zero.
             if program.input_identifier().is_some_and(|name| !name.starts_with('$') && !inputs.contains_key(name)) {
                 return Ok(None);
+            }
+            if let Some(expression) = bound.as_deref_mut().and_then(|plan| plan.fields.get_mut(id)) {
+                let (value, assignment) = expression.evaluate(random)?;
+                if let Some(offset) = assignment {
+                    let (Some(tint), Some(scale), Value::Float(base)) = (tint_plan, scale, value) else { return Err("invalid bound pattern tint".into()) };
+                    if let Some(slot) = variables.drawing.get_mut(tint.offset) {
+                        *slot = offset;
+                    }
+                    base_tint = base.is_finite().then_some(base);
+                    return Ok(Some(Value::Float(scale.apply(base))));
+                }
+                if value.as_vec4().is_some_and(|channels| channels.iter().any(|v| !v.is_finite())) {
+                    return Err("function produced a non-finite output".into());
+                }
+                return Ok(Some(value));
             }
             let evaluation = EvaluationContext {
                 image_formats: context.input_formats.get(1..).unwrap_or(&[]),
@@ -570,7 +588,7 @@ fn evaluate(context: &CookContext, base_level_only: &[bool], visit_limit: usize,
         // An unused stamp property cannot publish a Set to a child. The branch offset still positions that child.
         let active = |id: &str| !matches!(id, "patterntype" | "randomseed" | "randominherited") && uses_property(node.kind, id, pattern);
         if !reused {
-            full_evaluations = full_evaluations.checked_sub(1).ok_or("pattern graph exceeded its execution budget")?;
+            property_work = property_work.checked_sub(property_cost).ok_or("pattern graph exceeded its execution budget")?;
             for parameter in definition.params.iter().filter(|p| active(p.id)) {
                 let mut stream = FunctionRandom::pattern(visit.seed, parameter.id);
                 let value = evaluate(parameter.id, stream.as_mut().unwrap_or(&mut random))?.unwrap_or_else(|| parameter.default.clone());
@@ -694,7 +712,11 @@ fn evaluate(context: &CookContext, base_level_only: &[bool], visit_limit: usize,
                         let reusable_parent = scale.is_some() || matches!(cache, Some((_, Storage::BranchTint { .. } | Storage::Geometry { .. })));
                         // These siblings have no children. Each has already evaluated its own
                         // properties and failed the sample-grid test in the original draw order.
-                        if let Some(siblings) = &mut terminal_siblings {
+                        if !reused && property_cost < DrawingExpressions::FULL_COST {
+                            // This visit paid for the bound expressions and every property ran. The
+                            // grid proved it emits no samples. Its children still cost their own visits.
+                            remaining += 1;
+                        } else if let Some(siblings) = &mut terminal_siblings {
                             siblings.discarded = true;
                             reused_terminal_misses = reused_terminal_misses.saturating_add(usize::from(reused));
                             remaining += 1;

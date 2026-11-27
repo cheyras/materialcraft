@@ -1,6 +1,6 @@
 use super::pattern_stamp::PatternStamp;
 use super::stamp_cache::{self, Key, Properties};
-use crate::function::{EvaluationState, Program, flush_subnormal};
+use crate::function::{EvaluationState, PatternExpression, Program, flush_subnormal};
 use materialcraft_core::{Value, ValueType};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
@@ -93,11 +93,60 @@ pub(super) enum TintScale {
 }
 
 impl TintScale {
-    fn apply(self, value: f32) -> f32 {
+    pub(super) fn apply(self, value: f32) -> f32 {
         match self {
             Self::Identity => value,
             Self::Multiply(scale) => flush_subnormal(flush_subnormal(value) * flush_subnormal(scale)),
         }
+    }
+}
+
+pub(super) struct DrawingFields<'a> {
+    pub fields: BTreeMap<&'static str, PatternExpression<'a>>,
+    pub cost: usize,
+}
+
+#[derive(Default)]
+pub(super) struct DrawingExpressions<'a>(BTreeMap<(u32, u32, bool), Option<DrawingFields<'a>>>);
+
+impl<'a> DrawingExpressions<'a> {
+    // Charge compact arithmetic in fractions of an ordinary property pass.
+    // Even a completely folded draw still pays for property dispatch and placement.
+    pub(super) const FULL_COST: usize = 128;
+
+    pub(super) fn for_draw(
+        &mut self,
+        visit: &super::pattern_visit::PatternVisit,
+        tint: &ConditionalTint<'_>,
+        scale: TintScale,
+        programs: &'a super::evaluation::PropertyPrograms<'_>,
+        variables: &BTreeMap<String, Value>,
+        assigned: &BTreeSet<&str>,
+    ) -> Option<&mut DrawingFields<'a>> {
+        let scaled = matches!(scale, TintScale::Multiply(_));
+        let key = (visit.node, visit.depth, scaled);
+        // A graph can share a quadrant at many depths. Cap retained programs and failed bindings together.
+        if self.0.len() >= 64 && !self.0.contains_key(&key) {
+            return None;
+        }
+        self.0
+            .entry(key)
+            .or_insert_with(|| {
+                let mut fields = BTreeMap::new();
+                let (mut compact, mut ordinary) = (16, 16);
+                for field in ["opacity", "branchoffset", "patternsize", "patternrotation"] {
+                    if let Some((program, _)) = programs.get(&(visit.node, field)) {
+                        let expression = PatternExpression::bind(program, variables, assigned, (field == "opacity").then_some((tint.base, scaled)))?;
+                        let (steps, visits) = expression.work();
+                        compact += steps;
+                        ordinary += visits;
+                        fields.insert(field, expression);
+                    }
+                }
+                let cost = (compact * Self::FULL_COST).div_ceil(ordinary).clamp(Self::FULL_COST / 4, Self::FULL_COST);
+                Some(DrawingFields { fields, cost })
+            })
+            .as_mut()
     }
 }
 
