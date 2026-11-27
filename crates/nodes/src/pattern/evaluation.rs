@@ -498,7 +498,7 @@ fn evaluate(context: &CookContext, base_level_only: &[bool], visit_limit: usize,
             }
             let evaluation = EvaluationContext {
                 image_formats: context.input_formats.get(1..).unwrap_or(&[]),
-                scope: crate::function::FunctionScope::FxMap,
+                scope: if id == "randomseed" { crate::function::FunctionScope::FxMapRandomSeed } else { crate::function::FunctionScope::FxMap },
                 position: if mode { [0.0; 2] } else { visit.center },
                 size: [context.w as f32, context.h as f32],
                 images: context.inputs.get(1..).unwrap_or(&[]),

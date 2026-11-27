@@ -173,7 +173,7 @@ impl Program {
             super::FunctionScope::PixelProcessor => FunctionRandom::pixel(seed, context.position),
             super::FunctionScope::ValueProcessor => FunctionRandom::pixel(seed, [0.0; 2]),
             super::FunctionScope::FxMap => FunctionRandom::image(seed),
-            super::FunctionScope::Node | super::FunctionScope::RandomSeed => FunctionRandom::uniform(seed),
+            super::FunctionScope::Node | super::FunctionScope::RandomSeed | super::FunctionScope::FxMapRandomSeed => FunctionRandom::uniform(seed),
         }
     }
 
@@ -214,7 +214,7 @@ impl Program {
                     }
 
                     state.steps.push(Store(index));
-                    if context.scope == super::FunctionScope::FxMap
+                    if context.scope.is_pattern()
                         && let Some(source) = self.pattern_components.get(&index)
                     {
                         match source {
@@ -251,7 +251,7 @@ impl Program {
                             state.steps.push(Apply { instruction: index, base: state.values.len() });
                             let inputs = match &instruction.pixel_product_sum {
                                 Some(product) if context.scope == super::FunctionScope::PixelProcessor => product.inputs.as_slice(),
-                                _ if context.scope == super::FunctionScope::FxMap => instruction
+                                _ if context.scope.is_pattern() => instruction
                                     .call
                                     .as_ref()
                                     .and_then(|call| call.pattern_arguments.as_ref())
@@ -265,8 +265,7 @@ impl Program {
                 Apply { instruction: index, base } => {
                     let instruction = self.instruction(index)?;
                     let arguments = state.values.get(base..).ok_or("invalid function operands")?;
-                    let pattern =
-                        instruction.call.as_ref().and_then(|call| call.pattern_arguments.as_ref()).filter(|_| context.scope == super::FunctionScope::FxMap);
+                    let pattern = instruction.call.as_ref().and_then(|call| call.pattern_arguments.as_ref()).filter(|_| context.scope.is_pattern());
                     let result = if context.scope == super::FunctionScope::PixelProcessor
                         && let Some(factor) = instruction.reciprocal_factor
                         && let Some(product) = super::reciprocal::multiply_original(arguments.first(), factor.read(state))
@@ -387,7 +386,7 @@ impl Program {
                     let condition = state.values.pop().ok_or("missing branch condition")?;
                     let take_true = value_type::boolean(&condition)?;
                     let selected = self.input(index, if take_true { 1 } else { 2 })?;
-                    let branches = if context.scope == super::FunctionScope::FxMap { &self.pattern_branches } else { &self.processor_branches };
+                    let branches = if context.scope.is_pattern() { &self.pattern_branches } else { &self.processor_branches };
                     let (shared, after_selected) = if let Some(inputs) = branches.get(&index) {
                         (inputs.skipped(take_true), take_true)
                     } else if context.scope == super::FunctionScope::PixelProcessor {

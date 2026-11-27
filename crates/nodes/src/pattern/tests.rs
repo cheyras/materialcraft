@@ -2926,6 +2926,59 @@ fn an_iterate_keeps_the_initial_seed_and_advances_each_repetition() {
 }
 
 #[test]
+fn driven_scalar_arithmetic_in_an_iterate_seed_uses_storage_words() {
+    let mut graph = PatternGraph::with_root(PatternNodeKind::Iterate);
+    let square = graph.add(PatternNodeKind::Quadrant).unwrap();
+    graph.nodes[0].children[1] = Some(square);
+    graph.nodes[0].parameters.insert("numberadded".into(), Value::Int(1));
+    let mut tint = FunctionGraph::default();
+    let unit = tint.add_constant(Value::Float(1.0));
+    tint.output = Some(tint.add("rand", &[unit], None));
+    graph.nodes[1].parameters = BTreeMap::from([
+        ("patterntype".into(), Value::Int(2)),
+        ("blendingmode".into(), Value::Int(0)),
+        ("patternsize".into(), Value::Float2([1.0; 2])),
+        ("opacity".into(), Value::Function(Box::new(tint))),
+    ]);
+
+    let cases = [
+        (0.0, 1.0, 0, [16, 16]),
+        (1.0, 0.5, 845872, [16, 32]),
+        (3.0, 0.75, 113, [32, 16]),
+        (5.25, 0.5, 845872, [16, 16]),
+        (17.0, 1.0, 42, [16, 32]),
+        (-1.25, -0.5, 37, [32, 16]),
+    ];
+    for (expression, expected) in [
+        ("cast", [0x3f4bd028, 0x3f2676b8, 0x3ef06e34, 0x3f833b5c, 0x3f7d60e6, 0x3ee3256c]),
+        ("float sum", [0x3e97a050, 0x3f2676b8, 0x3e60dc68, 0x3f5e76b8, 0x3f6560e6, 0x3ea3256c]),
+        ("integer sum", [0x3e97a050, 0x3f2676b8, 0x3ef06e34, 0x3f833b5c, 0x3efac1cc, 0x3f7192b6]),
+    ] {
+        let mut seed = FunctionGraph::default();
+        let first = seed.add("get_float1", &[], Some(Value::Text("first".into())));
+        let second = seed.add("get_float1", &[], Some(Value::Text("second".into())));
+        seed.output = Some(match expression {
+            "float sum" => {
+                let sum = seed.add("add", &[first, second], None);
+                seed.add("toint1", &[sum], None)
+            }
+            "integer sum" => {
+                let left = seed.add("toint1", &[first], None);
+                let right = seed.add("toint1", &[second], None);
+                seed.add("add", &[left, right], None)
+            }
+            _ => seed.add("toint1", &[first], None),
+        });
+        graph.nodes[0].parameters.insert("randomseed".into(), Value::Function(Box::new(seed)));
+        for ((first, second, parent_seed, size), bits) in cases.into_iter().zip(expected) {
+            let vars = BTreeMap::from([("first".into(), Value::Float(first)), ("second".into(), Value::Float(second))]);
+            let image = cook_in_regions(graph.clone(), &vars, parent_seed, size, [[0.0, 1.0, 0.0, 1.0]; 2], 0.125).unwrap().remove(0);
+            assert_eq!(image.get_gray(8, 8, false).to_bits(), bits, "{expression}, {first}, {second}");
+        }
+    }
+}
+
+#[test]
 fn a_pattern_seed_expression_runs_before_the_stamp_properties() {
     let mut seed = FunctionGraph::default();
     let one = seed.add_constant(Value::Float(1.0));

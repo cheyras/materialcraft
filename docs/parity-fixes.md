@@ -59,6 +59,29 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-27 root comparisons
 
+### Driven seeds in pattern nodes
+
+A pattern node's Random Seed expression now uses the same scalar storage arithmetic as a graph or filter seed. It still reads the incoming pattern stream and the variables available to the node. A driven float-to-integer conversion returns the F32 word of the floored value. A driven scalar sum adds the two 32-bit words. Rounding an intermediate signaling NaN sets its quiet bit and retains its sign and payload.
+
+Use a single additive square with Random(1) luminosity over .125 gray. Drive its parent Iterate's seed with a float converted to an integer, a sum of two floats converted afterward, the sum of two individually converted floats, a product converted afterward, and a converted literal −1.5. Repeat the single-float cast on a Switch and a Quadrant. On a Quadrant also convert ten times the Y component of `$pos`. Use (first, second, graph seed) of (0, 1, 0), (1, .5, 845872), (3, .75, 113), (5.25, .5, 845872), (17, 1, 42) and (−1.25, −.5, 37). Cycle through 16², 16 × 32 and 32 × 16 F32. All **48/48 settings and 20,480/20,480 pixels** matched on one processor, eight processors and after reopening an ordinary MaterialCraft save. Maximum error was zero on each route.
+
+A separate parent-to-child graph passes two floats to a graph or filter seed. Compare the raw output of a 16² random Pixel Processor. For (3, .75), (5.25, .5), (5.75, .625), (−3, .75), (−5.25, .5) and (−5.75, .625), the recovered seed words are `7f800000`, `7fe80000`, `7fd80000`, `ff800000`, `ffe80000` and `ffd80000`. The finite controls (.75, .25) and (0, 1) give `7dc00000` and `3f800000`. Both seed locations match all 4,096 pixels in aggregate on each of the three routes. Direct integer offsets in 180 single-processor settings at three Iterate depths, including disabled inheritance, retain all 46,080 F32 pixels.
+
+Both random tile roots now match **20/20 settings and 10,752/10,752 F32 pixels** in the [rectangular expansion controls](#rectangular-expansion-in-the-two-random-tile-roots), up from 10/20 and 10,414. The tall and wide defaults match all 512 pixels each. In each of the layout and drawing passes, read the first, second and fourth visits to the center and outer tall segments and the outer wide segment. Compare the original seed expression and float-driven seed overrides 0, 1, 3, 5 and 17. Each pass matches all **54 settings and 27,648/27,648 F32 pixels**, maximum zero.
+
+Repeat all established settings on each processor count and reopen an ordinary save. Include the preceding 20 F32 settings and two further rectangular settings in each output format. For the first additional case use the connected 3 × 5 setting, a 32 × 64 output, seed 7011107, pattern 1, split threshold .3125, X/Y size randomness .25/.6875, interstice .15625, pattern rotation option 1 and non-square expansion. For the second start at defaults with open pins, 64 × 16, seed 1024053, a 5 × 2 grid, pattern 3, split mode 1, split threshold .8125, X/Y size randomness .5625/.375, shape scale randomness .25 and non-square expansion. Count identical settings once. All three reference routes agree with each other. The table compares the production evaluator with each route.
+
+| Output | Grayscale complete | Grayscale exact pixels | Maximum error | Color complete | Color exact pixels | Maximum error |
+|---|---:|---:|---:|---:|---:|---:|
+| U8 | 4/8 | 28,395/29,696 | 251 | 5/9 | 32,485/33,792 | 254 |
+| U16 | 11/17 | 178,576/180,736 | 64507 | 12/18 | 182,750/184,832 | 65278 |
+| F16 | 4/8 | 24,883/26,624 | 1 | 5/9 | 29,235/30,720 | 1 |
+| F32 | 40/46 | 99,548/102,144 | 1.00000006 | 112/118 | 391,330/393,472 | 1.00000006 |
+
+Grayscale reaches **59/79 settings and 331,402/339,200 pixels**. Color reaches **134/154 and 635,800/642,816**. On the established settings alone, grayscale improved from 32/52 and 300,698/316,672 to 36/52 and 310,112/316,672. Color improved from 106/126 and 602,588/619,776 to 110/126 and 614,180/619,776. The 100 previously qualified Brick 3 settings still match all 1,295,872 pixels. The two older random tile roots retain 111,274/142,592 and 111,101/142,592 pixels across 19 settings each.
+
+Random positioning remains open. Use the connected 64² F32 setting with a 2 × 7 grid, pattern 3, filtering 1, pattern rotation randomness .2578125, split threshold .421875, shape scale .837890625, position randomness .0859375, shape rotation −.0078125 and shape rotation randomness .171875. At seed 846324 grayscale differs at 49 pixels. At seed 846361 color differs at 36. Changing position randomness alone to zero gives 4,096/4,096 on both. Passing the original frame offset through an otherwise unused vector assignment reproduces the untouched grayscale reference in this square and in the connected 3 × 5 rectangle. The reference output is identical with either expression.
+
 ### Component reads in color tile function arguments
 
 The color graph in `pattern_tile_generator.sbs` matches all **777,472 RGBA pixels in 339 distinct settings** on one processor, on eight processors, and after opening a regular MaterialCraft save in the reference app. A pixel counts only when all four stored channels match. The earlier evaluator matched 206 complete settings. The fresh single-processor renders also reproduced the 765,184 archived pixels in the [331 established settings](#three-related-tile-roots-with-the-current-evaluator).

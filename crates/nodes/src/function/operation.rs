@@ -38,7 +38,7 @@ pub(super) fn evaluate(
         let value = match context.variable(name, variables)? {
             Some(value) => value,
             // A pattern's traversal seed selects its stream. The integer getter has no binding for it.
-            None if context.scope == super::FunctionScope::FxMap && name == "$randomseed" && op == "get_integer1" => Value::Int(0),
+            None if context.scope.is_pattern() && name == "$randomseed" && op == "get_integer1" => Value::Int(0),
             // Unbound integer names in node properties read as zero, including reserved spellings.
             // Known system variables still enforce their own scope and type.
             None if matches!(context.scope, super::FunctionScope::Node | super::FunctionScope::RandomSeed)
@@ -74,7 +74,7 @@ pub(super) fn evaluate(
         return value_type::canonical(value);
     }
 
-    if context.scope == super::FunctionScope::RandomSeed && !instruction.literal {
+    if context.scope.uses_seed_words() && !instruction.literal {
         // Runtime scalar seed sums add the storage words. A float-to-integer cast retains the floored float's bits.
         match (op, arguments) {
             ("add", [Value::Int(left), Value::Int(right)]) => return Ok(Value::Int(left.wrapping_add(*right))),
@@ -82,7 +82,11 @@ pub(super) fn evaluate(
                 let sum = f32::from_bits(left.to_bits().wrapping_add(right.to_bits()));
                 return Ok(Value::Float(super::arithmetic::flush_subnormal(sum)));
             }
-            ("toint1", [Value::Float(value)]) if value.is_finite() => return Ok(Value::Int(value.floor().to_bits() as i32)),
+            ("toint1", [Value::Float(value)]) => {
+                // Rounding a signaling NaN quiets it and preserves the seed payload.
+                let word = if value.is_nan() { value.to_bits() | 0x0040_0000 } else { value.floor().to_bits() };
+                return Ok(Value::Int(word as i32));
+            }
             _ => {}
         }
     }
@@ -167,7 +171,7 @@ pub(super) fn evaluate(
                 (_, mode) => (mode != 0, true),
             };
             let image = context.images.get(index).and_then(Option::as_ref);
-            let uniform_sampler = matches!(context.scope, super::FunctionScope::ValueProcessor | super::FunctionScope::FxMap);
+            let uniform_sampler = context.scope == super::FunctionScope::ValueProcessor || context.scope.is_pattern();
             let pixel = match image {
                 Some(image) if uniform_sampler => {
                     let format = context.image_formats.get(index).copied().unwrap_or(materialcraft_core::OutputFormat::F32);
