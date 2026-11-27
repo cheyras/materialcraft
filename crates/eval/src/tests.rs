@@ -1311,6 +1311,51 @@ fn connected_input_sizes_share_the_last_two_dimensional_filter_pass() {
 }
 
 #[test]
+fn an_image_bridge_resolves_its_size_against_its_own_wire() {
+    use materialcraft_core::SizeMode;
+
+    let (mut parent, connected) = instancing("Parent", "Bridge");
+    let unconnected = parent.add_node("graph_instance", [0.0, 80.0]);
+    parent.node_mut(unconnected).unwrap().params.insert("graph".into(), Value::Text("Bridge".into()));
+    for id in [connected, unconnected] {
+        let base = &mut parent.node_mut(id).unwrap().base;
+        base.size_mode = SizeMode::Absolute;
+        base.size = [6; 2];
+    }
+    let input = parent.add_node("input_grayscale", [0.0; 2]);
+    let source = &mut parent.node_mut(input).unwrap().base;
+    source.size_mode = SizeMode::Absolute;
+    source.size = [4, 5];
+    parent.connect(input, "output", connected, "input").unwrap();
+
+    let mut child = Graph::new("Bridge");
+    let bridge = child.add_node("input_grayscale", [0.0; 2]);
+    let output = child.add_node("output", [100.0, 0.0]);
+    child.connect(bridge, "output", output, "input").unwrap();
+    let mut package = Package::new("Bridge sizes");
+    package.graphs.extend([parent, child]);
+    let options = Options::new(&no_res);
+    let cache = Mutex::new(Cache::default());
+    for (mode, size, expected) in [
+        (SizeMode::RelativeToInput, [0, 0], [(16, 32), (64, 64)]),
+        (SizeMode::RelativeToInput, [-1, 1], [(8, 64), (32, 128)]),
+        (SizeMode::RelativeToParent, [0, 0], [(64, 64); 2]),
+        (SizeMode::Absolute, [5, 4], [(32, 16); 2]),
+    ] {
+        let base = &mut package.graphs[1].node_mut(bridge).unwrap().base;
+        base.size_mode = mode;
+        base.size = size;
+        let cooked = cook(&package, 0, &options, &cache);
+        let dimensions = [connected, unconnected].map(|id| {
+            assert_eq!(cooked.nodes[&id].error, None);
+            let image = cooked.image(id, 0).unwrap();
+            (image.width(), image.height())
+        });
+        assert_eq!(dimensions, expected);
+    }
+}
+
+#[test]
 fn bound_image_resizing_reads_the_upstream_float_format_inside_instances() {
     use materialcraft_core::{OutputFormat, SizeMode};
     let (mut parent, instance) = instancing("Parent", "Resized");
@@ -1322,6 +1367,7 @@ fn bound_image_resizing_reads_the_upstream_float_format_inside_instances() {
     let mut child = Graph::new("Resized");
     child.absolute_output_size = Some([4, 4]);
     let bridge = child.add_node("input_grayscale", [0.0; 2]);
+    child.node_mut(bridge).unwrap().base.size_mode = SizeMode::RelativeToParent;
     child.node_mut(bridge).unwrap().base.format = OutputFormat::F32;
     let output = child.add_node("output", [100.0, 0.0]);
     child.connect(bridge, "output", output, "input").unwrap();
@@ -1353,6 +1399,7 @@ fn wired_input_sampling_keeps_the_source_texture_and_stores_the_direct_output() 
     let mut child = Graph::new("TwoReads");
     child.absolute_output_size = Some([4, 4]);
     let bridge = child.add_node("input_grayscale", [0.0; 2]);
+    child.node_mut(bridge).unwrap().base.size_mode = SizeMode::RelativeToParent;
     child.node_mut(bridge).unwrap().base.format = OutputFormat::F16;
     let reader = child.add_node("pixel_processor", [0.0; 2]);
     let node = child.node_mut(reader).unwrap();

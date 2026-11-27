@@ -59,6 +59,16 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-27 root comparisons
 
+### Input-relative dimensions on a child image bridge
+
+An image bridge inside a graph instance now resolves its input-relative dimensions against the image wired to that port on the caller. Across 120 bridge outputs, 36 previously had the wrong dimensions. All **203,264/203,264 pixels** now match on both one and eight reference processors. The previous 84 comparable outputs matched 179,200/179,200. Maximum error is zero wherever dimensions agree.
+
+Use two instances of the same child. Give the caller a 32² absolute stamp input and a background input that follows the parent. Wire both inputs to the first instance and only the stamp to the second. Read either bridge directly at the child output. Use the [two original 128² byte fields](#sampling-a-retained-input-after-an-editor-change). Exercise 32², 16², 32 × 16 and 16 × 32 parent sizes with inherited and fixed 64² instances. Repeat with the background field bound on the caller. Check omitted and explicit input-relative sizes, a (−1,+1) exponent offset, parent-relative and absolute sizes, a fixed 16² child and F32 bridge storage.
+
+At a 16 × 32 parent with both instances fixed at 64², the offset background bridge produces 8 × 64 on the wired instance and 32 × 128 on its unwired sibling. Store these two outputs in U8, U16, F16 and F32. Opening the four configured ordinary saves and reading before any edit gives **18,432/18,432** pixels, identical to the four originals and to both reference processor counts. The existing 82 parent-relative sampling controls retain **4,661,248/4,661,248** pixels with zero maximum error.
+
+Reading the downstream FX-Map exposes a separate size difference. Eight of 20 outputs in the same two-instance comparison still have the wrong dimensions. The other 12 match 27,648/27,648 pixels. On a standalone FX-Map with a 16 × 32 background and a 32 × 16 parent, the reference gives 16 × 32 for omitted or input-relative size and 32 × 16 for parent-relative size. With (−1,+1) relative to input it gives 8 × 64. Disconnecting the background gives the parent dimensions. Both reference processor counts agree in each comparison.
+
 ### Overlapping glyphs and Points Preview file handoff
 
 Points Preview now matches **26,880/26,880 pixels across 45 settings** with the same font on both sides. The licensed monospace face gives 17,920/17,920 in 30 settings. The original overlapping digit face improves from 8,952 to 8,960/8,960 in 15 settings. At 16², 32² and 32 × 16, use point counts 4, 8 and 12 with labels alone, count 4 with points alone and count 12 with both. For digit `i`, use 1,024 units per em, an advance of 640, ascent 768 and descent −256. Draw three rectangles with opposite corners (0,0) and (64 + 32(i mod 4),512), (224,640) and (416,1088 + 64(i mod 3)), and (128,−576 − 64(i mod 3)) and (416,−128). Both reference processor counts give zero maximum error. [Point fields, label sizes and offsets](#stored-and-wired-values-at-graph-instance-inputs)

@@ -129,8 +129,12 @@ pub(crate) fn cook_node(
             return None;
         }
         let source = options.input_bases.get(&identifier(node))?;
-        // A bridge has its own working dimensions and precision. Its sampling properties follow the wire.
+        // Relative-to-input size follows this wire. The bridge still resolves its own storage precision.
         Some(crate::ResolvedBaseParameters {
+            size: source.size,
+            size_underflow: source.size_underflow,
+            dynamic_size: source.dynamic_size,
+            bound_size: source.bound_size,
             pixel_size: source.pixel_size,
             pixel_ratio: source.pixel_ratio,
             tiling: source.tiling,
