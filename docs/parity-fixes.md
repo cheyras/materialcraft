@@ -155,6 +155,48 @@ At the fourth subdivision retain only slots 0 and 1. Read the two sizes alternat
 | (4,4) | `3d29886d` | `3d29886e` |
 | (9,5) | `3b95abfc` | `3b95abfd` |
 
+### A second branch beside a wrapped wave
+
+Save the two-child Directional Noise 2 control with each size, seed, F32 storage and parameter set in its own file. The local reopens reproduce all 1,280 original pixels. Both reference worker counts give 253/256 at 16², maximum 3.7252903e-09, and 1,016/1,024 at 32², maximum 7.4505806e-09. The same three 16² words differ after reopening. [Two-child control and reference words](#additive-wave-overlaps-in-directional-noise-2)
+
+At 16², record each nonzero contribution to the three differing local pixels. Sampling the wrapped depth-one wave produces the first three values at each position. These copies share center, size, rotation and tint. The remaining draws are at the indicated quadrant depth. Each entry below is an F32 word in accumulation order. The instrumented evaluator and release `fdd01fb` gave identical F32 buffers across eleven whole controls.
+
+| Pixel | Three depth-one contributions | Later depth | Later contributions |
+|---|---|---:|---|
+| (7,2) | `3c588738`, `3c8d2705`, `3c1a6207` | 8 | `3bb890d6`, `ba45a384` |
+| (4,4) | `3cb11a4d`, `3d085ad2`, `3cbaed7d` | 4 | `bd1c5499`, `3aefca02` |
+| (9,5) | `3a6ec209`, `3a8de55e`, `39edea7b` | 9 | `3b0af779` |
+
+Connecting just slot 0 gives exactly the same local contributions, in exactly the same order, at (7,2) and (9,5). Connecting slot 1 as well changes the reference word at each of those positions by one representable value. At (4,4) it adds a fifth local contribution. Enumerating the six orders of the three depth-one copies with the descendants kept last cannot reproduce the reference word at (7,2) or (4,4). Moving all descendants ahead of the three copies reproduces all three reference words, but only 248/256 pixels across the image.
+
+Replay the recorded contributions across each complete 16² image, accumulating in F32 after every addition. Keep the relative order of descendant draws. The counts below use the one-worker reference. The third column processes all descendant contributions after the first contributing parent copy at each pixel.
+
+| Fourth subdivision | Existing order · max | After the first contributing copy · max | Before every parent copy · max |
+|---|---:|---:|---:|
+| Four single-child controls | 1,024/1,024 · 0 | 983/1,024 · 1.49011612e-08 | 982/1,024 · 1.49011612e-08 |
+| Six two-child controls | 1,502/1,536 · 2.98023224e-08 | 1,468/1,536 · 2.98023224e-08 | 1,463/1,536 · 2.98023224e-08 |
+| All four children | 238/256 · 2.98023224e-08 | 247/256 · 1.49011612e-08 | 243/256 · 1.49011612e-08 |
+
+Keep the first child fully connected. Give the second child its own quadrant with the same drawing data. Preserve its first zero, one, two, three or four outgoing slots in order. With all four, MaterialCraft reproduces its original two-child buffer at each size. The **same three 16² coordinates** differ by the same one-word amounts for all five variants, including when the second child draws as a leaf. At 32² the counts change with the branches.
+
+| Outgoing slots on the second child | 16², one and eight · max | 32², one · max | 32², eight · max |
+|---:|---:|---:|---:|
+| 0 | 253/256 · 3.7252903e-09 | 1,000/1,024 · 1.49011612e-08 | 1,000/1,024 · 1.49011612e-08 |
+| 1 | 253/256 · 3.7252903e-09 | 1,000/1,024 · 1.49011612e-08 | 1,000/1,024 · 1.49011612e-08 |
+| 2 | 253/256 · 3.7252903e-09 | 1,016/1,024 · 7.4505806e-09 | 1,016/1,024 · 7.4505806e-09 |
+| 3 | 253/256 · 3.7252903e-09 | 1,008/1,024 · 7.4505806e-09 | 1,008/1,024 · 7.4505806e-09 |
+| 4 | 253/256 · 3.7252903e-09 | 1,016/1,024 · 7.4505806e-09 | 1,016/1,024 · 7.4505806e-09 |
+
+With the second child disconnected from its descendants, try an empty shape, a wave of size (.125,.125) with zero opacity, and a wave of size (0,0) with unit opacity. Leave the first child and its descendants as authored. Each local frame reproduced its counterpart with only the first child connected. Read the two reference outputs for each control.
+
+| Second child | 16², one · max | 16², eight · max | 32², one · max | 32², eight · max |
+|---|---:|---:|---:|---:|
+| Empty shape | 251/256 · 7.4505806e-09 | 251/256 · 7.4505806e-09 | 1,000/1,024 · 1.49011612e-08 | 1,000/1,024 · 1.49011612e-08 |
+| Zero opacity | 251/256 · 7.4505806e-09 | 251/256 · 7.4505806e-09 | 1,000/1,024 · 1.49011612e-08 | 1,000/1,024 · 1.49011612e-08 |
+| Zero size | 251/256 · 7.4505806e-09 | 251/256 · 7.4505806e-09 | 1,000/1,024 · 1.49011612e-08 | 1,000/1,024 · 1.49011612e-08 |
+
+Repeat the empty-shape comparison using two files with the same package and graph identifiers and the same live math dependency. Their XML differs by exactly one connection to the empty leaf. Alternate sizes three times per worker count and compare with the first capture at each count. All eight reference reads agree for each size and connection state. With the wire disconnected, MaterialCraft matches 256/256 and 1,024/1,024, maximum zero. Connecting it changes **five reference pixels at 16² and 24 at 32²**, with the maxima above. Both entire MaterialCraft buffers retain their words. This isolates a connection-dependent change in the reference sum even when the additional branch contributes no visible value.
+
 ### Seven tiled half-precision settings in Directional Noise 3 v2
 
 All seven previously recorded F16 settings now render in MaterialCraft, including the 64 × 32 output at seed 195062 and the 64² output at seed 411704. The three settings that previously reached the execution limit produce 7,168/7,168 exact pixels on each reference processor count, on the originals and their configured saves. [Earlier precision results and exposed parameter values](#half-precision-inputs-to-levels)
