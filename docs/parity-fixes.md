@@ -191,6 +191,70 @@ Keep the original tiling, use the grayscale output and set the output precision 
 
 All three original F32 images match both reference captures, **139,264/139,264 · 0** per processor count. At (31,17) in the 128 × 512 U16 original, the one-processor reference reads 32,473. The eight-processor reference, both reference reopens and MaterialCraft read 32,045. Across all six settings, the ordinary reopens match **278,528/278,528** stored pixels on both processor counts. Directional Noise 3 v2 remains in progress.
 
+### Whole-image comparisons for both Directional Noise 4 roots
+
+Both roots have whole-buffer measurements for 60 original procedural settings and 12 archived file reopens. The current release at `ffd0927` was checked against seven of those originals and two archived reopens per root. All fourteen original buffers and all four archived buffers reproduce their earlier local float streams byte for byte. The full-panel counts below use the retained measurements. The six new configured reopens are reported separately. Integer errors are storage levels.
+
+| Root and comparison | U8 exact · max | U16 exact · max | F16 exact · max | F32 exact · max | Whole images |
+|---|---:|---:|---:|---:|---:|
+| 4 · original, one | 88,319/88,320 · 1 | 300,244/300,800 · 1 | 90,360/90,368 · 0.00048828125 | 138,742/254,976 · 4.76837158e-07 | 18/60 |
+| 4 · original, eight | 88,319/88,320 · 1 | 300,265/300,800 · 1 | 90,359/90,368 · 0.00048828125 | 139,439/254,976 · 4.17232513e-07 | 18/60 |
+| 4 · one reference against eight | 88,320/88,320 · 0 | 300,239/300,800 · 1 | 90,357/90,368 · 0.00048828125 | 146,367/254,976 · 3.87430191e-07 | 20/60 |
+| 4 · archived reopen, one | 14,336/14,336 · 0 | 22,755/22,784 · 1 | 1,024/1,024 · 0 | 47,906/84,992 · 3.57627869e-07 | 5/12 |
+| 4 v2 · original, one | 137,471/137,472 · 1 | 250,988/251,648 · 1 | 90,361/90,368 · 0.00048828125 | 116,398/254,976 · 5.96046448e-07 | 21/60 |
+| 4 v2 · original, eight | 137,472/137,472 · 0 | 251,007/251,648 · 1 | 90,359/90,368 · 0.00048828125 | 126,458/254,976 · 5.36441803e-07 | 22/60 |
+| 4 v2 · one reference against eight | 137,471/137,472 · 1 | 250,987/251,648 · 1 | 90,358/90,368 · 0.00048828125 | 117,429/254,976 · 5.66244125e-07 | 20/60 |
+| 4 v2 · archived reopen, one | 30,720/30,720 · 0 | 6,390/6,400 · 1 | 1,024/1,024 · 0 | 35,787/84,992 · 5.66244125e-07 | 6/12 |
+
+<details>
+<summary>Sizes, seeds, exposed parameters and file routes</summary>
+
+Use the authored tiling and set the grayscale storage on the FX-Map feeding the output. The control values are scale, disorder, disorder speed, anisotropy, anisotropy angle, angle, angle randomness, tile offset and non-square expansion, in that order. Directional Noise 4 uses scale, disorder, angle, angle randomness and non-square expansion. The additional fields apply to v2. A dash leaves the control at its default. Angles use turns. Archived reopens open the package first, then apply the listed setting.
+
+| Size | Seed 4 / v2 | Control values | 4 original | 4 archived | v2 original | v2 archived |
+|---|---|---|---|---|---|---|
+| 128² | 0 | Defaults | U16 | U16 | U8 | U8 |
+| 256² | 0 | Defaults | U8, U16, F16, F32 | — | U8, U16, F16, F32 | — |
+| 128² | 42 | Defaults | U16 | — | U8 | — |
+| 128² | 0 | 2, 0.37, 0.6, 0.3, 0.125, 0.125, 0.2, (0.17, 0.29), — | U16 | — | U8 | — |
+| 32² | 113 | 2, 0.37, 0.6, 0.3, 0.125, 0.125, 0.2, (0.17, 0.29), — | F32 | — | F32 | — |
+| 64² | 42 | 2, 0.37, 0.6, 0.3, 0.125, 0.125, 0.2, (0.17, 0.29), — | U8, U16, F16, F32 | U8 | U8, U16, F16, F32 | U8 |
+| 16² | 103878 / 103891 | Defaults | F32 | — | F32 | — |
+| 32² | 103879 / 103892 | 1, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, (0.0, 0.0), on | F32 | F32 | F32 | F32 |
+| 32² | 103880 / 103893 | 1, 0.3125, 0.6875, 0.25, 0.3125, 0.15625, 0.21875, (0.125, −0.1875), off | U8, U16, F16, F32 | — | U8, U16, F16, F32 | — |
+| 64 × 32 | 103884 / 103897 | 2, 0.6875, 1.4375, 0.625, −0.21875, −0.21875, 0.40625, (−0.3125, 0.4375), on | F32 | F32 | F32 | F32 |
+| 32 × 64 | 103885 / 103898 | 1, 0.3125, 0.6875, 0.25, 0.3125, 0.15625, 0.21875, (0.125, −0.1875), off | U16 | — | U16 | — |
+| 32² | 103886 / 103899 | 3, 0.125, 0.875, 0.125, 0.15625, 0.375, 0.03125, (−0.0625, 0.125), off | F32 | — | F32 | — |
+| 64 × 32 | 103887 / 103900 | 1, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, (0.0, 0.0), on | F16 | — | F16 | — |
+| 16² | 0 | Defaults | U8, U16, F16, F32 | U16 | U8, U16, F16, F32 | U16 |
+| 64 × 16 | 42 | 2, 0.03125, 0.03125, 0.03125, −0.21875, −0.21875, 0.03125, (−0.3125, 0.37890625), on | U8, U16, F16, F32 | F16 | U8, U16, F16, F32 | F16 |
+| 16 × 64 | 411650 / 411657 | 1, 0.875, 0.875, 0.875, 0.625, 0.625, 0.875, (0.53125, −0.359375), off | U16, F32 | — | U16, F32 | — |
+| 64² | 411711 / 411718 | 3, 0.34375, 0.34375, 0.34375, 0.09375, 0.09375, 0.34375, (0.0, 0.10546875), on | U8, U16, F16, F32 | U16 | U8, U16, F16, F32 | U16 |
+| 128 × 64 | 411772 / 411779 | 2, 0.96875, 0.96875, 0.96875, 0.71875, 0.71875, 0.96875, (0.625, −0.44140625), off | U16, F32 | — | U16, F32 | — |
+| 64 × 128 | 411833 / 411840 | 1, 0.1875, 0.1875, 0.1875, −0.0625, −0.0625, 0.1875, (−0.15625, 0.2421875), on | U8, U16, F16, F32 | U8 | U8, U16, F16, F32 | U8 |
+| 128² | 411894 / 411901 | 3, 0.65625, 0.65625, 0.65625, 0.40625, 0.40625, 0.65625, (0.3125, −0.16796875), off | U16, F32 | F32 | U16, F32 | F32 |
+| 128 × 512 | 412016 / 412023 | 2, 0.53125, 0.53125, 0.53125, 0.28125, 0.28125, 0.53125, (0.1875, −0.05859375), off | U16, F32 | F32 | U16, F32 | F32 |
+| 512 × 128 | 412077 / 412084 | 1, 0.09375, 0.09375, 0.09375, −0.15625, −0.15625, 0.09375, (−0.25, 0.32421875), on | U16, F32 | — | U16, F32 | — |
+| 16 × 32 | 195046 / 195077 | Defaults | U16, F32 | — | U16, F32 | — |
+| 64 × 32 | 195093 / 195124 | 3, 0.34375, 0.34375, 0.34375, 0.09375, 0.09375, 0.34375, (0.0, 0.10546875), on | U8, U16, F16, F32 | U8 | U8, U16, F16, F32 | U8 |
+| 32 × 64 | 195140 / 195171 | 1, 0.1875, 0.1875, 0.1875, −0.0625, −0.0625, 0.1875, (−0.15625, 0.2421875), on | U8, U16, F16, F32 | U16 | U8, U16, F16, F32 | U16 |
+| 64² | 195187 / 195218 | 2, 0.53125, 0.53125, 0.53125, 0.28125, 0.28125, 0.53125, (0.1875, −0.05859375), off | U16, F32 | — | U16, F32 | — |
+
+</details>
+
+For the current binary checks, both roots used the default 16² setting at seed zero in U8, F16 and F32. Directional Noise 4 also used 512 × 128 and 128 × 512 in U16 and F32. Directional Noise 4 v2 used 128 × 64 and 128² in U16 and F32. The archived checks reopened the 16² default U16 file for both, the 128 × 512 F32 file for version 4 and the 128² F32 file for v2.
+
+| Fresh configured save | Storage | Seed | Original on one · max | Original on eight · max | Reopen on one · max | Reopen on eight · max |
+|---|---|---:|---:|---:|---:|---:|
+| 4 · 16² | F16 | 0 | 256/256 · 0 | 256/256 · 0 | 256/256 · 0 | 256/256 · 0 |
+| 4 · 512 × 128 | U16 | 412077 | 65,419/65,536 · 1 | 65,408/65,536 · 1 | 65,419/65,536 · 1 | 65,419/65,536 · 1 |
+| 4 · 512 × 128 | F32 | 412077 | 35,368/65,536 · 4.76837158e-07 | 34,066/65,536 · 3.27825546e-07 | 35,368/65,536 · 4.76837158e-07 | 35,368/65,536 · 4.76837158e-07 |
+| 4 v2 · 16² | F16 | 0 | 256/256 · 0 | 256/256 · 0 | 256/256 · 0 | 256/256 · 0 |
+| 4 v2 · 128 × 64 | U16 | 411779 | 8,169/8,192 · 1 | 8,160/8,192 · 1 | 8,169/8,192 · 1 | 8,169/8,192 · 1 |
+| 4 v2 · 128 × 64 | F32 | 411779 | 3,127/8,192 · 5.96046448e-07 | 3,078/8,192 · 5.06639481e-07 | 3,127/8,192 · 5.96046448e-07 | 3,127/8,192 · 5.96046448e-07 |
+
+The local configured reopens reproduced all 147,968 original stored pixels. The one- and eight-processor reference originals differ in 40/60 settings for Directional Noise 4 and 40/60 for v2. Both roots remain in progress.
+
 ### Floating-point modulo at a rounded period
 
 A runtime float modulo can round to the divisor when a very small input has the opposite sign. The reference returns zero at that endpoint. Constant expressions retain the rounded divisor. MaterialCraft now makes that distinction in the shared floating-point operator. The FX-Map drawing evaluator uses the same operator. The original graphs and their live functions supply all parameters. [Quadrant-path measurements](#locating-individual-waves-in-directional-noise-2-v2)
