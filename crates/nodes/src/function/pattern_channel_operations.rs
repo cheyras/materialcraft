@@ -17,7 +17,8 @@ pub(super) fn project(
     let kind = |i: usize| original.get(i).map(|input| input.type_code);
     let valid = match (op.definition.id, op.inputs.as_slice()) {
         ("ifelse", &[c, a, b]) => kind(c) == Some(4) && kind(a) == Some(op.type_code) && kind(b) == Some(op.type_code),
-        ("mul", &[a, b]) => kind(a) == Some(op.type_code) && kind(b) == Some(op.type_code),
+        ("add" | "mul", &[a, b]) => kind(a) == Some(op.type_code) && kind(b) == Some(op.type_code),
+        ("mulscalar", &[a, b]) => kind(a) == Some(op.type_code) && kind(b) == Some(256),
         ("lerp", &[a, b, x]) => kind(a) == Some(op.type_code) && kind(b) == Some(op.type_code) && kind(x) == Some(256),
         _ => false,
     };
@@ -34,7 +35,7 @@ pub(super) fn project(
                 index
             } else {
                 match sources.get(index)?[lane] {
-                    Some(PatternComponent::Scalar(register)) => register,
+                    Some(PatternComponent::Register(register)) => register,
                     Some(PatternComponent::Zero) => {
                         let register = original.len() + generated.len();
                         generated.push(Instruction::new(source.id, catalog::definition("const_float1")?, vec![], Some(Value::Float(0.0)), 256));
@@ -49,12 +50,25 @@ pub(super) fn project(
             };
             inputs.push(input);
         }
-        *channel = Some(PatternComponent::Scalar(original.len() + generated.len()));
+        *channel = Some(PatternComponent::Register(original.len() + generated.len()));
         let mut instruction = Instruction::new(op.id, op.definition, inputs, None, 256);
         instruction.literal = op.literal;
         generated.push(instruction);
     }
     Some(channels)
+}
+
+/// Pack the scalar results with the ordinary vector instructions, preserving shared registers.
+pub(super) fn pack(op: &Instruction, original_len: usize, channels: &[Option<PatternComponent>; 4], generated: &mut Vec<Instruction>) -> Option<usize> {
+    let (first, rest) = channels.get(..float_width(op.type_code))?.split_first()?;
+    let Some(PatternComponent::Register(mut packed)) = *first else { return None };
+    for (channel, (kind, width)) in rest.iter().zip([("vector2", 512), ("vector3", 1024), ("vector4", 2048)]) {
+        let Some(PatternComponent::Register(next)) = *channel else { return None };
+        let instruction = Instruction::new(op.id, catalog::definition(kind)?, vec![packed, next], None, width);
+        packed = original_len + generated.len();
+        generated.push(instruction);
+    }
+    Some(packed)
 }
 
 #[cfg(test)]

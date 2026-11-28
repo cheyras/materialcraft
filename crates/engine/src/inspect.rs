@@ -26,6 +26,7 @@ pub fn session(session: &Session, requested_graph: Option<usize>) -> J {
             "inputs": graph.inputs,
             "inputImages": graph.input_images,
             "inputImagesLinear": graph.input_images_linear,
+            "inputImagesFromFile": graph.input_images_from_file,
             "nodes": graph.nodes.iter().map(|node| {
                 let entry = cooked.and_then(|cooked| cooked.nodes.get(&node.id));
                 let (inputs, outputs) = materialcraft_eval::ports(&session.pkg, graph, node);

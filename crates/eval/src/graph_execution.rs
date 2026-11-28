@@ -28,6 +28,10 @@ pub fn cook(package: &Package, graph_index: usize, options: &Options, cache: &Mu
     let variables = graph_variables(graph, options);
 
     let prepared = PreparedGraph::new(package, graph, options, &variables);
+    let mut sampling = crate::PreviewSampling::default();
+    sampling.context = (prepared.parent_base.size, prepared.parent_base.seed, options.max_size);
+    sampling.caller_format = options.parent_base.map(|base| base.format);
+    let previous = options.previous_sampling.filter(|p| p.context == sampling.context);
     for &id in &prepared.order {
         if options.cancel.is_some_and(|cancel| cancel.load(Ordering::Relaxed)) {
             cooked.cancelled = true;
@@ -37,11 +41,14 @@ pub fn cook(package: &Package, graph_index: usize, options: &Options, cache: &Mu
         let Some(node) = prepared.index.node(id) else { continue };
 
         let input = input_image(graph, node, options, &mut previews);
-        let result = cook_node(package, graph_index, &prepared, node, &cooked, &variables, options, input, cache);
+        let result = cook_node(package, graph_index, &prepared, node, &cooked, &variables, options, input, cache, previous, &mut sampling);
         cooked.nodes.insert(id, result);
     }
 
     cooked.ms = (now_ms() - started_ms) as f32;
+    if !sampling.is_empty() && !cooked.cancelled && cooked.nodes.values().all(|result| result.error.is_none()) {
+        cooked.preview_sampling = Some(std::sync::Arc::new(sampling));
+    }
     cooked
 }
 
@@ -70,8 +77,14 @@ fn input_image<'a>(graph: &Graph, node: &Node, options: &'a Options<'_>, preview
     }
 
     let resource = graph.input_images.get(&identifier)?;
-    let linear = graph.input_images_linear.contains(&identifier);
+    let space = if graph.input_images_from_file.contains(&identifier) {
+        materialcraft_nodes::BitmapColorSpace::FromFile
+    } else if graph.input_images_linear.contains(&identifier) {
+        materialcraft_nodes::BitmapColorSpace::Linear
+    } else {
+        materialcraft_nodes::BitmapColorSpace::Srgb
+    };
 
     // Nodes sharing an input also share its first lookup, including a missing preview
-    previews.entry(identifier).or_insert_with(|| (options.resource)(&craft_texture::resource_key(resource, linear))).as_ref()
+    previews.entry(identifier).or_insert_with(|| (options.resource)(&space.resource_key(resource))).as_ref()
 }

@@ -116,6 +116,20 @@ impl Program {
         self.evaluate_finite(context, state, random)
     }
 
+    pub(crate) fn evaluate_pattern_seed<'a>(
+        &self,
+        context: &EvaluationContext<'_>,
+        state: &mut EvaluationState,
+        random: &mut FunctionRandom,
+        assigned: impl Iterator<Item = (&'a str, i32)>,
+    ) -> Result<Value, String> {
+        state.variables.clear();
+        // An integer written by an earlier property occupies a float slot. Published inputs
+        // and values assigned within this seed expression use their ordinary integer words.
+        state.variables.extend(assigned.map(|(name, value)| (name.to_owned(), Value::Int((value as f32).to_bits() as i32))));
+        self.evaluate_finite(context, state, random)
+    }
+
     /// A quadrant blends its tint components individually, including an undefined channel.
     pub(crate) fn evaluate_pattern_tint(
         &self,
@@ -173,7 +187,7 @@ impl Program {
             super::FunctionScope::PixelProcessor => FunctionRandom::pixel(seed, context.position),
             super::FunctionScope::ValueProcessor => FunctionRandom::pixel(seed, [0.0; 2]),
             super::FunctionScope::FxMap => FunctionRandom::image(seed),
-            super::FunctionScope::Node | super::FunctionScope::RandomSeed => FunctionRandom::uniform(seed),
+            super::FunctionScope::Node | super::FunctionScope::RandomSeed | super::FunctionScope::FxMapRandomSeed => FunctionRandom::uniform(seed),
         }
     }
 
@@ -214,11 +228,11 @@ impl Program {
                     }
 
                     state.steps.push(Store(index));
-                    if context.scope == super::FunctionScope::FxMap
+                    if context.scope.is_pattern()
                         && let Some(source) = self.pattern_components.get(&index)
                     {
                         match source {
-                            super::vector::PatternComponent::Scalar(source) => state.steps.push(Enter(*source)),
+                            super::vector::PatternComponent::Register(source) => state.steps.push(Enter(*source)),
                             super::vector::PatternComponent::Zero => state.values.push(Value::Float(0.0)),
                         }
                         continue;
@@ -251,7 +265,7 @@ impl Program {
                             state.steps.push(Apply { instruction: index, base: state.values.len() });
                             let inputs = match &instruction.pixel_product_sum {
                                 Some(product) if context.scope == super::FunctionScope::PixelProcessor => product.inputs.as_slice(),
-                                _ if context.scope == super::FunctionScope::FxMap => instruction
+                                _ if context.scope.is_pattern() => instruction
                                     .call
                                     .as_ref()
                                     .and_then(|call| call.pattern_arguments.as_ref())
@@ -265,8 +279,7 @@ impl Program {
                 Apply { instruction: index, base } => {
                     let instruction = self.instruction(index)?;
                     let arguments = state.values.get(base..).ok_or("invalid function operands")?;
-                    let pattern =
-                        instruction.call.as_ref().and_then(|call| call.pattern_arguments.as_ref()).filter(|_| context.scope == super::FunctionScope::FxMap);
+                    let pattern = instruction.call.as_ref().and_then(|call| call.pattern_arguments.as_ref()).filter(|_| context.scope.is_pattern());
                     let result = if context.scope == super::FunctionScope::PixelProcessor
                         && let Some(factor) = instruction.reciprocal_factor
                         && let Some(product) = super::reciprocal::multiply_original(arguments.first(), factor.read(state))
@@ -307,6 +320,8 @@ impl Program {
                         storage.argument_factors = factors;
                         storage.variables.clone_from(&state.variables);
                         storage.variables.extend(call.defaults.clone());
+                        let packed = pattern.map(|plan| plan.target.packed_argument(arguments)).transpose()?.flatten();
+                        let arguments = packed.as_ref().map_or(arguments, std::slice::from_ref);
                         for (i, value) in arguments.iter().enumerate() {
                             let slot = match pattern.map(|plan| &plan.target) {
                                 Some(super::function_call::PatternTarget::Arguments(slots)) => *slots.get(i).ok_or("missing function argument slot")?,
@@ -385,7 +400,7 @@ impl Program {
                     let condition = state.values.pop().ok_or("missing branch condition")?;
                     let take_true = value_type::boolean(&condition)?;
                     let selected = self.input(index, if take_true { 1 } else { 2 })?;
-                    let branches = if context.scope == super::FunctionScope::FxMap { &self.pattern_branches } else { &self.processor_branches };
+                    let branches = if context.scope.is_pattern() { &self.pattern_branches } else { &self.processor_branches };
                     let (shared, after_selected) = if let Some(inputs) = branches.get(&index) {
                         (inputs.skipped(take_true), take_true)
                     } else if context.scope == super::FunctionScope::PixelProcessor {

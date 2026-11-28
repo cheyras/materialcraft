@@ -128,8 +128,9 @@ face for native and web builds. Font binaries stay in craft-fonts. Set `CRAFT_FO
 for releases to fail on an unavailable fallback. Without the optional input, builds still work;
 a missing font produces a repairable resource and a load warning. A checkout with the Latin
 catalog is required (for example craft-fonts revision `c1db6d1a8ed772191241c3d185e2104be84d8691`).
-All bundled `.sbs` packages, including nested materials, are original clean-room recreations
-covered together in [ATTRIBUTION.md](../ATTRIBUTION.md); their other resources retain separate credits.
+The [asset attribution](../ATTRIBUTION.md) credits the bundled `.sbs` packages, including nested
+materials, to the ArtCraft Team and the MaterialCraft contributors. It records the maintainer's
+authorship confirmation for the collection and credits the accompanying resources separately.
 Bitmap/SVG references into another package import only the requested resource declarations,
 resolving asset paths beside that owner. These become local resource snapshots with distinct
 names on collisions; saving retains shared asset links inside the library or carries their bytes

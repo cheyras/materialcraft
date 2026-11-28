@@ -14,7 +14,7 @@ use super::read_node::ReadNode;
 use super::sbs_value::{SbsValue, exposed_default, sbs_constant, to_natural_value, to_param_value};
 use super::type_code;
 use super::warnings::Warnings;
-use super::xml::{child_element, child_value, children_named, parse_floats};
+use super::xml::{child_element, child_value, children_named, parse_floats, string_parameter};
 use materialcraft_core::{
     BaseParameter, ComponentUsage, Connection, ExposedParameter, Graph, MAX_SIZE_LOG2, MIN_SIZE_LOG2, MISSING_NODE, Node, NodeId, OutputFormat, Package,
     ParameterInheritance, Resource, ResourceBytes, Value,
@@ -482,6 +482,7 @@ impl<'text> SbsReader<'text, '_> {
             "compInputBridge" => {
                 let entry = child_value(implementation, "entry").unwrap_or("");
                 let input = image_inputs.get(entry);
+                let identifier = input.map_or("input", |input| input.identifier.as_str());
                 let code = input.map_or(1, |input| input.type_code);
                 let definition = match code {
                     1 => "input_color",
@@ -489,9 +490,14 @@ impl<'text> SbsReader<'text, '_> {
                     _ => "input_value",
                 };
 
+                if matches!(code, 1 | 2)
+                    && let Some(url) = string_parameter(implementation, "bitmapresourcepath")
+                {
+                    let resource = if url.is_empty() { None } else { self.resource_binding(url, &graph.name) };
+                    super::preview_binding::read_resource(graph, identifier, resource);
+                }
                 let (id, index, node) = push_node(graph, definition, pos);
                 if let Some(node) = node {
-                    let identifier = input.map_or("input", |input| input.identifier.as_str());
                     node.params.insert("identifier".into(), Value::Text(identifier.to_string()));
                     node.params.insert("usage".into(), Value::Enum(input.map_or(ComponentUsage::ANY_INDEX, |input| input.usage)));
                     if let Some(input) = input {

@@ -83,8 +83,9 @@ impl MaterialOptions {
         if let Some(size) = self.size {
             let graph = package.to_mut().graph_mut(index)?;
             let basis = match size {
-                ExportSize::LargerSide(_) => materialcraft_eval::graph_output_size(graph, session.environment)
-                    .map_err(|error| bad("material.cook", error))?.map(u32::ilog2),
+                ExportSize::LargerSide(_) => {
+                    materialcraft_eval::graph_output_size(graph, session.environment).map_err(|error| bad("material.cook", error))?.map(u32::ilog2)
+                }
                 ExportSize::Exact(_) => graph.size,
             };
             graph.size = size.log2_size(basis);

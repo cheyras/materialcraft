@@ -105,6 +105,38 @@ fn rectangular_warp_scales_displacement_by_the_shorter_side_and_preserves_neares
 }
 
 #[test]
+fn warp_uses_the_extent_of_each_axis_for_stretched_pixels() {
+    let definition = find("warp").unwrap();
+    let params = resolve_params(definition, &BTreeMap::new());
+    for (w, h, ratio, expected) in [
+        (32, 16, 0, [0.578125, 0.546875]),
+        (16, 32, 0, [0.5625, 0.546875]),
+        (64, 32, 0, [0.6328125, 0.546875]),
+        (32, 16, 1, [0.53125, 0.546875]),
+        (16, 32, 1, [0.5625, 0.5234375]),
+    ] {
+        let source = Image::generate(w, h, Kind::Color, |x, y| [(x as f32 + 0.5) / w as f32, (y as f32 + 0.5) / h as f32, 0.0, 1.0]);
+        let gradient = Image::gray(w, h, |x, y| 0.5 * f32::from(x >= w / 2) + 0.25 * f32::from(y >= h / 2));
+        let inputs = [Some(source), Some(gradient)];
+        let vars = BTreeMap::from([("$pixelratio".into(), Value::Int(ratio))]);
+        let context = CookContext {
+            w,
+            h,
+            seed: 0,
+            format: OutputFormat::F32,
+            tile: true,
+            input_formats: &[OutputFormat::F32; 2],
+            inputs: &inputs,
+            params: &params,
+            resource: &|_| None,
+            vars: &vars,
+        };
+        let pixel = (definition.cook)(&context).unwrap().remove(0).get(i64::from(w / 2), i64::from(h / 2), false);
+        assert_eq!([pixel[0], pixel[1]], expected, "pixel ratio {ratio} at {w} by {h}");
+    }
+}
+
+#[test]
 fn emboss_applies_each_tint_to_a_one_sided_height_difference() {
     let color = Image::filled(32, 32, Kind::Color, [0.25, 0.5, 0.75, 0.375]);
     let height = Image::gray(32, 32, |x, y| if x == 16 && y == 16 { 1.0 } else { 0.0 });

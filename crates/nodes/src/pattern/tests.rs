@@ -587,6 +587,67 @@ fn additive_square(weight: f32, offset: [f32; 2], frame: [f32; 2]) -> BTreeMap<S
     ])
 }
 
+fn square_fork(parent_gain: f32) -> PatternGraph {
+    let mut graph = PatternGraph::with_root(PatternNodeKind::Quadrant);
+    let mut parent = graph.root.unwrap();
+    for depth in 1..=9 {
+        let child = graph.add(PatternNodeKind::Quadrant).unwrap();
+        let slots = &mut graph.nodes[(parent - 1) as usize].children;
+        if let Some(&slot) = [0, 3, 1, 0].get(depth - 1) {
+            slots[slot] = Some(child);
+        } else {
+            slots.fill(Some(child));
+        }
+        if depth == 1 || depth == 9 {
+            let (gain, size) = if depth == 1 { (parent_gain, 2.0) } else { (f32::EPSILON * 0.25, 1.375) };
+            let mut parameters = additive_square(gain, [0.0; 2], [0.0; 2]);
+            parameters.insert("patternsize".into(), Value::Float2([size; 2]));
+            graph.nodes[(child - 1) as usize].parameters = parameters;
+        }
+        parent = child;
+    }
+    graph
+}
+
+#[test]
+fn an_empty_later_quadrant_changes_when_its_sibling_draws() {
+    let mut graph = square_fork(-1.0);
+    let empty = graph.add(PatternNodeKind::Quadrant).unwrap();
+    let active = graph.nodes[3].children[0];
+    for (children, surviving_pixel) in [
+        ([active, None, None, None], Some((6, 4))),
+        ([active, Some(empty), None, None], None),
+        ([active, active, None, None], Some((7, 4))),
+        ([active, active, active, None], Some((6, 5))),
+        ([active; 4], Some((7, 5))),
+    ] {
+        graph.nodes[3].children.copy_from_slice(&children);
+        let image = cook_in_regions(graph.clone(), &BTreeMap::new(), 0, [16; 2], [[0.0, 1.0, 0.0, 1.0]; 2], 1.0).unwrap().remove(0);
+        for y in 0..16 {
+            for x in 0..16 {
+                let value = if Some((x, y)) == surviving_pixel { f32::EPSILON } else { 0.0 };
+                assert_eq!(image.get_gray(x, y, false).to_bits(), value.to_bits(), "pixel ({x}, {y}), children {children:?}");
+            }
+        }
+    }
+}
+
+#[test]
+fn two_repetitions_share_the_parent_and_last_child_draws() {
+    let mut graph = square_fork(-0.5);
+    let empty = graph.add(PatternNodeKind::Quadrant).unwrap();
+    let iterate = graph.add(PatternNodeKind::Iterate).unwrap();
+    graph.nodes[(iterate - 1) as usize].children[1] = graph.root;
+    graph.nodes[(iterate - 1) as usize].parameters.insert("numberadded".into(), Value::Int(2));
+    graph.root = Some(iterate);
+    let active = graph.nodes[3].children[0];
+    for (sibling, expected) in [(None, [f32::EPSILON, 0.0]), (Some(empty), [0.0; 2]), (active, [0.0, f32::EPSILON])] {
+        graph.nodes[3].children[1] = sibling;
+        let image = cook_in_regions(graph.clone(), &BTreeMap::new(), 0, [16; 2], [[0.0, 1.0, 0.0, 1.0]; 2], 1.0).unwrap().remove(0);
+        assert_eq!([6, 7].map(|x| image.get_gray(x, 4, false).to_bits()), expected.map(f32::to_bits), "sibling {sibling:?}");
+    }
+}
+
 #[test]
 fn seven_quadrant_levels_order_leaf_runs_before_discarding_missed_stamps() {
     let tiny = f32::EPSILON * 0.25;
@@ -2228,6 +2289,33 @@ fn nested_square_draws(inner_count: i32) -> PatternGraph {
 }
 
 #[test]
+fn a_single_repeat_passes_its_written_value_and_seed_directly_to_the_child() {
+    let mut graph = nested_square_draws(1);
+    graph.nodes[7].parameters.insert("numberadded".into(), Value::Int(64));
+
+    let mut count = FunctionGraph::default();
+    let number = count.add("get_float1", &[], Some(Value::Text("$number".into())));
+    let scale = count.add_constant(Value::Float(1.0 / 128.0));
+    let weight = count.add("mul", &[number, scale], None);
+    let write = count.add("set", &[weight], Some(Value::Text("weight".into())));
+    let one = count.add_constant(Value::Int(1));
+    count.output = Some(count.add("sequence", &[write, one], None));
+    graph.nodes[8].parameters.insert("numberadded".into(), Value::Function(Box::new(count)));
+
+    let mut tint = FunctionGraph::input("weight", materialcraft_core::ValueType::Float);
+    let gain = tint.output.unwrap();
+    let span = tint.add_constant(Value::Float(0.125));
+    let draw = tint.add("rand", &[span], None);
+    tint.output = Some(tint.add("add", &[gain, draw], None));
+    graph.nodes[9].parameters.insert("opacity".into(), Value::Function(Box::new(tint)));
+
+    let expected = render_with_visit_limit(&graph, 8192).unwrap().remove(0);
+    assert_eq!(expected.data(), &[f32::from_bits(1_100_931_893); 16]);
+    assert_eq!(render_with_visit_limit(&graph, 64).unwrap()[0].data(), expected.data());
+    assert!(render_with_visit_limit(&graph, 32).unwrap_err().contains("budget"));
+}
+
+#[test]
 fn streamed_analytic_draws_keep_the_accumulated_pixels_and_bounded_work() {
     let mut graph = nested_square_draws(24);
     let expected = (0..96).fold(0.0_f32, |background, _| background + 0.01_f32);
@@ -2306,6 +2394,52 @@ fn streamed_quadrant_children_reuse_fixed_image_properties() {
 }
 
 #[test]
+fn seeded_placement_fields_keep_sparse_draws_within_the_work_budget() {
+    let mut graph = nested_square_draws(24);
+    let mut offset = FunctionGraph::default();
+    let range = offset.add_constant(Value::Float(0.75));
+    let x = offset.add("rand", &[range], None);
+    let y = offset.add("rand", &[range], None);
+    let right = offset.add_constant(Value::Float(0.0625));
+    let down = offset.add_constant(Value::Float(-0.0625));
+    let x = offset.add("add", &[x, right], None);
+    let y = offset.add("add", &[y, down], None);
+    let point = offset.add("vector2", &[x, y], None);
+    offset.output = Some(point);
+
+    let mut rotation = FunctionGraph::default();
+    let quarter = rotation.add_constant(Value::Float(0.25));
+    let turn = rotation.add("rand", &[quarter], None);
+    let base = rotation.add_constant(Value::Float(0.125));
+    rotation.output = Some(rotation.add("add", &[base, turn], None));
+    let mut tint = FunctionGraph::default();
+    let one = tint.add_constant(Value::Float(1.0));
+    tint.output = Some(tint.add("rand", &[one], None));
+
+    let child = graph.add(PatternNodeKind::Quadrant).unwrap();
+    graph.nodes[9].children.fill(Some(child));
+    graph.nodes[9].parameters.extend([
+        ("frameoffset".into(), Value::Function(Box::new(offset.clone()))),
+        ("patternrotation".into(), Value::Function(Box::new(rotation))),
+        ("opacity".into(), Value::Function(Box::new(tint))),
+        ("patternsize".into(), Value::Float2([2.0, 8.0])),
+    ]);
+    graph.nodes[10].parameters = graph.nodes[9].parameters.clone();
+    let mut ordinary = graph.clone();
+    // The Sequence preserves both random coordinates and evaluates the offset through the full VM.
+    let zero = offset.add_constant(Value::Float(0.0));
+    offset.output = Some(offset.add("sequence", &[zero, point], None));
+    for node in &mut ordinary.nodes[9..] {
+        node.parameters.insert("frameoffset".into(), Value::Function(Box::new(offset.clone())));
+    }
+    let expected = render_with_visit_limit(&ordinary, 4096).unwrap().remove(0);
+    assert!(expected.data().windows(2).any(|v| v[0] != v[1]));
+    assert!(render_with_visit_limit(&ordinary, 80).unwrap_err().contains("execution budget"));
+    assert_eq!(render_with_visit_limit(&graph, 80).unwrap()[0].data(), expected.data());
+    assert!(render_with_visit_limit(&graph, 32).unwrap_err().contains("execution budget"));
+}
+
+#[test]
 fn repeated_image_space_offsets_and_rotations_reuse_the_parent_draw() {
     let mut graph = nested_square_draws(55);
     graph.nodes[7].parameters.insert("numberadded".into(), Value::Int(2));
@@ -2330,8 +2464,7 @@ fn repeated_image_space_offsets_and_rotations_reuse_the_parent_draw() {
     assert!(limited.data().iter().any(|value| *value > 1.0));
 }
 
-#[test]
-fn repeated_quadrants_reapply_the_live_tint_scale_and_publish_the_frame_offset() {
+fn quadrants_with_a_live_tint() -> (PatternGraph, PatternGraph) {
     let mut graph = nested_square_draws(40);
     graph.nodes[7].parameters.insert("numberadded".into(), Value::Int(6));
     graph.nodes[8].parameters.insert("randominherited".into(), Value::Bool(false));
@@ -2387,11 +2520,74 @@ fn repeated_quadrants_reapply_the_live_tint_scale_and_publish_the_frame_offset()
     for node in &mut ordinary.nodes[9..11] {
         node.parameters.insert("frameoffset".into(), Value::Function(Box::new(computed.clone())));
     }
+    (graph, ordinary)
+}
+
+#[test]
+fn repeated_quadrants_reapply_the_live_tint_scale_and_publish_the_frame_offset() {
+    let (mut graph, mut ordinary) = quadrants_with_a_live_tint();
     let expected = render_with_visit_limit(&ordinary, 4096).unwrap().remove(0);
     assert!(expected.data().iter().any(|&v| v > 1.0));
     assert!(render_with_visit_limit(&ordinary, 192).unwrap_err().contains("execution budget"));
     let cached = render_with_visit_limit(&graph, 192).unwrap().remove(0);
     assert_eq!(cached.data(), expected.data());
+
+    // Inheriting the outer seed gives different random offsets and tints on later
+    // iterations. A bound arithmetic pass keeps the offset, gain and every draw.
+    for drawing in [&mut graph, &mut ordinary] {
+        drawing.nodes[8].parameters.insert("randominherited".into(), Value::Bool(true));
+    }
+    let expected = render_with_visit_limit(&ordinary, 4096).unwrap().remove(0);
+    assert!(expected.data().iter().any(|&v| v > 1.0));
+    assert_eq!(render_with_visit_limit(&graph, 96).unwrap()[0].data(), expected.data());
+    graph.nodes[7].parameters.insert("numberadded".into(), Value::Int(10));
+    assert!(render_with_visit_limit(&graph, 96).unwrap_err().contains("execution budget"));
+}
+
+#[test]
+fn reused_terminal_offsets_and_compact_parent_draws_share_bounded_work() {
+    let (mut graph, mut ordinary) = quadrants_with_a_live_tint();
+    for drawing in [&mut graph, &mut ordinary] {
+        drawing.nodes[8].parameters.insert("randominherited".into(), Value::Bool(true));
+        // Three additional branches inherit distinct seeds. Their terminal children
+        // reset theirs, so the same offset is published again in a different parent.
+        let branch = drawing.add(PatternNodeKind::Quadrant).unwrap();
+        drawing.nodes[12].parameters = drawing.nodes[10].parameters.clone();
+        drawing.nodes[12].children = drawing.nodes[9].children.clone();
+        drawing.nodes[9].children[..3].fill(Some(branch));
+        drawing.nodes[10].parameters.insert("randominherited".into(), Value::Bool(false));
+    }
+    let expected = render_with_visit_limit(&ordinary, 65_536).unwrap().remove(0);
+    assert!(expected.data().iter().any(|value| *value > 1.0));
+    assert_eq!(render_with_visit_limit(&graph, 256).unwrap()[0].data(), expected.data());
+    assert!(render_with_visit_limit(&graph, 160).unwrap_err().contains("execution budget"));
+}
+
+#[test]
+fn a_seeded_branch_offset_keeps_every_scheduled_child() {
+    let mut graph = nested_square_draws(32);
+    let leaf = graph.add(PatternNodeKind::Quadrant).unwrap();
+    graph.nodes[9].children[0] = Some(leaf);
+    graph.nodes[9].parameters.clear();
+    let mut offset = FunctionGraph::default();
+    let span = offset.add_constant(Value::Float(0.875));
+    let x = offset.add("rand", &[span], None);
+    let y = offset.add("rand", &[span], None);
+    offset.output = Some(offset.add("vector2", &[x, y], None));
+    graph.nodes[9].parameters.insert("branchoffset".into(), Value::Function(Box::new(offset.clone())));
+    graph.nodes[10].parameters =
+        BTreeMap::from([("patterntype".into(), Value::Int(2)), ("patternsize".into(), Value::Float2([96.0, 48.0])), ("opacity".into(), Value::Float(0.125))]);
+    let mut ordinary = graph.clone();
+    // An equivalent Sequence uses the general evaluator and leaves the random stream intact.
+    let value = offset.output.unwrap();
+    let zero = offset.add_constant(Value::Float(0.0));
+    offset.output = Some(offset.add("sequence", &[zero, value], None));
+    ordinary.nodes[9].parameters.insert("branchoffset".into(), Value::Function(Box::new(offset)));
+    let expected = render_with_visit_limit(&ordinary, 8192).unwrap().remove(0);
+    assert!(expected.data().windows(2).any(|v| v[0] != v[1]));
+    assert!(render_with_visit_limit(&ordinary, 64).unwrap_err().contains("execution budget"));
+    assert_eq!(render_with_visit_limit(&graph, 64).unwrap()[0].data(), expected.data());
+    assert!(render_with_visit_limit(&graph, 32).unwrap_err().contains("execution budget"));
 }
 
 #[test]
@@ -2472,6 +2668,30 @@ fn cached_parents_that_miss_still_draw_their_terminal_children() {
 
     graph.nodes[7].parameters.insert("numberadded".into(), Value::Int(10));
     assert!(render_with_visit_limit(&graph, 64).unwrap_err().contains("execution budget"));
+}
+
+#[test]
+fn repeated_quadrants_keep_both_translations_when_reusing_a_draw() {
+    let mut graph = nested_square_draws(41);
+    graph.nodes[8].parameters.insert("randominherited".into(), Value::Bool(false));
+    let leaf = graph.add(PatternNodeKind::Quadrant).unwrap();
+    graph.nodes[9].children.fill(Some(leaf));
+    graph.nodes[10].parameters = graph.nodes[9].parameters.clone();
+    graph.nodes[9].parameters.insert("patternsize".into(), Value::Float2([0.015625; 2]));
+    for node in &mut graph.nodes[9..] {
+        let mut angle = FunctionGraph::default();
+        let eighth = angle.add_constant(Value::Float(0.125));
+        angle.output = Some(angle.add("rand", &[eighth], None));
+        node.parameters.insert("patternrotation".into(), Value::Function(Box::new(angle)));
+        for (field, offset) in [("branchoffset", [0.03125, -0.015625]), ("frameoffset", [-0.015625, 0.03125])] {
+            node.parameters.insert(field.into(), Value::Function(Box::new(FunctionGraph::constant(Value::Float2(offset)))));
+        }
+    }
+    let expected = render_with_visit_limit(&graph, 1_024).unwrap().remove(0);
+    assert!(expected.data().iter().any(|value| *value > 0.0));
+    // A smaller budget still stops the four repetitions of 41 parent draws.
+    assert!(render_with_visit_limit(&graph, 64).unwrap_err().contains("execution budget"));
+    assert_eq!(render_with_visit_limit(&graph, 128).unwrap()[0].data(), expected.data());
 }
 
 #[test]
@@ -2922,6 +3142,59 @@ fn an_iterate_keeps_the_initial_seed_and_advances_each_repetition() {
         params.insert("opacity".into(), Value::Function(Box::new(draw)));
         let image = cook(graph).unwrap().remove(0);
         assert_eq!(image.get(8, 8, false)[0].to_bits(), expected);
+    }
+}
+
+#[test]
+fn driven_scalar_arithmetic_in_an_iterate_seed_uses_storage_words() {
+    let mut graph = PatternGraph::with_root(PatternNodeKind::Iterate);
+    let square = graph.add(PatternNodeKind::Quadrant).unwrap();
+    graph.nodes[0].children[1] = Some(square);
+    graph.nodes[0].parameters.insert("numberadded".into(), Value::Int(1));
+    let mut tint = FunctionGraph::default();
+    let unit = tint.add_constant(Value::Float(1.0));
+    tint.output = Some(tint.add("rand", &[unit], None));
+    graph.nodes[1].parameters = BTreeMap::from([
+        ("patterntype".into(), Value::Int(2)),
+        ("blendingmode".into(), Value::Int(0)),
+        ("patternsize".into(), Value::Float2([1.0; 2])),
+        ("opacity".into(), Value::Function(Box::new(tint))),
+    ]);
+
+    let cases = [
+        (0.0, 1.0, 0, [16, 16]),
+        (1.0, 0.5, 845872, [16, 32]),
+        (3.0, 0.75, 113, [32, 16]),
+        (5.25, 0.5, 845872, [16, 16]),
+        (17.0, 1.0, 42, [16, 32]),
+        (-1.25, -0.5, 37, [32, 16]),
+    ];
+    for (expression, expected) in [
+        ("cast", [0x3f4bd028, 0x3f2676b8, 0x3ef06e34, 0x3f833b5c, 0x3f7d60e6, 0x3ee3256c]),
+        ("float sum", [0x3e97a050, 0x3f2676b8, 0x3e60dc68, 0x3f5e76b8, 0x3f6560e6, 0x3ea3256c]),
+        ("integer sum", [0x3e97a050, 0x3f2676b8, 0x3ef06e34, 0x3f833b5c, 0x3efac1cc, 0x3f7192b6]),
+    ] {
+        let mut seed = FunctionGraph::default();
+        let first = seed.add("get_float1", &[], Some(Value::Text("first".into())));
+        let second = seed.add("get_float1", &[], Some(Value::Text("second".into())));
+        seed.output = Some(match expression {
+            "float sum" => {
+                let sum = seed.add("add", &[first, second], None);
+                seed.add("toint1", &[sum], None)
+            }
+            "integer sum" => {
+                let left = seed.add("toint1", &[first], None);
+                let right = seed.add("toint1", &[second], None);
+                seed.add("add", &[left, right], None)
+            }
+            _ => seed.add("toint1", &[first], None),
+        });
+        graph.nodes[0].parameters.insert("randomseed".into(), Value::Function(Box::new(seed)));
+        for ((first, second, parent_seed, size), bits) in cases.into_iter().zip(expected) {
+            let vars = BTreeMap::from([("first".into(), Value::Float(first)), ("second".into(), Value::Float(second))]);
+            let image = cook_in_regions(graph.clone(), &vars, parent_seed, size, [[0.0, 1.0, 0.0, 1.0]; 2], 0.125).unwrap().remove(0);
+            assert_eq!(image.get_gray(8, 8, false).to_bits(), bits, "{expression}, {first}, {second}");
+        }
     }
 }
 

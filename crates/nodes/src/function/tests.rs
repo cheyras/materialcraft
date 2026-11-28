@@ -26,6 +26,105 @@ fn operation(name: &str, arguments: &[Value], setting: Option<Value>) -> Result<
 }
 
 #[test]
+fn bound_pattern_arithmetic_preserves_nested_arguments_and_shared_random_draws() {
+    use super::{FunctionScope, PatternExpression};
+    use crate::random::FunctionRandom;
+    use materialcraft_core::{GraphInstance, GraphPort, ValueType};
+
+    fn call(graph: &mut FunctionGraph, body: FunctionGraph, wires: &[(&str, u32)]) -> u32 {
+        let inputs: Vec<_> = wires.iter().map(|&(_, id)| id).collect();
+        let id = graph.add("instance", &inputs, None);
+        let node = graph.nodes.last_mut().unwrap();
+        let port = |name: &str| GraphPort { identifier: name.into(), type_code: ValueType::Float as u32 };
+        node.instance = Some(GraphInstance {
+            graph: "sample".into(),
+            label: String::new(),
+            package: String::new(),
+            inputs: wires.iter().map(|&(name, _)| port(name)).collect(),
+            outputs: vec![port("output")],
+            defaults: wires.iter().map(|&(name, _)| (name.into(), Value::Float(0.0))).collect(),
+        });
+        node.source = Some(Ok(std::sync::Arc::new(body)));
+        id
+    }
+
+    let mut leaf = FunctionGraph::input("gain", ValueType::Float);
+    let gain = leaf.output.unwrap();
+    leaf.output = Some(leaf.add("rand", &[gain], None));
+    let mut wrapper = FunctionGraph::default();
+    let draw = call(&mut wrapper, leaf, &[]);
+    wrapper.output = Some(wrapper.add("add", &[draw, draw], None));
+    let mut graph = FunctionGraph::default();
+    let range = graph.add_constant(Value::Float(0.75));
+    let gain = graph.add("rand", &[range], None);
+    let twice = call(&mut graph, wrapper, &[("gain", gain)]);
+    graph.output = Some(graph.add("vector2", &[twice, gain], None));
+
+    let program = compile(&graph, 0).unwrap();
+    let variables = BTreeMap::from([("gain".into(), Value::Float(0.125))]);
+    let assigned = BTreeSet::from(["gain"]);
+    let context = EvaluationContext {
+        scope: FunctionScope::FxMap,
+        variables: &variables,
+        position: [0.5; 2],
+        size: [16.0; 2],
+        tile: true,
+        images: &[],
+        image_formats: &[],
+    };
+    let mut bound = PatternExpression::bind(&program, &variables, &assigned, None).unwrap();
+    for seed in [0, 19, 105_532] {
+        let mut original = FunctionRandom::image(seed);
+        let mut compact = original;
+        let expected = program.evaluate_with_random(&context, &mut EvaluationState::default(), &mut original).unwrap();
+        assert_eq!(bound.evaluate(&mut compact).unwrap(), (expected, None));
+        assert_eq!(compact.draw().to_bits(), original.draw().to_bits());
+    }
+
+    // A free read of the same mutable name and a per-visit position both need live bindings.
+    for (name, kind) in [("gain", ValueType::Float), ("$pos", ValueType::Float2), ("$number", ValueType::Float)] {
+        let program = compile(&FunctionGraph::input(name, kind), 0).unwrap();
+        assert!(PatternExpression::bind(&program, &variables, &assigned, None).is_none());
+    }
+}
+
+#[test]
+fn seeded_vector_modulo_preserves_the_period_and_random_stream() {
+    use super::{FunctionScope, PatternExpression};
+    use crate::random::FunctionRandom;
+
+    let mut graph = FunctionGraph::default();
+    let range = graph.add_constant(Value::Float(1.0));
+    let draw = graph.add("rand", &[range], None);
+    let pair = graph.add("vector2", &[draw, draw], None);
+    let offset = graph.add_constant(Value::Float2([0.8125, 0.21875]));
+    let shifted = graph.add("sub", &[pair, offset], None);
+    let period = graph.add_constant(Value::Float2([0.375, -0.1875]));
+    graph.output = Some(graph.add("mod", &[shifted, period], None));
+    let program = compile(&graph, 0).unwrap();
+    let variables = BTreeMap::new();
+    let context = EvaluationContext {
+        scope: FunctionScope::FxMap,
+        variables: &variables,
+        position: [0.5; 2],
+        size: [16.0; 2],
+        tile: true,
+        images: &[],
+        image_formats: &[],
+    };
+    let mut bound = PatternExpression::bind(&program, &variables, &BTreeSet::new(), None).expect("seeded vector modulo should bind");
+    for seed in [0, 19, 42, 329_779] {
+        let mut normal = FunctionRandom::image(seed);
+        let mut prepared = normal;
+        let value = program.evaluate_with_random(&context, &mut EvaluationState::default(), &mut normal).unwrap();
+        let Value::Float2([x, y]) = value else { panic!("expected a two-component offset") };
+        assert!((0.0..0.375).contains(&x) && y > -0.1875 && y <= 0.0);
+        assert_eq!(bound.evaluate(&mut prepared).unwrap(), (value, None));
+        assert_eq!(prepared.draw().to_bits(), normal.draw().to_bits());
+    }
+}
+
+#[test]
 fn folded_integers_use_word_order_and_convert_unsigned_magnitudes() {
     let variables = BTreeMap::from([("lhs".into(), Value::Int(-5)), ("rhs".into(), Value::Int(2))]);
     for (left_literal, right_literal) in [(true, true), (true, false), (false, true), (false, false)] {
@@ -87,6 +186,16 @@ fn scoped_operation(scope: super::FunctionScope, op: &str, operands: &[Value], l
     graph.output = Some(graph.add(op, &inputs, None));
     let context = EvaluationContext { image_formats: &[], scope, position: [0.5; 2], size: [1.0; 2], images: &[], tile: true, variables: &variables };
     compile(&graph, 0).unwrap().evaluate_pixel(&context, &mut EvaluationState::default()).unwrap()
+}
+
+#[test]
+fn floating_modulo_wraps_a_rounded_period_to_zero() {
+    let gap = 1.0 - 1.0_f32.next_down();
+    let inputs = [Value::Float4([-gap * 0.5, gap * 0.25, -gap * 0.75, gap]), Value::Float4([1.0, -1.0, 1.0, -1.0])];
+    for scope in [super::FunctionScope::FxMap, super::FunctionScope::Node, super::FunctionScope::PixelProcessor] {
+        assert_eq!(scoped_operation(scope, "mod", &inputs, false), Value::Float4([0.0, 0.0, 1.0 - gap, -1.0 + gap]));
+        assert_eq!(scoped_operation(scope, "mod", &inputs, true), Value::Float4([1.0, -1.0, 1.0 - gap, -1.0 + gap]));
+    }
 }
 
 #[test]

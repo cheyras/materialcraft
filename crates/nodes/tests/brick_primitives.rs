@@ -64,6 +64,32 @@ fn hsl_offsets_clamp_in_normalized_lightness_and_restore_hdr_gain() {
 }
 
 #[test]
+fn hsl_wraps_the_hue_before_reconstructing_rgb() {
+    let low = 1.0 / 8192.0;
+    let high = 1.0 - low;
+    let bias = 3.0 / 4096.0;
+    for (color, hue, rgb) in [
+        ([0.5; 3], 1.0, [1.0, f32::EPSILON, 0.0]),
+        ([low, high - 0.5 - bias, high], 1.0 / 3.0, [0.5, 1.0, 0.0]),
+        ([low, high - bias, high], 0.375_f32.next_up(), [0.49999946, 1.0, 0.0]),
+    ] {
+        let [r, g, b] = color;
+        let source = Image::filled(64, 64, Kind::Color, [r, g, b, 0.75]);
+        let values = BTreeMap::from([("hue".into(), Value::Float(hue)), ("saturation".into(), Value::Float(1.0))]);
+        let pixel = cook("hsl", values, &[Some(source)]).get(0, 0, false);
+        assert_eq!(pixel, [rgb[0], rgb[1], rgb[2], 0.75], "hue {hue}");
+    }
+}
+
+#[test]
+fn hsl_rounds_saturation_after_adding_the_slider_shift() {
+    let source = Image::filled(16, 16, Kind::Color, [0.6109035, 0.6431967, 0.35680333, 0.75]);
+    let values = BTreeMap::from([("hue".into(), Value::Float(0.359375)), ("saturation".into(), Value::Float(0.8125))]);
+    let pixel = cook("hsl", values, &[Some(source)]).get(0, 0, false);
+    assert_eq!(pixel.map(f32::to_bits), [0x3f74_a640, 0x3d35_9c00, 0x3f12_0e45, 0x3f40_0000]);
+}
+
+#[test]
 fn hsl_rounds_the_channel_bias_before_computing_hue() {
     for (source, rgb) in [
         ([0x3eff_a001, 0x3eff_a001, 0x3eff_a001, 0x3f80_0000], [0x3f7f_a001, 0x38ff_a001, 0]),

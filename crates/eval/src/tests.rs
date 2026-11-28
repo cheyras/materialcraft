@@ -1194,6 +1194,91 @@ fn unchanged_size_after_read(getter: &str, variable: &str) -> materialcraft_core
 }
 
 #[test]
+fn filters_store_normalized_inputs_at_their_working_precision_when_one_size_is_parameter_controlled() {
+    use materialcraft_core::{BaseParameter, OutputFormat, SizeMode};
+
+    let mut graph = Graph::new("Filter sizing");
+    graph.size = [4, 4];
+    graph.format = OutputFormat::U8;
+    let input = graph.add_node("input_grayscale", [0.0; 2]);
+    let source = graph.node_mut(input).unwrap();
+    source.params.insert("identifier".into(), Value::Text("source".into()));
+    source.base.size_mode = SizeMode::RelativeToParent;
+    let levels = graph.add_node("levels", [64.0, 0.0]);
+    let curve = graph.node_mut(levels).unwrap();
+    curve.base.size_mode = SizeMode::RelativeToParent;
+    curve.base.format = OutputFormat::F16;
+    curve.params.insert("in_low".into(), Value::Float4([0.21875; 4]));
+    curve.params.insert("in_high".into(), Value::Float4([0.46875; 4]));
+    graph.connect(input, "output", levels, "input").unwrap();
+    let sharpen = graph.add_node("sharpen", [64.0, 64.0]);
+    let detail = graph.node_mut(sharpen).unwrap();
+    detail.base.size_mode = SizeMode::RelativeToParent;
+    detail.base.format = OutputFormat::F16;
+    graph.connect(input, "output", sharpen, "input").unwrap();
+    let [blur, fractional_half, fractional_float] =
+        [(24.0, OutputFormat::F16), (32.0, OutputFormat::F16), (32.0, OutputFormat::F32)].map(|(intensity, format)| {
+            let blur = graph.add_node("blur", [64.0, 128.0]);
+            let smooth = graph.node_mut(blur).unwrap();
+            smooth.base.size_mode = SizeMode::RelativeToParent;
+            smooth.base.format = format;
+            smooth.params.insert("intensity".into(), Value::Float(intensity));
+            graph.connect(input, "output", blur, "input").unwrap();
+            blur
+        });
+    let mut package = Package::new("Input precision");
+    package.graphs.push(graph);
+    let mut options = Options::new(&no_res);
+    let field = Image::generate(16, 16, Kind::Gray, |x, y| {
+        let byte: u8 = match (x, y) {
+            (7, 8) => 5,
+            (9, 8) => 78,
+            (8, 7) => 31,
+            (8, 9) => 42,
+            _ => 58,
+        };
+        [f32::from(byte) / 255.0; 4]
+    });
+    options.inputs.insert("source".into(), field);
+    options.overrides.insert("gain".into(), Value::Float(0.375));
+    let cache = Mutex::new(Cache::default());
+    let runtime = unchanged_size_after_read("get_float1", "gain");
+    for (source_dynamic, output_dynamic) in [(false, false), (true, false), (false, true), (true, true)] {
+        let [expected_levels, expected_sharpen, expected_blur, expected_half, expected_float] = if source_dynamic == output_dynamic {
+            [0x3d0e8000, 0x3f1e8000, 0x3e3e0000, 0x3e572000, 0x3e673a97]
+        } else {
+            [0x3d0e0000, 0x3f1e6000, 0x3e3de000, 0x3e570000, 0x3e673a99]
+        };
+        for (id, dynamic) in [
+            (input, source_dynamic),
+            (levels, output_dynamic),
+            (sharpen, output_dynamic),
+            (blur, output_dynamic),
+            (fractional_half, output_dynamic),
+            (fractional_float, output_dynamic),
+        ] {
+            let functions = &mut package.graphs[0].node_mut(id).unwrap().base.functions;
+            if dynamic {
+                functions.insert(BaseParameter::OutputSize, runtime.clone());
+            } else {
+                functions.remove(&BaseParameter::OutputSize);
+            }
+        }
+        let cooked = cook(&package, 0, &options, &cache);
+        assert_eq!(cooked.nodes[&levels].error, None);
+        assert_eq!(cooked.image(levels, 0).unwrap().get_gray(0, 0, false).to_bits(), expected_levels);
+        assert_eq!(cooked.nodes[&sharpen].error, None);
+        assert_eq!(cooked.image(sharpen, 0).unwrap().get_gray(9, 8, false).to_bits(), expected_sharpen);
+        assert_eq!(cooked.nodes[&blur].error, None);
+        assert_eq!(cooked.image(blur, 0).unwrap().get_gray(7, 8, false).to_bits(), expected_blur);
+        assert_eq!(cooked.nodes[&fractional_half].error, None);
+        assert_eq!(cooked.image(fractional_half, 0).unwrap().get_gray(6, 7, false).to_bits(), expected_half);
+        assert_eq!(cooked.nodes[&fractional_float].error, None);
+        assert_eq!(cooked.image(fractional_float, 0).unwrap().get_gray(6, 5, false).to_bits(), expected_float);
+    }
+}
+
+#[test]
 fn half_blends_store_integer_inputs_on_different_size_paths() {
     use materialcraft_core::{BaseParameter, OutputFormat, SizeMode};
 
@@ -1416,6 +1501,51 @@ fn connected_input_sizes_share_the_last_two_dimensional_filter_pass() {
 }
 
 #[test]
+fn an_image_bridge_resolves_its_size_against_its_own_wire() {
+    use materialcraft_core::SizeMode;
+
+    let (mut parent, connected) = instancing("Parent", "Bridge");
+    let unconnected = parent.add_node("graph_instance", [0.0, 80.0]);
+    parent.node_mut(unconnected).unwrap().params.insert("graph".into(), Value::Text("Bridge".into()));
+    for id in [connected, unconnected] {
+        let base = &mut parent.node_mut(id).unwrap().base;
+        base.size_mode = SizeMode::Absolute;
+        base.size = [6; 2];
+    }
+    let input = parent.add_node("input_grayscale", [0.0; 2]);
+    let source = &mut parent.node_mut(input).unwrap().base;
+    source.size_mode = SizeMode::Absolute;
+    source.size = [4, 5];
+    parent.connect(input, "output", connected, "input").unwrap();
+
+    let mut child = Graph::new("Bridge");
+    let bridge = child.add_node("input_grayscale", [0.0; 2]);
+    let output = child.add_node("output", [100.0, 0.0]);
+    child.connect(bridge, "output", output, "input").unwrap();
+    let mut package = Package::new("Bridge sizes");
+    package.graphs.extend([parent, child]);
+    let options = Options::new(&no_res);
+    let cache = Mutex::new(Cache::default());
+    for (mode, size, expected) in [
+        (SizeMode::RelativeToInput, [0, 0], [(16, 32), (64, 64)]),
+        (SizeMode::RelativeToInput, [-1, 1], [(8, 64), (32, 128)]),
+        (SizeMode::RelativeToParent, [0, 0], [(64, 64); 2]),
+        (SizeMode::Absolute, [5, 4], [(32, 16); 2]),
+    ] {
+        let base = &mut package.graphs[1].node_mut(bridge).unwrap().base;
+        base.size_mode = mode;
+        base.size = size;
+        let cooked = cook(&package, 0, &options, &cache);
+        let dimensions = [connected, unconnected].map(|id| {
+            assert_eq!(cooked.nodes[&id].error, None);
+            let image = cooked.image(id, 0).unwrap();
+            (image.width(), image.height())
+        });
+        assert_eq!(dimensions, expected);
+    }
+}
+
+#[test]
 fn bound_image_resizing_reads_the_upstream_float_format_inside_instances() {
     use materialcraft_core::{OutputFormat, SizeMode};
     let (mut parent, instance) = instancing("Parent", "Resized");
@@ -1427,6 +1557,7 @@ fn bound_image_resizing_reads_the_upstream_float_format_inside_instances() {
     let mut child = Graph::new("Resized");
     child.absolute_output_size = Some([4, 4]);
     let bridge = child.add_node("input_grayscale", [0.0; 2]);
+    child.node_mut(bridge).unwrap().base.size_mode = SizeMode::RelativeToParent;
     child.node_mut(bridge).unwrap().base.format = OutputFormat::F32;
     let output = child.add_node("output", [100.0, 0.0]);
     child.connect(bridge, "output", output, "input").unwrap();
@@ -1458,6 +1589,7 @@ fn wired_input_sampling_keeps_the_source_texture_and_stores_the_direct_output() 
     let mut child = Graph::new("TwoReads");
     child.absolute_output_size = Some([4, 4]);
     let bridge = child.add_node("input_grayscale", [0.0; 2]);
+    child.node_mut(bridge).unwrap().base.size_mode = SizeMode::RelativeToParent;
     child.node_mut(bridge).unwrap().base.format = OutputFormat::F16;
     let reader = child.add_node("pixel_processor", [0.0; 2]);
     let node = child.node_mut(reader).unwrap();
@@ -1895,10 +2027,50 @@ fn cooked_parameters_retain_values_without_processor_graph_copies() {
 }
 
 #[test]
-fn enabled_generators_use_parent_size_and_seed_with_input_image_properties() {
+fn a_pattern_uses_only_its_background_for_input_relative_size_and_precision() {
+    use materialcraft_core::{OutputFormat, ParameterInheritance, SizeMode};
+
+    let mut graph = Graph::new("Pattern inputs");
+    graph.size = [5, 4];
+    graph.format = OutputFormat::U8;
+    let stamp = graph.add_node("uniform", [0.0; 2]);
+    let back = graph.add_node("uniform", [0.0; 2]);
+    for (id, size, format) in [(stamp, [6; 2], OutputFormat::F32), (back, [4, 5], OutputFormat::U16)] {
+        let base = &mut graph.node_mut(id).unwrap().base;
+        base.size_mode = SizeMode::Absolute;
+        base.size = size;
+        base.format = format;
+    }
+    let draw = graph.add_node("fx_map", [100.0, 0.0]);
+    graph.node_mut(draw).unwrap().base.format_mode = ParameterInheritance::RelativeToInput;
+    graph.connect(stamp, "output", draw, "pattern0").unwrap();
+    graph.connect(back, "output", draw, "background").unwrap();
+    let mut package = Package::new("Pattern input inheritance");
+    package.graphs.push(graph);
+    let cache = Mutex::new(Cache::default());
+    let result = |package: &Package| {
+        let cooked = cook(package, 0, &Options::new(&no_res), &cache);
+        let item = &cooked.nodes[&draw];
+        assert_eq!(item.error, None);
+        (item.base.size, item.base.format)
+    };
+    assert_eq!(result(&package), ([16, 32], OutputFormat::U16));
+    package.graphs[0].node_mut(draw).unwrap().base.size = [-1, 1];
+    assert_eq!(result(&package), ([8, 64], OutputFormat::U16));
+    assert!(package.graphs[0].disconnect(draw, "background"));
+    assert_eq!(result(&package), ([16, 32], OutputFormat::U8));
+    // Bypassing this draw still passes through the available stamp texture.
+    package.graphs[0].node_mut(draw).unwrap().disabled = true;
+    assert_eq!(result(&package), ([64, 64], OutputFormat::F32));
+}
+
+#[test]
+fn enabled_nodes_resolve_size_from_the_graph_or_their_primary_image() {
     use materialcraft_core::{BaseParameter, FunctionGraph, OutputFormat, ParameterInheritance, SizeMode, ValueType};
 
-    for (definition, port) in [("pixel_processor", "input0"), ("svg", "background"), ("fx_map", "background")] {
+    for (definition, port, size, preview) in
+        [("pixel_processor", "input0", [64_u32, 32], (16, 8)), ("svg", "background", [64, 32], (16, 8)), ("fx_map", "background", [32, 64], (8, 16))]
+    {
         for dynamic in [false, true] {
             let mut graph = Graph::new("Generator sizes");
             graph.size = [6, 5];
@@ -1922,9 +2094,9 @@ fn enabled_generators_use_parent_size_and_seed_with_input_image_properties() {
             }
             if dynamic {
                 let mut function = FunctionGraph::input("$sizelog2", ValueType::Float2);
-                let size = function.output.unwrap();
-                let parent = function.add_constant(Value::Float2([6.0, 5.0]));
-                let difference = function.add("sub", &[size, parent], None);
+                let actual = function.output.unwrap();
+                let expected = function.add_constant(Value::Float2(size.map(|axis| axis.ilog2() as f32)));
+                let difference = function.add("sub", &[actual, expected], None);
                 function.output = Some(function.add("toint2", &[difference], None));
                 graph.node_mut(generator).unwrap().base.functions.insert(BaseParameter::OutputSize, function);
             }
@@ -1939,8 +2111,8 @@ fn enabled_generators_use_parent_size_and_seed_with_input_image_properties() {
             let result = &cooked.nodes[&generator];
 
             assert_eq!(result.error, None, "{definition}");
-            assert_eq!(result.base.size, [64, 32], "{definition}, dynamic: {dynamic}");
-            assert_eq!(cooked.image(generator, 0).map(|image| (image.width(), image.height())), Some((16, 8)));
+            assert_eq!(result.base.size, size, "{definition}, dynamic: {dynamic}");
+            assert_eq!(cooked.image(generator, 0).map(|image| (image.width(), image.height())), Some(preview));
             assert_eq!(result.base.seed, 0);
             assert_eq!(result.base.format, OutputFormat::F32);
             assert_eq!(result.base.tiling, [false, true]);
@@ -1950,7 +2122,7 @@ fn enabled_generators_use_parent_size_and_seed_with_input_image_properties() {
             if !dynamic {
                 assert_eq!(
                     node_size(&package.graphs[0], materialcraft_nodes::find(definition), package.graphs[0].node(generator).unwrap(), Some((32, 64)), Some(16)),
-                    (16, 8)
+                    preview
                 );
             }
 

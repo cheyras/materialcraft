@@ -2,7 +2,7 @@
 
 use serde_json::{Value as J, json};
 
-use materialcraft_core::{Graph, MAX_SIZE_LOG2, MIN_SIZE_LOG2, NodeId, OutputFormat, Value};
+use materialcraft_core::{Graph, MAX_SIZE_LOG2, NodeId, OutputFormat, Value};
 
 use crate::commands::{CommandSpec, always, bad, boolp, has_graph, has_selection, i64p, ids_param, strp, u64p};
 use crate::{Result, Session, cmd};

@@ -17,6 +17,7 @@ use std::{
 struct BoundVariables<'a> {
     values: &'a BTreeMap<String, Value>,
     fixed: &'a [String],
+    assigned_integers: &'a [String],
 }
 
 impl GraphVariables for BoundVariables<'_> {
@@ -26,6 +27,10 @@ impl GraphVariables for BoundVariables<'_> {
 
     fn literal_inputs(&self) -> &[String] {
         self.fixed
+    }
+
+    fn assigned_integers(&self) -> &[String] {
+        self.assigned_integers
     }
 }
 
@@ -49,6 +54,8 @@ pub(crate) fn cook_node(
     options: &Options,
     input_image: Option<&Image>,
     cache: &Mutex<Cache>,
+    previous: Option<&crate::PreviewSampling>,
+    sampling: &mut crate::PreviewSampling,
 ) -> NodeResult {
     let (input_ports, output_ports) = prepared.ports(node.id);
     let definition = find(&node.def);
@@ -123,8 +130,12 @@ pub(crate) fn cook_node(
             return None;
         }
         let source = options.input_bases.get(&identifier(node))?;
-        // A bridge has its own working dimensions and precision. Its sampling properties follow the wire.
+        // Relative-to-input size follows this wire. The bridge still resolves its own storage precision.
         Some(crate::ResolvedBaseParameters {
+            size: source.size,
+            size_underflow: source.size_underflow,
+            dynamic_size: source.dynamic_size,
+            bound_size: source.bound_size,
             pixel_size: source.pixel_size,
             pixel_ratio: source.pixel_ratio,
             tiling: source.tiling,
@@ -132,8 +143,10 @@ pub(crate) fn cook_node(
             ..prepared.parent_base
         })
     });
+    let mut assigned_integers = Vec::new();
+    let mut pattern_writes = (node.def == "fx_map").then_some(&mut assigned_integers);
     let (mut base, base_values, base_error) =
-        match crate::resolved_base_parameters::evaluate(&node.base, input_base, prepared.parent_base, &mut variables, &fixed) {
+        match crate::resolved_base_parameters::evaluate(&node.base, input_base, prepared.parent_base, &mut variables, &fixed, pattern_writes.as_deref_mut()) {
             Ok((base, values)) => (base, values, None),
             Err(error) => (crate::ResolvedBaseParameters::resolve(&node.base, input_base, prepared.parent_base), BTreeMap::new(), Some(error)),
         };
@@ -188,7 +201,7 @@ pub(crate) fn cook_node(
 
     let seed = base.seed;
     let ResolvedParameters { values: mut parameters, instance_literals, dynamic_blend_opacity, bound_image_property } =
-        match resolve_parameters(package, node, definition, &mut variables, base, &fixed) {
+        match resolve_parameters(package, node, definition, &mut variables, base, &fixed, pattern_writes) {
             Ok(parameters) => parameters,
             Err(error) => return fail(error, 0),
         };
@@ -208,7 +221,7 @@ pub(crate) fn cook_node(
         variables.to_mut().insert("$pixelsize".into(), Value::Float2(base.pixel_size));
     }
     let variables = &variables;
-    let bindings = BoundVariables { values: variables, fixed: &fixed };
+    let bindings = BoundVariables { values: variables, fixed: &fixed, assigned_integers: &assigned_integers };
 
     let tile = base.tiling[0] && base.tiling[1];
 
@@ -220,7 +233,11 @@ pub(crate) fn cook_node(
             return (image.clone(), format, options.bitmap_formats.get(&name).copied(), options.base_level_inputs.contains(&name));
         }
         let bitmap = if image.integer_sampling() {
-            package.graphs.get(graph_index).and_then(|graph| graph.input_images.get(&name)).and_then(|binding| package.resource(binding))
+            package
+                .graphs
+                .get(graph_index)
+                .and_then(|graph| graph.input_images.get(&name))
+                .and_then(|binding| package.resource(binding))
                 .and_then(|resource| materialcraft_core::png_sample_format(resource.bytes.as_slice()))
         } else {
             None
@@ -228,7 +245,8 @@ pub(crate) fn cook_node(
         (image.clone(), None, bitmap, false)
     });
     let wired = options.depth != 0 && input_image.as_ref().is_some_and(|(_, upstream, _, _)| upstream.is_some());
-    let resource_hash = match parameters.get(crate::cache_key::resource_parameter(node)) {        Some(Value::Text(name)) => package.resource(name).map_or(0, |r| r.bytes.content_hash()),
+    let resource_hash = match parameters.get(crate::cache_key::resource_parameter(node)) {
+        Some(Value::Text(name)) => package.resource(name).map_or(0, |r| r.bytes.content_hash()),
         _ => 0,
     };
 
@@ -239,7 +257,7 @@ pub(crate) fn cook_node(
         0
     };
 
-    let key = hash_of(&(
+    let mut key = hash_of(&(
         &node.def,
         serde_json::to_string(&parameters).unwrap_or_default(),
         (dynamic_blend_opacity, bound_image, background_tiling),
@@ -265,6 +283,24 @@ pub(crate) fn cook_node(
         input_image.as_ref().map(|(image, upstream, bitmap, base_level)| (image_key(image, cache), upstream, bitmap, wired, base_level)),
         (variable_key(node, &parameters, &bindings), &instance_literals),
     ));
+    if options.previous_sampling.is_some() && input_image.is_some() {
+        let name = identifier(node);
+        if let Some(&upstream) = options.preview_input_keys.get(&name) {
+            key = hash_of(&(key, upstream));
+        } else if let Some(graph) = package.graphs.get(graph_index)
+            && let Some(binding) = graph.input_images.get(&name)
+        {
+            key = hash_of(&(key, binding, graph.input_images_linear.contains(&name), graph.input_images_from_file.contains(&name)));
+        }
+    }
+    let instance_input_key = key;
+    if options.previous_sampling.is_some() && !node.disabled {
+        if node.def == "graph_instance" {
+            key = sampling.reuse_instance(previous, node.id, key);
+        } else if node.def == "fx_map" && base_level_only.contains(&true) {
+            key = sampling.stamp(previous, node.id, key, &input_keys, &mut base_level_only);
+        }
+    }
     if let Some(outputs) = lock(cache).get(key) {
         inspection_parameters(node, &mut parameters);
         let base = outputs.bases.as_deref().and_then(|ports| ports.first()).copied().unwrap_or(base);
@@ -274,7 +310,7 @@ pub(crate) fn cook_node(
     let started_ms = now_ms();
     let mut output_bases: Option<Arc<[_]>> = None;
     let result: Result<Vec<NodeOutput>, String> = if node.disabled {
-        let input = if let Some(primary) = definition.and_then(|definition| definition.primary_input) {
+        let input = if let Some(primary) = definition.and_then(|definition| definition.bypass_input) {
             input_ports.iter().position(|port| port.id == primary).and_then(|index| incoming.get(index)).copied().flatten()
         } else {
             incoming.iter().find_map(|output| *output)
@@ -314,8 +350,27 @@ pub(crate) fn cook_node(
 
         Err(format!("unsupported node `{name}`"))
     } else if node.def == "graph_instance" {
-        cook_instance(package, graph_index, node, input_ports, output_ports, &incoming, &parameters, &instance_literals, base, options, cache).map(|ports| {
-            let (values, bases): (Vec<_>, Vec<_>) = ports.into_iter().unzip();
+        cook_instance(
+            package,
+            graph_index,
+            node,
+            input_ports,
+            output_ports,
+            &incoming,
+            &input_keys,
+            &parameters,
+            &instance_literals,
+            base,
+            options,
+            cache,
+            previous.and_then(|p| p.child(node.id)),
+        )
+        .map(|instance| {
+            if let Some((child, outputs)) = instance.sampling {
+                key = hash_of(&(instance_input_key, outputs));
+                sampling.record_instance(node.id, instance_input_key, key, child);
+            }
+            let (values, bases): (Vec<_>, Vec<_>) = instance.ports.into_iter().unzip();
             output_bases = Some(bases.into());
             values
         })
@@ -325,17 +380,26 @@ pub(crate) fn cook_node(
         {
             *image = filtered;
         }
-        if base.format == OutputFormat::F16 && matches!(node.def.as_str(), "blend" | "fx_map") {
-            // Blend inputs and pattern backgrounds cross a half-storage boundary when only one size is parameter-controlled.
+        let store_inputs = match base.format {
+            OutputFormat::F16 => matches!(node.def.as_str(), "blend" | "fx_map" | "levels" | "sharpen" | "blur"),
+            OutputFormat::F32 => node.def == "blur",
+            _ => false,
+        };
+        if store_inputs {
+            // When exactly one size is parameter-controlled, these filters store normalized inputs at their working precision.
             // Images stamped by a pattern keep their sampling precision.
-            for ((image, format), port) in inputs.iter_mut().zip(&input_formats).zip(input_ports) {
-                if (node.def == "blend" || port.id == "background")
+            for ((image, format), port) in inputs.iter_mut().zip(&mut input_formats).zip(input_ports) {
+                if (node.def != "fx_map" || port.id == "background")
                     && matches!(format, OutputFormat::U8 | OutputFormat::U16 | OutputFormat::Inherit)
                     && let Some(image) = image
                     && (image.width(), image.height()) == (w, h)
                     && prepared.source_base(node.id, &port.id, cooked).is_some_and(|source| source.dynamic_size != base.dynamic_size)
                 {
-                    *image = crate::output_precision::apply(image.clone(), OutputFormat::F16);
+                    *image = crate::output_precision::apply(image.clone(), base.format);
+                    if node.def == "blur" {
+                        // Fractional blur taps use the working texture's sampler.
+                        *format = base.format;
+                    }
                 }
             }
         }

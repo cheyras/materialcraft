@@ -105,6 +105,7 @@ pub(super) enum Storage {
     Full,
     FixedImage,
     Placement,
+    Geometry { terminal: bool },
     BranchTint { group: u32, size: [f32; 2] },
 }
 
@@ -171,6 +172,7 @@ pub(super) struct StampCache {
     lookups: usize,
     images: PackedStamps<5>,
     placements: PackedStamps<4>,
+    geometry: PackedStamps<8>,
 }
 
 impl StampCache {
@@ -194,7 +196,16 @@ impl StampCache {
             return Some(value.clone());
         }
         match storage {
-            Storage::Full => None,
+            Storage::Full | Storage::Geometry { terminal: false } => None,
+            Storage::Geometry { terminal: true } => {
+                let (mut properties, [bx, by, x, y, width, height, rotation, alpha]) = self.geometry.get(key)?;
+                properties.branch_offset = [bx, by];
+                properties.stamp.center = [x, y];
+                properties.stamp.size = [width, height];
+                properties.stamp.rotation = rotation;
+                properties.stamp.color[3] = alpha;
+                Some(properties)
+            }
             Storage::FixedImage => {
                 let (mut properties, [x, y, width, height, alpha]) = self.images.get(key)?;
                 properties.branch_offset = [x, y];
@@ -217,9 +228,19 @@ impl StampCache {
     }
 
     pub fn insert(&mut self, key: Key, properties: Properties, storage: Storage, streaming: bool) {
-        if streaming || matches!(storage, Storage::BranchTint { .. }) {
+        if streaming || matches!(storage, Storage::BranchTint { .. } | Storage::Geometry { terminal: true }) {
             let stamp = &properties.stamp;
+            // Both representations of analytic stamps share one byte limit. Keep sparse
+            // parents in the small table so their seed pages cannot displace dense leaves.
+            const ANALYTIC_BYTES: usize = 96 << 20;
             let stored = match storage {
+                Storage::Geometry { terminal: true } if self.lookups > Self::MAX_SLOTS * 2 => {
+                    let [bx, by] = properties.branch_offset;
+                    let [x, y] = stamp.center;
+                    let [width, height] = stamp.size;
+                    let fields = [bx, by, x, y, width, height, stamp.rotation, stamp.color[3]];
+                    self.geometry.insert(key, &properties, fields, ANALYTIC_BYTES.saturating_sub(self.placements.bytes))
+                }
                 Storage::FixedImage if self.lookups > Self::MAX_SLOTS * 2 => {
                     let [x, y] = properties.branch_offset;
                     let [width, height] = stamp.size;
@@ -227,7 +248,7 @@ impl StampCache {
                 }
                 Storage::Placement | Storage::BranchTint { .. } => {
                     let [x, y] = if matches!(storage, Storage::BranchTint { .. }) { properties.branch_offset } else { stamp.center };
-                    self.placements.insert(key, &properties, [x, y, stamp.rotation, stamp.color[3]], 96 << 20)
+                    self.placements.insert(key, &properties, [x, y, stamp.rotation, stamp.color[3]], ANALYTIC_BYTES.saturating_sub(self.geometry.bytes))
                 }
                 _ => false,
             };
@@ -270,6 +291,42 @@ mod tests {
         for (node, expected) in &cases {
             assert!(matches!(groups.storage(node), Some(Storage::BranchTint { group, .. }) if group == *expected));
         }
+    }
+
+    #[test]
+    fn streamed_geometry_keeps_each_translation_and_seed_dependent_field() {
+        let mut cache = StampCache { lookups: StampCache::MAX_SLOTS * 2 + 1, ..Default::default() };
+        let first = Key { node: 17, depth: 9, seed: 0x5611 };
+        let second = Key { seed: first.seed | (7 << 16), ..first };
+        let make = |v: f32| Properties {
+            branch_offset: [v, -v],
+            stamp: PatternStamp {
+                center: [-2.0 * v, 2.0 * v],
+                size: [v + 0.5, v + 0.75],
+                rotation: -0.25 * v,
+                literal_geometry: false,
+                color: [1.0, 1.0, 1.0, v + 0.125],
+                depth: 9,
+                pattern: 3,
+                variation: 0.25,
+                blend: 0,
+                filtering: 0,
+                premultiplied: false,
+            },
+        };
+        let storage = Storage::Geometry { terminal: true };
+        for (key, v) in [(first, 0.125), (second, 0.375)] {
+            cache.insert(key, make(v), storage, true);
+        }
+        for (key, v) in [(second, 0.375), (first, 0.125)] {
+            let a = cache.get(key, storage).unwrap();
+            let b = make(v);
+            assert_eq!(a.branch_offset, b.branch_offset);
+            assert_eq!((a.stamp.center, a.stamp.size, a.stamp.rotation, a.stamp.color), (b.stamp.center, b.stamp.size, b.stamp.rotation, b.stamp.color));
+            assert_eq!((a.stamp.depth, a.stamp.pattern, a.stamp.variation), (9, 3, 0.25));
+        }
+        assert!(cache.get(Key { depth: 8, ..first }, storage).is_none());
+        assert!(cache.get(Key { seed: first.seed | (1 << 24), ..first }, storage).is_none());
     }
 
     #[test]

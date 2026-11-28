@@ -13,8 +13,43 @@ pub(crate) struct FunctionCall {
     pub(super) assigned_products: Vec<super::assigned_product::Binding>,
     pub(super) reciprocals: Option<Box<super::reciprocal::CallFactors>>,
     pub(super) pattern_arguments: Option<PatternArguments>,
+    pub(super) pattern_access: PatternAccess,
     /// The called graph sets variables, directly or in a graph it calls; the caller reads them after the call
     pub exports: bool,
+}
+
+/// Which state an inlined pattern function needs in addition to its arguments.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum PatternAccess {
+    Arguments,
+    Random,
+    Context,
+}
+
+impl PatternAccess {
+    pub(super) fn identify(program: &Program, defaults: &BTreeMap<String, Value>) -> Self {
+        let mut access = Self::Arguments;
+        for op in &program.instructions {
+            let id = op.definition.id;
+            let reads = if let Some(call) = &op.call {
+                call.pattern_access
+            } else if id == "rand" {
+                Self::Random
+            } else if id.starts_with("get_") || id == "isdefined" {
+                if matches!(&op.value, Some(Value::Text(name)) if defaults.contains_key(name)) { Self::Arguments } else { Self::Context }
+            } else if id.starts_with("const_") || op.depends_only_on_operands() {
+                Self::Arguments
+            } else {
+                Self::Context
+            };
+            match reads {
+                Self::Context => return Self::Context,
+                Self::Random => access = Self::Random,
+                Self::Arguments => {}
+            }
+        }
+        access
+    }
 }
 
 /// First uses of scalar arguments in a straight-line pattern function, including directly returned channels.
@@ -27,6 +62,7 @@ pub(super) struct PatternArguments {
 pub(super) enum PatternTarget {
     Arguments(Vec<usize>),
     ReturnedChannels,
+    PackedArgument { width: usize, lanes: [Option<usize>; 4] },
 }
 
 impl PatternArguments {
@@ -79,6 +115,72 @@ impl PatternArguments {
 }
 
 impl FunctionCall {
+    /// A straight-line function can read the components of a packed argument in a
+    /// different order from the pack. Repeated reads use the first draw for that lane.
+    pub(super) fn packed_arithmetic(&self, registers: &[usize], sources: &[[Option<super::vector::PatternComponent>; 4]]) -> Option<PatternArguments> {
+        use super::returned_product::{float_width, forwarded};
+        use super::vector::PatternComponent;
+
+        let ([name], &[input]) = (self.inputs.as_slice(), registers) else { return None };
+        let width = float_width(super::value_type::type_code(self.defaults.get(name)?));
+        if width < 2 || name.starts_with('$') || self.pattern_access != PatternAccess::Arguments {
+            return None;
+        }
+        let supplied = sources.get(input)?;
+        if supplied[..width].iter().all(Option::is_none) {
+            return None;
+        }
+        let instructions = self.program.instructions.get(..=self.program.output)?;
+        let mut origins = Vec::with_capacity(instructions.len());
+        for op in instructions {
+            let lanes = match (op.definition.id, &op.value) {
+                ("get_float2" | "get_float3" | "get_float4", Some(Value::Text(read))) if read == name && float_width(op.type_code) == width => {
+                    std::array::from_fn(|i| (i < width).then_some(PatternComponent::Register(i)))
+                }
+                ("ifelse" | "sequence", _) => return None,
+                (id, _) if id.starts_with("const_") || op.depends_only_on_operands() => {
+                    forwarded(op, instructions, &origins, Some(PatternComponent::Zero)).unwrap_or([None; 4])
+                }
+                _ => return None,
+            };
+            origins.push(lanes);
+        }
+
+        let mut pending = vec![self.program.output];
+        let mut visited = vec![false; instructions.len()];
+        let mut lanes = [None; 4];
+        let mut reads = Vec::new();
+        while let Some(index) = pending.pop() {
+            if std::mem::replace(visited.get_mut(index)?, true) {
+                continue;
+            }
+            let op = instructions.get(index)?;
+            let selected = origins.get(index)?.get(..float_width(op.type_code))?;
+            if selected.is_empty() || selected.iter().any(Option::is_none) {
+                pending.extend(op.inputs.iter().rev().copied());
+                continue;
+            }
+            for &origin in selected.iter().flatten() {
+                let PatternComponent::Register(lane) = origin else { continue };
+                let entry = lanes.get_mut(lane)?;
+                if entry.is_none() {
+                    match supplied.get(lane)? {
+                        Some(PatternComponent::Register(source)) => {
+                            *entry = Some(reads.len());
+                            reads.push(*source);
+                        }
+                        Some(PatternComponent::Zero) => {}
+                        None => return None,
+                    }
+                }
+            }
+        }
+        if lanes[..width].iter().copied().eq((0..width).map(Some)) {
+            return None;
+        }
+        Some(PatternArguments { registers: reads, target: PatternTarget::PackedArgument { width, lanes }, channels: [None; 4] })
+    }
+
     /// A function made entirely of argument reads, vector packs and swizzles can return
     /// caller components directly. Sampling one of its return channels then stays lazy.
     pub(super) fn packed_projection(&self, registers: &[usize], sources: &[[Option<super::vector::PatternComponent>; 4]]) -> Option<PatternArguments> {
@@ -94,7 +196,7 @@ impl FunctionCall {
                     }
                     let slot = self.inputs.iter().position(|input| input == name)?;
                     sources.get(*registers.get(slot)?)?.map(|component| match component {
-                        Some(super::vector::PatternComponent::Scalar(register)) => Some(register),
+                        Some(super::vector::PatternComponent::Register(register)) => Some(register),
                         _ => None,
                     })
                 }
@@ -119,6 +221,21 @@ pub(super) fn pack_scalars(values: &[Value]) -> Result<Value, String> {
         *channel = *component;
     }
     super::value_type::intermediate_float_value(channels)
+}
+
+impl PatternTarget {
+    pub(super) fn packed_argument(&self, values: &[Value]) -> Result<Option<Value>, String> {
+        let Self::PackedArgument { width, lanes } = self else { return Ok(None) };
+        let mut channels = [0.0; 4];
+        let channels = channels.get_mut(..*width).ok_or("invalid packed argument width")?;
+        for (channel, source) in channels.iter_mut().zip(lanes) {
+            if let Some(index) = source {
+                let Some(Value::Float(value)) = values.get(*index) else { return Err("expected a scalar argument component".into()) };
+                *channel = *value;
+            }
+        }
+        super::value_type::intermediate_float_value(channels).map(Some)
+    }
 }
 
 /// Wire presence is local to a call. Free variables can be defined by an executed Set in a caller.

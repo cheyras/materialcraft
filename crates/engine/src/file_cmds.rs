@@ -179,13 +179,13 @@ pub fn open_bytes(session: &mut Session, bytes: &[u8], name: Option<String>) -> 
 }
 
 pub fn open_bytes_linked(session: &mut Session, bytes: &[u8], name: Option<String>, linked: &dyn Fn(&str) -> Option<Vec<u8>>) -> Result<()> {
-    open_resolved(session, bytes, name, linked, crate::linked_files::load)
+    open_resolved(session, bytes, name, linked, Session::load_file_links)
 }
 
 /// Resolve every external graph and its assets through the caller's read capability.
 pub fn open_bytes_scoped(session: &mut Session, bytes: &[u8], path: &str, read: &dyn Fn(&str) -> Option<Vec<u8>>) -> Result<()> {
     let assets = |reference: &str| read(&crate::document_path::resolve(path, reference));
-    open_resolved(session, bytes, Some(path.into()), &assets, |pkg| crate::linked_files::load_scoped(pkg, read))
+    open_resolved(session, bytes, Some(path.into()), &assets, |_, pkg| crate::linked_files::load_scoped(pkg, read))
 }
 
 fn open_resolved(
@@ -193,7 +193,7 @@ fn open_resolved(
     bytes: &[u8],
     name: Option<String>,
     linked: &dyn Fn(&str) -> Option<Vec<u8>>,
-    load: impl FnOnce(&mut Package) -> Vec<String>,
+    load: impl FnOnce(&mut Session, &mut Package) -> Vec<String>,
 ) -> Result<()> {
     let name = name.map(|path| crate::document_path::normalize(&path));
     if let Some(name) = &name
@@ -214,7 +214,7 @@ fn open_resolved(
     for (path, source) in &session.pkg.dependencies {
         read.pkg.dependencies.entry(path.clone()).or_insert_with(|| source.clone());
     }
-    let link_warnings = load(&mut read.pkg);
+    let link_warnings = load(session, &mut read.pkg);
     let (path, recovery_origin) = if read.warnings.is_empty() { (name, None) } else { (None, name) };
     read.warnings.extend(link_warnings);
     session.open_package(read.pkg, path)?;
@@ -263,13 +263,18 @@ fn package_for_save(session: &Session, path: Option<&str>) -> Package {
             }
         }
 
+        let in_place = session.path.as_deref().is_some_and(|current| current == path || current == crate::document_path::normalize(path));
         let mut packages = std::collections::BTreeMap::new();
         for instance in package.graphs.iter_mut().flat_map(|graph| graph.instances_mut()) {
-            if !instance.package.is_empty() {
-                let source = std::mem::take(&mut instance.package);
-                let reference = packages.entry(source).or_insert_with_key(|source| package_reference(session, path, source));
-                instance.package.clone_from(reference);
+            // Catalog links follow the selected library even when the caller is saved inside it.
+            if instance.package.is_empty() || (in_place && instance.package.starts_with("sbs://")) {
+                continue;
             }
+            let source = std::mem::take(&mut instance.package);
+            let reference = packages
+                .entry(source)
+                .or_insert_with_key(|source| if in_place { crate::document_path::relative(path, source) } else { package_reference(session, path, source) });
+            instance.package.clone_from(reference);
         }
     }
     package
@@ -427,7 +432,7 @@ pub(crate) fn save_to_path(s: &mut Session, path: &str) -> Result<J> {
 
     let bytes = write_package_at(s, &path)?;
     s.path = Some(path.clone());
-    s.refresh_links();
+    s.refresh_saved_links(&path);
     s.modified = false;
     Ok(json!({"path": path, "bytes": bytes}))
 }

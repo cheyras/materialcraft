@@ -69,7 +69,7 @@ impl SystemVariable {
     pub fn available_in(self, scope: FunctionScope) -> bool {
         match self {
             Self::Position => !matches!(scope, FunctionScope::Node | FunctionScope::RandomSeed),
-            Self::Depth | Self::DepthPow2 | Self::Number => matches!(scope, FunctionScope::ValueProcessor | FunctionScope::FxMap),
+            Self::Depth | Self::DepthPow2 | Self::Number => scope == FunctionScope::ValueProcessor || scope.is_pattern(),
             _ => true,
         }
     }

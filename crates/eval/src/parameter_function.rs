@@ -25,6 +25,7 @@ pub(crate) fn evaluate(
     size: [u32; 2],
     mode: ParameterMode,
     fallback: Option<&Value>,
+    assigned_integers: Option<&mut Vec<String>>,
 ) -> Result<(Value, bool), String> {
     let widened = expected == ValueType::Float4 && [ValueType::Float as u32, ValueType::Float3 as u32].contains(&program.output_type());
     if program.output_type() != expected as u32 && !widened {
@@ -67,6 +68,13 @@ pub(crate) fn evaluate(
         ParameterMode::UniformColor => program.uses_fixed_uniform_color(variables),
         _ => program.output_is_literal(),
     };
+    if let Some(names) = assigned_integers {
+        for (name, value) in state.assignments() {
+            if matches!(value, Value::Int(_)) && !names.contains(name) {
+                names.push(name.clone());
+            }
+        }
+    }
     variables.extend(state.assignments().clone());
     Ok((value, fixed))
 }

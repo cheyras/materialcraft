@@ -6,7 +6,7 @@ pub(super) fn definition() -> NodeDefinition {
     node("fx_map", "FX-Map", ATOMIC)
         .desc("Places patterns using Quadrant, Switch and Iterate nodes.")
         .atomic()
-        .generator()
+        .inherit_from("background")
         .any_in("background", "Background")
         .any_in("pattern0", "Input image 0")
         .pattern_graph("pattern", "FX-Map graph", PatternGraph::with_root(PatternNodeKind::Quadrant))

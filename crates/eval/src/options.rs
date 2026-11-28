@@ -4,6 +4,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::sync::atomic::AtomicBool;
 
 /// What to cook and how
+#[derive(Clone)]
 pub struct Options<'a> {
     pub environment: materialcraft_core::EvaluationEnvironment,
     pub parent_tiling: Option<[bool; 2]>,
@@ -21,6 +22,9 @@ pub struct Options<'a> {
     pub input_bases: BTreeMap<String, crate::ResolvedBaseParameters>,
     /// Caller textures which have only their base level when passed through an instance.
     pub base_level_inputs: BTreeSet<String>,
+    /// Previously accepted samples for this editor graph. Full cooks start without editor state.
+    pub previous_sampling: Option<&'a crate::PreviewSampling>,
+    pub(crate) preview_input_keys: BTreeMap<String, u64>,
     /// Original storage of decoded external files. Wired graph inputs use their upstream format.
     pub bitmap_formats: BTreeMap<String, OutputFormat>,
     /// Values for the graph's exposed parameters (graph instances), over the graph's own
@@ -52,6 +56,8 @@ impl<'a> Options<'a> {
             input_formats: BTreeMap::new(),
             input_bases: BTreeMap::new(),
             base_level_inputs: BTreeSet::new(),
+            previous_sampling: None,
+            preview_input_keys: BTreeMap::new(),
             bitmap_formats: BTreeMap::new(),
             overrides: BTreeMap::new(),
             literal_inputs: Vec::new(),

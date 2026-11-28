@@ -1,8 +1,16 @@
 # MaterialCraft parity fixes
 
-Rolling record of fixes made while working through the [SBS root-node inventory](sbs-root-nodes.md).
-Parity means exact pixel or typed-value agreement for recorded cases; pending validation is stated explicitly.
-The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These measured cases do not establish complete functional parity.
+This record follows the [SBS root-node inventory](sbs-root-nodes.md). The first pass classified 166 of 546 roots as Parity and 380 as Too hard. The inventory gives the current status of each root.
+
+## Comparison method and provenance
+
+MaterialCraft's clean-room evaluator is written independently in Rust. The directional-noise comparisons use configured SBS graphs and original procedural test patterns. Each application renders the specified graph, size, seed, parameters and output format. For bitmaps, a pixel counts as exact when its raw channel values match at the reported precision. Maximum error is the largest absolute channel difference, in storage levels for integer formats. Value graphs are compared at their declared type. The tables identify original renders, saved-file reopens and processor counts where those differ.
+
+An intermediate image is a graph node's output. Some tests expose that node as an additional graph output. An instrumented MaterialCraft build can record individual additions, cache hits and work counts in its own evaluator. The reported reference values come from rendered outputs or the exposed properties named in the test. The draw-order tests compare candidate addition sequences with marker pixels from repeated renders. Several sequences can produce the same stored value. The [paired-square regression](../crates/nodes/src/pattern/tests/paired_batches.rs) constructs the pattern graph and generates its input image in Rust.
+
+The project records the source and license of bundled graphs and resources in its [asset attribution](../ATTRIBUTION.md).
+
+## Initial fixes
 
 - **2026-11-13 — SBS swizzle defaults (orientation corrected):** Removed the importer's zero-channel overrides for omitted two-, three-, and four-component float/integer swizzle settings. Imports now use the existing identity-channel defaults from the function catalog. The first affected node, `3d_gradient.sbs/3d_linear_gradient`, previously repeated X instead of preserving XYZ, producing a horizontal gradient instead of the reference diagonal gradient. Compared both point-position modes with generated position maps at 256 and 512 pixels. Remaining float differences are recorded below; full node parity is not claimed.
 - **2026-11-13 — Filtered function sampling (integer probes exact):** Added cooked-image storage precision to function samplers. Bilinear reads use eight fractional bits for filter weights. Normalized integer textures return 16-bit filtered values (including 8-bit sources); floating-point textures retain floating-point values. Input bridges retain the integer/floating-point distinction, and cache keys include it. Direct reference measurements on a generated position ramp showed a 16-bit half-step rounding to the next integer, explaining the remaining UV-gradient offset after the swizzle fix. All six measured integer-source sampler cases match all 65,536 float pixels exactly. Two of three floating-source cases are exact; one differs by 5.96e-8. Full-gradient rounding differences remain below.
@@ -57,7 +65,1702 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 - **2026-11-13 - Unconnected output images:** Unconnected output bridges now produce transparent RGBA instead of grayscale. The importer separately retains each output's declared image type so saving an unconnected output preserves the graph interface. Both material templates match all 1,179,648 RGBA8 pixels across six recorded cases. All 2,560 direct grayscale/color declaration probe pixels also match, and both declared image types survive save/reload.
 
+## 2026-11-28 root comparisons
+
+### All Directional Noise 2 v2 settings after the modulo correction
+
+The release build at `65998c9` rendered all 60 original settings and all 12 archived reopens. Every local archived reopen reproduced its original stored pixels. [Settings, seeds and original file routes](#whole-images-for-sixty-directional-noise-2-v2-settings) · [Independent operator probes and five fresh file reopens](#floating-point-modulo-at-a-rounded-period)
+
+| Stored pixels | U8 exact · max | U16 exact · max | F16 exact · max | F32 exact · max |
+|---|---:|---:|---:|---:|
+| Earlier originals, one | 137,470/137,472 · 1 | 251,405/251,648 · 581 | 90,362/90,368 · 0.005859375 | 140,000/254,976 · 0.00887396932 |
+| Current originals, one | 137,471/137,472 · 1 | 251,423/251,648 · 1 | 90,365/90,368 · 0.000122070312 | 140,008/254,976 · 2.98023224e-07 |
+| Earlier originals, eight | 137,471/137,472 · 1 | 251,458/251,648 · 581 | 90,356/90,368 · 0.005859375 | 153,037/254,976 · 0.00887396932 |
+| Current originals, eight | 137,472/137,472 · 0 | 251,477/251,648 · 1 | 90,359/90,368 · 0.000244140625 | 153,050/254,976 · 2.98023224e-07 |
+| One reference compared with eight | 137,471/137,472 · 1 | 251,404/251,648 · 1 | 90,356/90,368 · 0.000244140625 | 126,510/254,976 · 3.57627869e-07 |
+| Current archived reopens, one | 30,720/30,720 · 0 | 6,395/6,400 · 1 | 1,024/1,024 · 0 | 45,326/84,992 · 2.98023224e-07 |
+
+A whole image matches when every stored pixel matches. The two reference captures use identical graph parameters.
+
+| Entire images matched | U8 | U16 | F16 | F32 |
+|---|---:|---:|---:|---:|
+| Current against one | 11/12 | 1/17 | 8/10 | 0/21 |
+| Current against eight | 12/12 | 2/17 | 8/10 | 0/21 |
+| One reference against eight | 11/12 | 1/17 | 8/10 | 0/21 |
+| Archived reopen against one | 4/4 | 1/3 | 1/1 | 0/4 |
+
+Across all storage formats, 20/60 complete original images match on one processor and 22/60 on eight. The reference outputs differ from each other in 40/60 settings. Directional Noise 2 v2 remains in progress.
+
+### Seeded placement in the remaining Directional Noise 3 rectangles
+
+The shared FX-Map evaluator now binds pure grayscale frame offsets, rotations and luminosities for eligible drawing quadrants. It evaluates each random stream at its original property and charges the arithmetic that runs. A drawing function with unsupported instructions or a mutable input uses the ordinary evaluator. The visit, property-work, raster and cache ceilings still apply. The 64 × 16 and 64 × 32 settings previously exhausted the property budget in F32. Their sixteen and eighteen emitted trees have 6,275,400 and 6,785,426 distinct node, depth and seed combinations. [Earlier eight recoveries and seed-count method](#drawing-parents-and-terminal-children-in-directional-noise-3)
+
+Open Directional Noise 3 with default tiling and grayscale output. At 64 × 16 use seed 42, scale 2, disorder .03125, angle −.21875 and angle random .03125. At 64 × 32 use seed 195031, scale 3, disorder .34375, angle .09375 and angle random .34375. Enable non-square expansion for both. Keep the other defaults, set each output storage on the Levels node feeding the output, save normally, then open the configured file in both applications. Count whole stored pixels. The integer maxima are storage levels.
+
+| Size | Storage | Original on one · max | Original on eight · max | Fresh reopen on one · max | Fresh reopen on eight · max |
+|---|---|---:|---:|---:|---:|
+| 64 × 16 | U8 | 1,024/1,024 · 0 | 1,024/1,024 · 0 | 1,024/1,024 · 0 | 1,024/1,024 · 0 |
+| 64 × 16 | U16 | 1,021/1,024 · 2 | 1,022/1,024 · 2 | 1,023/1,024 · 2 | 1,023/1,024 · 2 |
+| 64 × 16 | F16 | 1,024/1,024 · 0 | 1,024/1,024 · 0 | 1,024/1,024 · 0 | 1,024/1,024 · 0 |
+| 64 × 16 | F32 | 1,023/1,024 · 2.46167183e-05 | 1,022/1,024 · 2.65836716e-05 | 1,022/1,024 · 2.46167183e-05 | 1,022/1,024 · 2.46167183e-05 |
+| 64 × 32 | U8 | 2,048/2,048 · 0 | 2,048/2,048 · 0 | 2,048/2,048 · 0 | 2,048/2,048 · 0 |
+| 64 × 32 | U16 | 2,041/2,048 · 2 | 2,043/2,048 · 2 | 2,040/2,048 · 2 | 2,040/2,048 · 2 |
+| 64 × 32 | F16 | 2,048/2,048 · 0 | 2,047/2,048 · 0.000244140625 | 2,048/2,048 · 0 | 2,048/2,048 · 0 |
+| 64 × 32 | F32 | 2,041/2,048 · 2.90572643e-05 | 2,044/2,048 · 2.48551369e-05 | 2,040/2,048 · 2.65538692e-05 | 2,040/2,048 · 2.65538692e-05 |
+
+All eight fresh reopens preserve the 12,288 original local pixels. At 64 × 16 the archived F16 reopen matches 1,024/1,024 · 0 on one processor. At 64 × 32 the archived U8 reopen matches 2,048/2,048 · 0. Both local archived buffers also reproduce the original.
+
+The cumulative table combines the eight current originals with the 52 previously compared originals and the two current archived reopens with the earlier ten. Each of the 60 settings has now rendered. [Full panel and earlier per-format coverage](#rectangular-and-additional-seed-coverage-in-directional-noise-3)
+
+| Recorded panel | Entire images exact | U8 pixels · max | U16 pixels · max | F16 pixels · max | F32 pixels · max |
+|---|---:|---:|---:|---:|---:|
+| Original on one | 20/60 | 88,320/88,320 · 0 | 299,978/300,800 · 3 | 90,354/90,368 · 0.00048828125 | 254,265/254,976 · 4.7326088e-05 |
+| Original on eight | 21/60 | 88,319/88,320 · 1 | 300,016/300,800 · 3 | 90,353/90,368 · 0.00048828125 | 254,391/254,976 · 4.7326088e-05 |
+| Archived reopen on one | 5/12 | 14,336/14,336 · 0 | 22,733/22,784 · 2 | 1,024/1,024 · 0 | 84,783/84,992 · 4.7326088e-05 |
+
+For an independent control, connect four outer by 24 inner iterations to a wave quadrant. Add four connections to a second wave quadrant in the child variant. Use maximum blending, zero roughness, unit opacity scale and size (.1875,.375). Use a uniform random luminosity up to 1, two independent uniform random offsets up to .75 plus (−.3125,−.40625), and rotation .125 plus a uniform draw up to .25 turns. Compare both graphs at 16² seed 0 and 32 × 16 seed 42, in U8, U16, F16 and F32. All 16 originals and their 16 configured ordinary saves each give **6,144/6,144 · 0** on one and eight processors. The earlier evaluator also matches all 16 originals.
+
+Two earlier complete F32 outputs retain every local word. Against one and eight processors, the 16² default controls at seed 103852 give 256/256 · 0. At 32², seed 103854, scale 1, disorder .3125, angle .15625, angle random .21875 and non-square expansion off, the counts are 1,020/1,024 and 1,021/1,024 with maximum .0000265836716 on both. The remaining worker-dependent and local pixel differences keep this root in progress.
+
+The release regression follows seven empty quadrants with four outer by 24 inner iterations. A square parent connects all four slots to a second square with the same seeded properties. With a visit limit of 80 the bound properties reproduce every 4 × 4 output word from an ordinary calculation with limit 4,096. The earlier evaluator exhausts the limit at 80. The bound fixture still exhausts a limit of 32. All 515 release node tests passed, as did formatting, strict workspace Clippy, crate layering and WebAssembly checks.
+
+For the three remaining comparisons below, capture the original four times on each processor count and one fresh ordinary reopen on each. Count a pixel as stable only when all ten reference words agree. The final column includes pixels where the local word appeared in any of the ten captures.
+
+| Size | Storage | Stable words matched · total stable | Local word observed · all pixels |
+|---|---|---:|---:|
+| 64 × 16 | F32 | 1,020/1,021 | 1,023/1,024 |
+| 64 × 32 | U16 | 2,032/2,032 | 2,048/2,048 |
+| 64 × 32 | F32 | 2,033/2,033 | 2,048/2,048 |
+
+At (19,14) in the 64 × 16 F32 output, all ten reference captures read .5435265899 and MaterialCraft reads .5435512066. This is the only local word absent from the ten captures for this image. At 64 × 32 every local F32 and U16 word appears at the same coordinate in at least one of the ten returns.
+
+On a separate copy of the configured 64 × 16 graph, add output bridges to the three FX-Maps and both blends. Keep all existing connections, properties, output formats and the original Levels output. Both reference processor counts returned identical images for all six outputs. The local Levels output reproduced its original F32 buffer. At (19,14) the first difference appears in the third FX-Map.
+
+| Output in evaluation order | Dimensions and storage | Exact on one or eight · max | Local value | Reference value |
+|---|---|---:|---:|---:|
+| First FX-Map | 8 × 2 U16 | 16/16 · 0 | 32621 | 32621 |
+| Second FX-Map | 16 × 4 U16 | 64/64 · 0 | 11019 | 11019 |
+| First Blend | 64 × 16 U16 | 1,024/1,024 · 0 | 28376 | 28376 |
+| Third FX-Map | 64 × 16 U16 | 1,023/1,024 · 1 | 20789 | 20788 |
+| Second Blend | 64 × 16 U16 | 1,023/1,024 · 1 | 39704 | 39703 |
+| Levels | 64 × 16 F32 | 1,023/1,024 · 2.46167183e-05 | 0.5435512066 | 0.5435265899 |
+
+For the 8 × 2 and 16 × 4 sources, the listed values come from the pixel containing the same normalized position, (2,1) and (4,3) respectively.
+
+### An additive wave at a 16-bit storage boundary
+
+Use the 64 × 16 Directional Noise 3 setting with seed 42 and the 64 × 32 setting with seed 195031. For each selected format, collect four original renders on one processor and four on eight, then reopen an ordinary save on each processor count. At 64 × 32 every local U16 and F32 word occurs in at least one of the ten corresponding reference returns. At 64 × 16 in F32, one local value falls outside all ten returns. At (19, 14) MaterialCraft gives .5435512066 and all ten reference returns give .5435265899. [Full settings and file routes](#seeded-placement-in-the-remaining-directional-noise-3-rectangles)
+
+Add outputs to the three wave patterns and the two blends in the configured 64 × 16 graph. Keep the original normalization and storage. The first two patterns match all 16 and 64 U16 pixels, and the first blend matches all 1,024. The third pattern gives 20,789 at (19, 14) in MaterialCraft and 20,788 in both reference captures. The second blend carries that difference to 39,704 and 39,703. The final Levels output retains the measured F32 difference.
+
+Set only the third pattern to F32 and read the draws before integer storage. Compare the original additive setting with maximum blending on its wave quadrants. Both processor counts give the following whole-image comparisons.
+
+| Output at 64 × 16 | Additive exact · max | Maximum blending exact · max |
+|---|---:|---:|
+| Third pattern | 326/1,024 · 1.78813934e-07 | 1,024/1,024 · 0 |
+| Following blend | 627/1,024 · 1.78813934e-07 | 1,024/1,024 · 0 |
+| Levels | 637/1,024 · 3.57627869e-07 | 1,024/1,024 · 0 |
+
+At (19, 14) the additive pattern gives .317213088274 in MaterialCraft and .317212998867 in both reference captures. Flooring these values at 20 fractional bits gives 332,622 and 332,621. Converting each application’s F32 values through the normalized U16 store reproduces its own **1,024/1,024** original U16 words. The difference is already present in the floating-point sum.
+
+Connect the third pattern directly to the output, keeping its graph settings, and cap only the outer iteration count. Both reference processor counts agree on every pixel of each reduced case.
+
+| Emitted trees | F32 exact · maximum |
+|---:|---:|
+| 1 | 959/1,024 · 1.1920929e-07 |
+| 2 | 952/1,024 · 1.1920929e-07 |
+| 4 | 911/1,024 · 2.68220901e-07 |
+| 8 | 764/1,024 · 1.78813934e-07 |
+
+Keep one emitted tree and follow quadrant slots 1, 0, 1 to the next fork. All four child subtrees measured individually match 1,024/1,024. All sixteen grandchildren also match individually, **16,384/16,384**. With two child slots connected, the six pairs together give **6,137/6,144 · 3.7252903e-09**. With three connected, the four combinations give **4,089/4,096 · 7.4505806e-09**. Both processor counts give these results.
+
+Replaying each child’s measured contributions as a contiguous group fails to reproduce the reference in four of six pairs and three of four triples, even after trying every child order. Grouping the individual MaterialCraft stamp contributions one level deeper gives six candidate orders that each reproduce all 16 affected positions in every pair. These settings narrow the draw-order discrepancy. Directional Noise 3 remains in progress.
+
+### All sixty settings in Directional Noise 3 v2
+
+The same release at `ffd0927` rendered all 60 original settings and all 12 archived file reopens. The earlier complete sweep produced eleven originals and two archived reopens. Every current local archived reopen reproduces the corresponding original stored pixels. The six additional configured files preserve their sizes, seeds and parameters on ordinary Save. [Six configured reopens](#three-larger-rectangles-in-directional-noise-3-v2) · [Independent half-precision and rectangular controls](#seven-tiled-half-precision-settings-in-directional-noise-3-v2)
+
+| Comparison | U8 exact · max | U16 exact · max | F16 exact · max | F32 exact · max | Whole images |
+|---|---:|---:|---:|---:|---:|
+| Original, one | 137,470/137,472 · 2 | 251,645/251,648 · 446 | 90,366/90,368 · 0.0068359375 | 254,975/254,976 · 0.00680267811 | 52/60 |
+| Original, eight | 137,470/137,472 · 2 | 251,647/251,648 · 446 | 90,366/90,368 · 0.0068359375 | 254,975/254,976 · 0.00680267811 | 54/60 |
+| One reference against eight | 137,472/137,472 · 0 | 251,646/251,648 · 446 | 90,368/90,368 · 0 | 254,976/254,976 · 0 | 58/60 |
+| Archived reopen, one | 30,720/30,720 · 0 | 6,400/6,400 · 0 | 1,024/1,024 · 0 | 84,991/84,992 · 0.00652578473 | 11/12 |
+
+A whole image counts when every stored pixel is exact. Integer errors are storage levels. For F16 and F32 the maximum is the largest absolute difference between stored values.
+
+| Images exact by precision | U8 | U16 | F16 | F32 |
+|---|---:|---:|---:|---:|
+| Original, one | 10/12 | 14/17 | 8/10 | 20/21 |
+| Original, eight | 10/12 | 16/17 | 8/10 | 20/21 |
+| One reference against eight | 12/12 | 15/17 | 10/10 | 21/21 |
+| Archived reopen, one | 4/4 | 3/3 | 1/1 | 3/4 |
+
+<details>
+<summary>Original settings and archived file routes</summary>
+
+Use the authored tiling and set the grayscale storage on the final Levels node. The control values are scale, disorder, disorder speed, anisotropy, anisotropy angle, angle, angle randomness, tile offset and non-square expansion. A dash keeps the default. Angles use turns. On the archived route open the saved package and then apply the setting.
+
+| Size | Seed | Control values | Original storage | Archived reopen |
+|---|---:|---|---|---|
+| 128² | 0 | Defaults | U8 | U8 |
+| 256² | 0 | Defaults | U8, U16, F16, F32 | — |
+| 128² | 42 | Defaults | U8 | — |
+| 128² | 0 | 2, 0.37, 0.6, 0.3, 0.125, 0.125, 0.2, (0.17, 0.29), — | U8 | — |
+| 32² | 113 | 2, 0.37, 0.6, 0.3, 0.125, 0.125, 0.2, (0.17, 0.29), — | F32 | — |
+| 64² | 42 | 2, 0.37, 0.6, 0.3, 0.125, 0.125, 0.2, (0.17, 0.29), — | U8, U16, F16, F32 | U8 |
+| 16² | 103865 | Defaults | F32 | — |
+| 32² | 103866 | 1, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, (0.0, 0.0), on | F32 | F32 |
+| 32² | 103867 | 1, 0.3125, 0.6875, 0.25, 0.3125, 0.15625, 0.21875, (0.125, −0.1875), off | U8, U16, F16, F32 | — |
+| 64 × 32 | 103871 | 2, 0.6875, 1.4375, 0.625, −0.21875, −0.21875, 0.40625, (−0.3125, 0.4375), on | F32 | F32 |
+| 32 × 64 | 103872 | 1, 0.3125, 0.6875, 0.25, 0.3125, 0.15625, 0.21875, (0.125, −0.1875), off | U16 | — |
+| 32² | 103873 | 3, 0.125, 0.875, 0.125, 0.15625, 0.375, 0.03125, (−0.0625, 0.125), off | F32 | — |
+| 64 × 32 | 103874 | 1, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, (0.0, 0.0), on | F16 | — |
+| 16² | 0 | Defaults | U8, U16, F16, F32 | U16 |
+| 64 × 16 | 42 | 2, 0.03125, 0.03125, 0.03125, −0.21875, −0.21875, 0.03125, (−0.3125, 0.37890625), on | U8, U16, F16, F32 | F16 |
+| 16 × 64 | 411643 | 1, 0.875, 0.875, 0.875, 0.625, 0.625, 0.875, (0.53125, −0.359375), off | U16, F32 | — |
+| 64² | 411704 | 3, 0.34375, 0.34375, 0.34375, 0.09375, 0.09375, 0.34375, (0.0, 0.10546875), on | U8, U16, F16, F32 | U16 |
+| 128 × 64 | 411765 | 2, 0.96875, 0.96875, 0.96875, 0.71875, 0.71875, 0.96875, (0.625, −0.44140625), off | U16, F32 | — |
+| 64 × 128 | 411826 | 1, 0.1875, 0.1875, 0.1875, −0.0625, −0.0625, 0.1875, (−0.15625, 0.2421875), on | U8, U16, F16, F32 | U8 |
+| 128² | 411887 | 3, 0.65625, 0.65625, 0.65625, 0.40625, 0.40625, 0.65625, (0.3125, −0.16796875), off | U16, F32 | F32 |
+| 128 × 512 | 412009 | 2, 0.53125, 0.53125, 0.53125, 0.28125, 0.28125, 0.53125, (0.1875, −0.05859375), off | U16, F32 | F32 |
+| 512 × 128 | 412070 | 1, 0.09375, 0.09375, 0.09375, −0.15625, −0.15625, 0.09375, (−0.25, 0.32421875), on | U16, F32 | — |
+| 16 × 32 | 195015 | Defaults | U16, F32 | — |
+| 64 × 32 | 195062 | 3, 0.34375, 0.34375, 0.34375, 0.09375, 0.09375, 0.34375, (0.0, 0.10546875), on | U8, U16, F16, F32 | U8 |
+| 32 × 64 | 195109 | 1, 0.1875, 0.1875, 0.1875, −0.0625, −0.0625, 0.1875, (−0.15625, 0.2421875), on | U8, U16, F16, F32 | U16 |
+| 64² | 195156 | 2, 0.53125, 0.53125, 0.53125, 0.28125, 0.28125, 0.53125, (0.1875, −0.05859375), off | U16, F32 | — |
+
+</details>
+
+Across all formats MaterialCraft matches 734,456/734,464 original pixels on one processor and 734,458/734,464 on eight. The reference captures disagree with one another in 2 of the 60 original images. At 32² and seed 103867, the original F16 captures both differ at one pixel by .0068359375. The fresh configured reopen is exact on both processor counts. Directional Noise 3 v2 remains in progress. [Repeated values at the source and output](#a-recovered-rectangle-and-repeated-outputs-in-directional-noise-3-v2)
+
+### Three larger rectangles in Directional Noise 3 v2
+
+The 512 × 128, 128 × 512 and 128 × 64 settings that hit the earlier work limit now render in U16 and F32. The 512 × 128 F32 output already matches both reference captures in revision `65998c9`. Each local file reopened after an ordinary save reproduces its original pixels. [Earlier precision settings and file routes](#seven-tiled-half-precision-settings-in-directional-noise-3-v2)
+
+Keep the original tiling, use the grayscale output and set the output precision on the final Levels node. Leave unlisted controls at their defaults. Save each configured graph and open that file in both applications.
+
+| Dimensions · seed | Scale | Disorder | Disorder speed | Anisotropy | Anisotropy angle | Angle | Angle random | Tile offset | Non-square expansion |
+|---|---:|---:|---:|---:|---:|---:|---:|---|---|
+| 512 × 128 · 412070 | 1 | 0.09375 | 0.09375 | 0.09375 | -0.15625 | -0.15625 | 0.09375 | (-0.25, 0.32421875) | On |
+| 128 × 512 · 412009 | 2 | 0.53125 | 0.53125 | 0.53125 | 0.28125 | 0.28125 | 0.53125 | (0.1875, -0.05859375) | Off |
+| 128 × 64 · 411765 | 2 | 0.96875 | 0.96875 | 0.96875 | 0.71875 | 0.71875 | 0.96875 | (0.625, -0.44140625) | Off |
+
+| Dimensions | Storage | Original on one · max | Original on eight · max | Fresh reopen on one · max | Fresh reopen on eight · max |
+|---|---|---:|---:|---:|---:|
+| 512 × 128 | U16 | 65,536/65,536 · 0 | 65,536/65,536 · 0 | 65,536/65,536 · 0 | 65,536/65,536 · 0 |
+| 512 × 128 | F32 | 65,536/65,536 · 0 | 65,536/65,536 · 0 | 65,536/65,536 · 0 | 65,536/65,536 · 0 |
+| 128 × 512 | U16 | 65,535/65,536 · 428 | 65,536/65,536 · 0 | 65,536/65,536 · 0 | 65,536/65,536 · 0 |
+| 128 × 512 | F32 | 65,536/65,536 · 0 | 65,536/65,536 · 0 | 65,536/65,536 · 0 | 65,536/65,536 · 0 |
+| 128 × 64 | U16 | 8,192/8,192 · 0 | 8,192/8,192 · 0 | 8,192/8,192 · 0 | 8,192/8,192 · 0 |
+| 128 × 64 | F32 | 8,192/8,192 · 0 | 8,192/8,192 · 0 | 8,192/8,192 · 0 | 8,192/8,192 · 0 |
+
+All three original F32 images match both reference captures, **139,264/139,264 · 0** per processor count. At (31,17) in the 128 × 512 U16 original, the one-processor reference reads 32,473. The eight-processor reference, both reference reopens and MaterialCraft read 32,045. Across all six settings, the ordinary reopens match **278,528/278,528** stored pixels on both processor counts. Directional Noise 3 v2 remains in progress.
+
+### Whole-image comparisons for both Directional Noise 4 roots
+
+Both roots have whole-buffer measurements for 60 original procedural settings and 12 archived file reopens. The current release at `ffd0927` was checked against seven of those originals and two archived reopens per root. All fourteen original buffers and all four archived buffers reproduce their earlier local float streams byte for byte. The full-panel counts below use the retained measurements. The six new configured reopens are reported separately. Integer errors are storage levels.
+
+| Root and comparison | U8 exact · max | U16 exact · max | F16 exact · max | F32 exact · max | Whole images |
+|---|---:|---:|---:|---:|---:|
+| 4 · original, one | 88,319/88,320 · 1 | 300,244/300,800 · 1 | 90,360/90,368 · 0.00048828125 | 138,742/254,976 · 4.76837158e-07 | 18/60 |
+| 4 · original, eight | 88,319/88,320 · 1 | 300,265/300,800 · 1 | 90,359/90,368 · 0.00048828125 | 139,439/254,976 · 4.17232513e-07 | 18/60 |
+| 4 · one reference against eight | 88,320/88,320 · 0 | 300,239/300,800 · 1 | 90,357/90,368 · 0.00048828125 | 146,367/254,976 · 3.87430191e-07 | 20/60 |
+| 4 · archived reopen, one | 14,336/14,336 · 0 | 22,755/22,784 · 1 | 1,024/1,024 · 0 | 47,906/84,992 · 3.57627869e-07 | 5/12 |
+| 4 v2 · original, one | 137,471/137,472 · 1 | 250,988/251,648 · 1 | 90,361/90,368 · 0.00048828125 | 116,398/254,976 · 5.96046448e-07 | 21/60 |
+| 4 v2 · original, eight | 137,472/137,472 · 0 | 251,007/251,648 · 1 | 90,359/90,368 · 0.00048828125 | 126,458/254,976 · 5.36441803e-07 | 22/60 |
+| 4 v2 · one reference against eight | 137,471/137,472 · 1 | 250,987/251,648 · 1 | 90,358/90,368 · 0.00048828125 | 117,429/254,976 · 5.66244125e-07 | 20/60 |
+| 4 v2 · archived reopen, one | 30,720/30,720 · 0 | 6,390/6,400 · 1 | 1,024/1,024 · 0 | 35,787/84,992 · 5.66244125e-07 | 6/12 |
+
+<details>
+<summary>Sizes, seeds, exposed parameters and file routes</summary>
+
+Use the authored tiling and set the grayscale storage on the FX-Map feeding the output. The control values are scale, disorder, disorder speed, anisotropy, anisotropy angle, angle, angle randomness, tile offset and non-square expansion, in that order. Directional Noise 4 uses scale, disorder, angle, angle randomness and non-square expansion. The additional fields apply to v2. A dash leaves the control at its default. Angles use turns. Archived reopens open the package first, then apply the listed setting.
+
+| Size | Seed 4 / v2 | Control values | 4 original | 4 archived | v2 original | v2 archived |
+|---|---|---|---|---|---|---|
+| 128² | 0 | Defaults | U16 | U16 | U8 | U8 |
+| 256² | 0 | Defaults | U8, U16, F16, F32 | — | U8, U16, F16, F32 | — |
+| 128² | 42 | Defaults | U16 | — | U8 | — |
+| 128² | 0 | 2, 0.37, 0.6, 0.3, 0.125, 0.125, 0.2, (0.17, 0.29), — | U16 | — | U8 | — |
+| 32² | 113 | 2, 0.37, 0.6, 0.3, 0.125, 0.125, 0.2, (0.17, 0.29), — | F32 | — | F32 | — |
+| 64² | 42 | 2, 0.37, 0.6, 0.3, 0.125, 0.125, 0.2, (0.17, 0.29), — | U8, U16, F16, F32 | U8 | U8, U16, F16, F32 | U8 |
+| 16² | 103878 / 103891 | Defaults | F32 | — | F32 | — |
+| 32² | 103879 / 103892 | 1, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, (0.0, 0.0), on | F32 | F32 | F32 | F32 |
+| 32² | 103880 / 103893 | 1, 0.3125, 0.6875, 0.25, 0.3125, 0.15625, 0.21875, (0.125, −0.1875), off | U8, U16, F16, F32 | — | U8, U16, F16, F32 | — |
+| 64 × 32 | 103884 / 103897 | 2, 0.6875, 1.4375, 0.625, −0.21875, −0.21875, 0.40625, (−0.3125, 0.4375), on | F32 | F32 | F32 | F32 |
+| 32 × 64 | 103885 / 103898 | 1, 0.3125, 0.6875, 0.25, 0.3125, 0.15625, 0.21875, (0.125, −0.1875), off | U16 | — | U16 | — |
+| 32² | 103886 / 103899 | 3, 0.125, 0.875, 0.125, 0.15625, 0.375, 0.03125, (−0.0625, 0.125), off | F32 | — | F32 | — |
+| 64 × 32 | 103887 / 103900 | 1, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, (0.0, 0.0), on | F16 | — | F16 | — |
+| 16² | 0 | Defaults | U8, U16, F16, F32 | U16 | U8, U16, F16, F32 | U16 |
+| 64 × 16 | 42 | 2, 0.03125, 0.03125, 0.03125, −0.21875, −0.21875, 0.03125, (−0.3125, 0.37890625), on | U8, U16, F16, F32 | F16 | U8, U16, F16, F32 | F16 |
+| 16 × 64 | 411650 / 411657 | 1, 0.875, 0.875, 0.875, 0.625, 0.625, 0.875, (0.53125, −0.359375), off | U16, F32 | — | U16, F32 | — |
+| 64² | 411711 / 411718 | 3, 0.34375, 0.34375, 0.34375, 0.09375, 0.09375, 0.34375, (0.0, 0.10546875), on | U8, U16, F16, F32 | U16 | U8, U16, F16, F32 | U16 |
+| 128 × 64 | 411772 / 411779 | 2, 0.96875, 0.96875, 0.96875, 0.71875, 0.71875, 0.96875, (0.625, −0.44140625), off | U16, F32 | — | U16, F32 | — |
+| 64 × 128 | 411833 / 411840 | 1, 0.1875, 0.1875, 0.1875, −0.0625, −0.0625, 0.1875, (−0.15625, 0.2421875), on | U8, U16, F16, F32 | U8 | U8, U16, F16, F32 | U8 |
+| 128² | 411894 / 411901 | 3, 0.65625, 0.65625, 0.65625, 0.40625, 0.40625, 0.65625, (0.3125, −0.16796875), off | U16, F32 | F32 | U16, F32 | F32 |
+| 128 × 512 | 412016 / 412023 | 2, 0.53125, 0.53125, 0.53125, 0.28125, 0.28125, 0.53125, (0.1875, −0.05859375), off | U16, F32 | F32 | U16, F32 | F32 |
+| 512 × 128 | 412077 / 412084 | 1, 0.09375, 0.09375, 0.09375, −0.15625, −0.15625, 0.09375, (−0.25, 0.32421875), on | U16, F32 | — | U16, F32 | — |
+| 16 × 32 | 195046 / 195077 | Defaults | U16, F32 | — | U16, F32 | — |
+| 64 × 32 | 195093 / 195124 | 3, 0.34375, 0.34375, 0.34375, 0.09375, 0.09375, 0.34375, (0.0, 0.10546875), on | U8, U16, F16, F32 | U8 | U8, U16, F16, F32 | U8 |
+| 32 × 64 | 195140 / 195171 | 1, 0.1875, 0.1875, 0.1875, −0.0625, −0.0625, 0.1875, (−0.15625, 0.2421875), on | U8, U16, F16, F32 | U16 | U8, U16, F16, F32 | U16 |
+| 64² | 195187 / 195218 | 2, 0.53125, 0.53125, 0.53125, 0.28125, 0.28125, 0.53125, (0.1875, −0.05859375), off | U16, F32 | — | U16, F32 | — |
+
+</details>
+
+For the current binary checks, both roots used the default 16² setting at seed zero in U8, F16 and F32. Directional Noise 4 also used 512 × 128 and 128 × 512 in U16 and F32. Directional Noise 4 v2 used 128 × 64 and 128² in U16 and F32. The archived checks reopened the 16² default U16 file for both, the 128 × 512 F32 file for version 4 and the 128² F32 file for v2.
+
+| Fresh configured save | Storage | Seed | Original on one · max | Original on eight · max | Reopen on one · max | Reopen on eight · max |
+|---|---|---:|---:|---:|---:|---:|
+| 4 · 16² | F16 | 0 | 256/256 · 0 | 256/256 · 0 | 256/256 · 0 | 256/256 · 0 |
+| 4 · 512 × 128 | U16 | 412077 | 65,419/65,536 · 1 | 65,408/65,536 · 1 | 65,419/65,536 · 1 | 65,419/65,536 · 1 |
+| 4 · 512 × 128 | F32 | 412077 | 35,368/65,536 · 4.76837158e-07 | 34,066/65,536 · 3.27825546e-07 | 35,368/65,536 · 4.76837158e-07 | 35,368/65,536 · 4.76837158e-07 |
+| 4 v2 · 16² | F16 | 0 | 256/256 · 0 | 256/256 · 0 | 256/256 · 0 | 256/256 · 0 |
+| 4 v2 · 128 × 64 | U16 | 411779 | 8,169/8,192 · 1 | 8,160/8,192 · 1 | 8,169/8,192 · 1 | 8,169/8,192 · 1 |
+| 4 v2 · 128 × 64 | F32 | 411779 | 3,127/8,192 · 5.96046448e-07 | 3,078/8,192 · 5.06639481e-07 | 3,127/8,192 · 5.96046448e-07 | 3,127/8,192 · 5.96046448e-07 |
+
+The local configured reopens reproduced all 147,968 original stored pixels. The one- and eight-processor reference originals differ in 40/60 settings for Directional Noise 4 and 40/60 for v2. Both roots remain in progress.
+
+### Floating-point modulo at a rounded period
+
+A runtime float modulo can round to the divisor when a very small input has the opposite sign. The reference returns zero at that endpoint. Constant expressions retain the rounded divisor. MaterialCraft now makes that distinction in the shared floating-point operator. The FX-Map drawing evaluator uses the same operator. The original graphs and their live functions supply all parameters. [Quadrant-path measurements](#locating-individual-waves-in-directional-noise-2-v2)
+
+Use a grayscale square over black with unit opacity and zero roughness. Drive its luminosity with two exposed scalar values passed to modulo. Repeat in a grayscale Uniform and a grayscale Pixel Processor. Read stored F32 at 16². For each divisor 1, −1, .125, 3 and −1.5, let g be the difference between its magnitude and the next smaller positive F32. Multiply g by the divisor sign and each of −1.125, −1, −.75, −.5, −.25, .25, .5, .75 and 1.25. Also test the divisor itself and the values immediately to either side. The last six signed operand pairs are (.3125000298023224, 1), (−.3125000298023224, 1), (.2, .3), (−.2, .3), (−1.25, 3) and (1.25, −3). Use seeds 42, 43 and 44 cyclically.
+
+| Original independent F32 control | Before · one · max | Current · one · max | Current · eight · max |
+|---|---:|---:|---:|
+| Drawing property | 14,336/16,896 · 3 | 16,896/16,896 · 0 | 16,896/16,896 · 0 |
+| Uniform property | 14,336/16,896 · 3 | 16,896/16,896 · 0 | 16,896/16,896 · 0 |
+| Pixel Processor | 14,336/16,896 · 3 | 16,896/16,896 · 0 | 16,896/16,896 · 0 |
+
+The nine literal controls give 2,304/2,304 · 0 on both processor counts. With divisor 1, literal −2⁻²⁵ gives 1 and a live input of the same value gives zero. A live input of −.75 × 2⁻²⁴ gives the predecessor of 1. Mirror the signs for a negative divisor. In a separate Pixel Processor select the input or its negative using the horizontal pixel coordinate. Thirteen split images improve from 2,304/3,328 · 3 to **3,328/3,328 · 0** on one processor. The same current result holds on eight.
+
+The 36 earlier seeded offset settings and 36 ordinary reopens each retain 15,360/15,360 pixels on one and eight processors, maximum zero. [Seeded modulo controls and four storage formats](#floored-modulo-in-seeded-drawing-properties)
+
+For the two isolated waves, keep the graph tiling and source expressions. Make a square with unit opacity scaling and zero roughness. After evaluating the active quadrant’s branch offset, return the negative of its incoming position. Evaluate its original frame offset, size and rotation before returning the center of the render region, (12, 12) and zero respectively. To read an intermediate value, store it at the operation being measured, retain the rest of the original expression and return the stored component as luminosity. The marker covers nine pixels at 64² and 36 pixels at 512 × 128.
+
+| Size · outer/inner cap | Marker | Before · one · max | Current · one · max | Current · eight · max |
+|---|---|---:|---:|---:|
+| 64² · 1/2 | Draw count | 4,096/4,096 · 0 | 4,096/4,096 · 0 | 4,096/4,096 · 0 |
+| 64² · 1/2 | Vertical offset before modulo | 4,096/4,096 · 0 | 4,096/4,096 · 0 | 4,096/4,096 · 0 |
+| 64² · 1/2 | Vertical offset after modulo | 4,087/4,096 · 0.999999978 | 4,096/4,096 · 0 | 4,096/4,096 · 0 |
+| 64² · 1/2 | Luminosity | 4,087/4,096 · 0.0317136049 | 4,096/4,096 · 0 | 4,096/4,096 · 0 |
+| 512 × 128 · 34/1 | Draw count | 65,536/65,536 · 0 | 65,536/65,536 · 0 | 65,536/65,536 · 0 |
+| 512 × 128 · 34/1 | Vertical offset before modulo | 65,536/65,536 · 0 | 65,536/65,536 · 0 | 65,536/65,536 · 0 |
+| 512 × 128 · 34/1 | Vertical offset after modulo | 65,500/65,536 · 1 | 65,536/65,536 · 0 | 65,536/65,536 · 0 |
+| 512 × 128 · 34/1 | Luminosity | 65,500/65,536 · 0.0398881435 | 65,536/65,536 · 0 | 65,536/65,536 · 0 |
+
+With the original wave shape and position restored, four isolated paths give **139,264/139,264 · 0** on each processor count. At wide pixel (136, 65) the extra .00887397118 disappears. At square pixel (52, 23) the missing .00170036184 is recovered.
+
+Set the output storage on the second FX-Map. Save the configured graph normally and reopen each file at its stored size, seed and parameters in both applications. Each local reopen reproduces its original buffer. The table compares whole root images. Integer maxima are storage levels. [Exact exposed settings and earlier 60-image sweep](#whole-images-for-sixty-directional-noise-2-v2-settings)
+
+| Size · seed · storage | Previous original · one · max | Current original · one · max | Current original · eight · max | Current ordinary save · one · max | Current ordinary save · eight · max |
+|---|---:|---:|---:|---:|---:|
+| 64² · 42 · U16 | 4,091/4,096 · 111 | 4,093/4,096 · 1 | 4,092/4,096 · 1 | 4,093/4,096 · 1 | 4,093/4,096 · 1 |
+| 64² · 42 · F16 | 4,094/4,096 · 0.00170898438 | 4,096/4,096 · 0 | 4,096/4,096 · 0 | 4,096/4,096 · 0 | 4,096/4,096 · 0 |
+| 64² · 42 · F32 | 2,204/4,096 · 0.00170040131 | 2,205/4,096 · 1.78813934e-07 | 2,366/4,096 · 1.78813934e-07 | 2,186/4,096 · 1.1920929e-07 | 2,186/4,096 · 1.1920929e-07 |
+| 512 × 128 · 412056 · U16 | 65,489/65,536 · 581 | 65,498/65,536 · 1 | 65,509/65,536 · 1 | 65,494/65,536 · 1 | 65,494/65,536 · 1 |
+| 512 × 128 · 412056 · F32 | 33,830/65,536 · 0.00887396932 | 33,832/65,536 · 2.98023224e-07 | 37,854/65,536 · 1.78813934e-07 | 33,299/65,536 · 2.98023224e-07 | 33,299/65,536 · 2.98023224e-07 |
+
+Reference runs at identical settings still differ. They agree at 1,904/4,096 · 1.78813934e-07 for the square F32 image and 31,716/65,536 · 2.38418579e-07 for the wide F32 image. These differences keep Directional Noise 2 v2 in progress.
+
+Other root controls used the same released evaluator. Compare the two local buffers at each setting and score the current raw F32 output against each reference capture.
+
+| Root | Size · seed | Local buffer compared with previous release | Current · one · max | Current · eight · max |
+|---|---|---|---:|---:|
+| Spots 1 | 32 × 16 · 456654 | Identical | 451/512 · 1.1920929e-07 | 439/512 · 1.1920929e-07 |
+| Spots 3 | 16 × 16 · 0 | Identical | 256/256 · 0 | 256/256 · 0 |
+| Clouds 1 | 32 × 32 · 113 | Identical | 1,024/1,024 · 0 | 1,024/1,024 · 0 |
+| Directional Noise 2 | 32 × 32 · 103827 | Identical | 297/1,024 · 2.98023224e-07 | 298/1,024 · 2.38418579e-07 |
+| Directional Noise 3 | 16 × 16 · 103852 | Identical | 256/256 · 0 | 256/256 · 0 |
+| Directional Noise 4 | 32 × 32 · 103879 | Identical | 503/1,024 · 2.68220901e-07 | 561/1,024 · 2.98023224e-07 |
+
+The new floating-point regression failed on the preceding release and passed with the shared operator change. All 514 release node tests, formatting, strict workspace Clippy, the layer check and the WebAssembly check passed.
+
+### Locating individual waves in Directional Noise 2 v2
+
+These measurements use revision `f40f6a5`, before the shared modulo correction. The preceding section reports the same paths after the fix.
+
+Use the two F32 settings in the [sixty-setting comparison](#whole-images-for-sixty-directional-noise-2-v2-settings). At 64², seed 42, inspect pixel (52, 23). At 512 × 128, seed 412056, inspect (136, 65). Use the second FX-Map over black and retain its live math links. Four reachable drawing quadrants at depths six through nine share their parameters. To measure one depth, give the other three a copy of their property set. In that copy, evaluate the original size expression, including its random draw, then return (0, 0). Read the grayscale F32 words.
+
+| Drawing depth | 64² · one · max | 64² · eight · max | 512 × 128 · one · max | 512 × 128 · eight · max |
+|---:|---:|---:|---:|---:|
+| 6 | 2,251/4,096 · 2.98023224e-08 | 2,368/4,096 · 2.98023224e-08 | 45,843/65,536 · 2.98023224e-08 | 45,637/65,536 · 2.98023224e-08 |
+| 7 | 3,021/4,096 · 0.0017003566 | 3,032/4,096 · 0.0017003566 | 50,422/65,536 · 2.98023224e-08 | 50,424/65,536 · 2.98023224e-08 |
+| 8 | 3,077/4,096 · 2.23517418e-08 | 3,236/4,096 · 2.98023224e-08 | 51,653/65,536 · 0.00887397118 | 55,384/65,536 · 0.00887397083 |
+| 9 | 3,068/4,096 · 6.07538968e-05 | 3,251/4,096 · 6.07538968e-05 | 50,930/65,536 · 8.99098814e-06 | 54,643/65,536 · 8.99471343e-06 |
+
+The depth-eight wide image contains all nine pixels with absolute error over 0.00001. At each subdivision keep each of the four slots in turn. At the target pixel compare the sum of those four returns with the previous image, then follow the child carrying the discrepancy. The wide path uses slots 0, 2, 3, 3, 1, 2, 2, 3. The square path reaches depth seven through slots 3, 2, 1, 3, 2, 0, 3. An outgoing connection below the drawing quadrant has no effect on its wave.
+
+To select an iteration, evaluate its original count and take the smaller of that count and an integer cap. This retains the count expression's assignments. Use an additive wave with the original tint, size, offsets and rotation. The following captures agreed at every reference pixel between one and eight processors.
+
+| Size | Outer cap | Inner cap | Exact pixels · max, each processor count | At target, MaterialCraft | At target, reference |
+|---|---:|---:|---:|---:|---:|
+| 512 × 128 | 33 | 1 | 65,536/65,536 · 0 | 0 | 0 |
+| 512 × 128 | 34 | 0 | 65,536/65,536 · 0 | 0 | 0 |
+| 512 × 128 | 34 | 1 | 65,533/65,536 · 0.00887397118 | 0.008873971179 | 0 |
+| 64² | 1 | 1 | 4,096/4,096 · 0 | 0 | 0 |
+| 64² | 1 | 2 | 4,095/4,096 · 0.00170036184 | 0 | 0.001700361841 |
+
+On the isolated wide path, a single local wave contributes 0.00887397118. Its center is (−1.43517566, .193142891), its effective size is (.005859375, .0227996614), its rotation is .0986371785 turns, and its tint is .584212303. The two applications return the same render and tiling bounds, (−2.5, 1.5, −.32421875, .67578125). In a separate single-quadrant graph put that wave at the recorded center, over black, with unit opacity and zero roughness. With the original render region a computed rotation gives .303792685 at the target in both applications. Repeating with a literal rotation, a square pattern and a unit region gives **524,288/524,288 exact F32 pixels** across eight configurations at each processor count, maximum zero.
+
+## 2026-11-27 root comparisons
+
+### All sixty original Directional Noise 2 settings
+
+Directional Noise 2 has produced whole images for **60/60 established original settings and 12/12 archived saved-package settings** across two measured releases. Revision `e1e3c1e` produced 42 originals and six archived reopens. Revision `fdd01fb` produced all 18 originals and six reopens that had reached the execution limit. All twelve local archived reopens reproduced their corresponding original buffers on the release that rendered them. The first 19 settings now all have whole-image measurements. [Earlier 19-setting comparison](#directional-noise-and-scratch-pattern-sources)
+
+Compare stored grayscale pixels. Integer maxima are storage levels. Each entry gives exact pixels / total pixels and maximum absolute error. The archived reopens used one reference processor.
+
+| Measurement | U8 | U16 | F16 | F32 |
+|---|---:|---:|---:|---:|
+| 42 earlier originals, one | 81,152/81,152 · 0 | 211,311/211,712 · 1 | 83,185/83,200 · 0.00048828125 | 48,322/162,816 · 3.57627869e-07 |
+| 42 earlier originals, eight | 81,152/81,152 · 0 | 211,340/211,712 · 1 | 83,192/83,200 · 0.00048828125 | 58,386/162,816 · 3.57627869e-07 |
+| 18 recovered originals, one | 7,168/7,168 · 0 | 88,947/89,088 · 1 | 7,168/7,168 · 0 | 32,703/92,160 · 3.57627869e-07 |
+| 18 recovered originals, eight | 7,167/7,168 · 1 | 88,956/89,088 · 1 | 7,168/7,168 · 0 | 35,766/92,160 · 2.98023224e-07 |
+| Six earlier archived reopens | 12,288/12,288 · 0 | 18,653/18,688 · 1 | — | 297/1,024 · 2.98023224e-07 |
+| Six recovered archived reopens | 2,048/2,048 · 0 | 4,092/4,096 · 1 | 1,024/1,024 · 0 | 29,908/83,968 · 2.98023224e-07 |
+
+<details>
+<summary>Sizes, seeds and exposed values for all 60 settings</summary>
+
+Use the package’s own procedural input and keep tiling enabled. Set the storage on the FX-Map feeding the output. Controls are scale, disorder, angle in turns, random angle and non-square expansion, in that order. Leave omitted controls at default. The archived saved package was reopened before applying the listed settings. “All four” means U8, U16, F16 and F32.
+
+| Size | Seed | Controls | Original formats | Archived reopen | Formerly bounded original |
+|---|---:|---|---|---|---|
+| 128² | 0 | Defaults | U16 | U16 | — |
+| 256² | 0 | Defaults | All four | — | — |
+| 128² | 42 | Defaults | U16 | — | — |
+| 128² | 0 | 2, 0.37, 0.125, 0.2, default | U16 | — | — |
+| 32² | 113 | 2, 0.37, 0.125, 0.2, default | F32 | — | — |
+| 64² | 42 | 2, 0.37, 0.125, 0.2, default | All four | U8 | — |
+| 16² | 103826 | Defaults | F32 | — | — |
+| 32² | 103827 | 1, 0, 0, 0, on | F32 | F32 | — |
+| 32² | 103828 | 1, 0.3125, 0.15625, 0.21875, off | All four | — | — |
+| 64 × 32 | 103832 | 2, 0.6875, -0.21875, 0.40625, on | F32 | F32 | F32 |
+| 32 × 64 | 103833 | 1, 0.3125, 0.15625, 0.21875, off | U16 | — | — |
+| 32² | 103834 | 3, 0.125, 0.375, 0.03125, off | F32 | — | F32 |
+| 64 × 32 | 103835 | 1, 0, 0, 0, on | F16 | — | — |
+| 16² | 0 | Defaults | All four | U16 | — |
+| 64 × 16 | 42 | 2, 0.03125, -0.21875, 0.03125, on | All four | F16 | All four |
+| 16 × 64 | 411622 | 1, 0.875, 0.625, 0.875, off | U16, F32 | — | — |
+| 64² | 411683 | 3, 0.34375, 0.09375, 0.34375, on | All four | U16 | All four |
+| 128 × 64 | 411744 | 2, 0.96875, 0.71875, 0.96875, off | U16, F32 | — | — |
+| 64 × 128 | 411805 | 1, 0.1875, -0.0625, 0.1875, on | All four | U8 | — |
+| 128² | 411866 | 3, 0.65625, 0.40625, 0.65625, off | U16, F32 | F32 | U16, F32 |
+| 128 × 512 | 411988 | 2, 0.53125, 0.28125, 0.53125, off | U16, F32 | F32 | U16, F32 |
+| 512 × 128 | 412049 | 1, 0.09375, -0.15625, 0.09375, on | U16, F32 | — | — |
+| 16 × 32 | 194922 | Defaults | U16, F32 | — | — |
+| 64 × 32 | 194969 | 3, 0.34375, 0.09375, 0.34375, on | All four | U8 | All four |
+| 32 × 64 | 195016 | 1, 0.1875, -0.0625, 0.1875, on | All four | U16 | — |
+| 64² | 195063 | 2, 0.53125, 0.28125, 0.53125, off | U16, F32 | — | — |
+
+</details>
+
+For six additional comparisons, set the graph size, seed, controls and storage before using ordinary Save. Open each file afresh in both applications and read its stored configuration. All **7,168/7,168** MaterialCraft pixels reproduced their original values. The two fresh reference processor counts agreed at every saved pixel. In the last column, retain only pixels where both original and both saved reference captures gave the same value.
+
+| Size · seed · storage | Original, one · max | Original, eight · max | Saved, one and eight · max | Matches at fixed reference pixels · max |
+|---|---:|---:|---:|---:|
+| 64 × 16 · 42 · U8 | 1,024/1,024 · 0 | 1,024/1,024 · 0 | 1,024/1,024 · 0 | 1,024/1,024 · 0 |
+| 64 × 16 · 42 · U16 | 1,021/1,024 · 1 | 1,021/1,024 · 1 | 1,021/1,024 · 1 | 1,020/1,021 · 1 |
+| 64 × 16 · 42 · F16 | 1,024/1,024 · 0 | 1,024/1,024 · 0 | 1,024/1,024 · 0 | 1,024/1,024 · 0 |
+| 64 × 16 · 42 · F32 | 342/1,024 · 1.78813934e-07 | 385/1,024 · 1.78813934e-07 | 351/1,024 · 2.38418579e-07 | 78/163 · 1.1920929e-07 |
+| 64 × 32 · 103832 · F32 | 720/2,048 · 1.78813934e-07 | 804/2,048 · 2.38418579e-07 | 738/2,048 · 2.38418579e-07 | 244/438 · 1.78813934e-07 |
+| 32² · 103834 · F32 | 411/1,024 · 3.57627869e-07 | 398/1,024 · 2.38418579e-07 | 360/1,024 · 2.98023224e-07 | 115/227 · 1.1920929e-07 |
+
+At 64 × 16 and seed 42, the original F32 reference runs themselves match 318/1,024 pixels, maximum 2.38418579e-07. One U16 pixel differs by one level at a position where all four reference captures agree. These differences keep the root in progress. [Five repeated captures per worker count](#repeated-f32-captures-of-28-noise-roots)
+
+### Additive wave overlaps in Directional Noise 2
+
+The only processing node is an FX-Map connected directly to the output. Use F32 at 16², seed 103826 and defaults, then 32², seed 103834 with the controls above. Start with the authored wave shapes and additive blending. For the maximum control, change only the blending mode on the two drawing parameter sets. For the additive path controls, successively retain child slots 0, 3, 1, 2, 0 and 3 at the first six four-way quadrant subdivisions. Leave later connections, iterates, seeds and drawing properties as authored. Use the same linked math functions for each control.
+
+| Drawing control | 16², one · max | 16², eight · max | 32², one · max | 32², eight · max |
+|---|---:|---:|---:|---:|
+| All additive branches | 75/256 · 1.49011612e-07 | 87/256 · 1.49011612e-07 | 359/1,024 · 2.98023224e-07 | 411/1,024 · 2.38418579e-07 |
+| Maximum on both drawing parameter sets | 256/256 · 0 | 256/256 · 0 | 1,024/1,024 · 0 | 1,024/1,024 · 0 |
+| Additive, first subdivision restricted | 166/256 · 5.96046448e-08 | 164/256 · 8.94069672e-08 | 644/1,024 · 8.94069672e-08 | 679/1,024 · 8.94069672e-08 |
+| Additive, first 2 subdivisions restricted | 214/256 · 2.98023224e-08 | 218/256 · 2.98023224e-08 | 907/1,024 · 2.98023224e-08 | 902/1,024 · 4.47034836e-08 |
+| Additive, first 3 subdivisions restricted | 238/256 · 2.98023224e-08 | 238/256 · 2.98023224e-08 | 994/1,024 · 1.49011612e-08 | 973/1,024 · 1.49011612e-08 |
+| Additive, first 4 subdivisions restricted | 256/256 · 0 | 256/256 · 0 | 1,024/1,024 · 0 | 1,024/1,024 · 0 |
+| Additive, first 5 subdivisions restricted | 256/256 · 0 | 256/256 · 0 | 1,024/1,024 · 0 | 1,024/1,024 · 0 |
+| Additive, first 6 subdivisions restricted | 256/256 · 0 | 256/256 · 0 | 1,024/1,024 · 0 | 1,024/1,024 · 0 |
+
+Maximum blending gives 256 and 1,024 distinct values in the two images. The six-subdivision additive path gives 191 and 1,010. Both controls match on each processor count. The full additive sums still vary between reference captures. [Independent overlapping-wave comparison](#addition-and-maximum-blending-in-directional-noise-1-v2)
+
+Retain slots 0, 3 and 1 at the first three subdivisions. At the fourth, test each of the four child slots by itself and each of the six unordered pairs. An empty fourth subdivision also produces a nonconstant image from the preceding draws. It matches 256/256 and 1,024/1,024 pixels at both processor counts, maximum zero.
+
+| Fourth subdivision | 16², one · max | 16², eight · max | 32², one · max | 32², eight · max |
+|---|---:|---:|---:|---:|
+| Four single-child controls | 1,024/1,024 · 0 | 1,024/1,024 · 0 | 4,096/4,096 · 0 | 4,096/4,096 · 0 |
+| Six two-child controls | 1,502/1,536 · 2.98023224e-08 | 1,502/1,536 · 2.98023224e-08 | 6,085/6,144 · 1.49011612e-08 | 6,035/6,144 · 1.49011612e-08 |
+
+At the fourth subdivision retain only slots 0 and 1. Read the two sizes alternately three more times per worker count. All **eight 16² reference images** have identical words. MaterialCraft matches 253/256, maximum 3.7252903e-09. Each differing MaterialCraft word is one representable value below the reference. At 32² the eight reference images contain three distinct buffers. MaterialCraft matches 997/999 pixels that stayed fixed, maximum 3.7252903e-09.
+
+| 16² coordinate | MaterialCraft F32 word | Reference F32 word on all eight reads |
+|---|---:|---:|
+| (7,2) | `3d37495f` | `3d374960` |
+| (4,4) | `3d29886d` | `3d29886e` |
+| (9,5) | `3b95abfc` | `3b95abfd` |
+
+### An unfinished draw batch across repeated quadrant pairs
+
+When an outer Iterate emits multiple two-child quadrant trees, each first child can draw before the shared path and the second child from all repetitions. The continuation contains the shared path and the last connected child of each tree. MaterialCraft counts its physical tile copies, including copies of draws that miss the pixel grid. The measured order applies while this continuation holds fewer than 5,460 copies. [Single-tree draw order and procedural construction](#drawing-a-shared-quadrant-path-with-its-last-child)
+
+Use the linked nine-subdivision wave graph at 32 × 16, seed 42, F32. Add an outer Iterate with only the repeated port wired. With a drawing slot followed by an empty quadrant, one, two, three, five and nine repetitions now give **2,560/2,560 · 0** on one and eight processors. Keeping just the drawing slot also gives 2,560/2,560. With two drawing slots, one, two and three repetitions give 1,536/1,536. At five and nine repetitions the two drawing slots can fill the continuation and reference outputs vary.
+
+To locate the boundary, use four repetitions of the two-wave-child graph. Each path contributes 13 wrapped copies per repetition ahead of the fork. The unpruned second branch contributes 1,365. Remove complete leading subtrees from that second child, counting each removed quadrant draw. For a partial subtree, follow its first child recursively. Leave the first drawing child and the parent path intact. Compare F32 words at 32 × 16 and retain the same wave properties.
+
+| Draws removed per repetition | Continuation copies | Original traversal against one reference · max | Current against one · max | Current against eight · max |
+|---:|---:|---:|---:|---:|
+| 0 | 5,512 | 503/512 · 1.1920929e-07 | 503/512 · 1.1920929e-07 | 508/512 · 5.96046448e-08 |
+| 10 | 5,472 | 503/512 · 1.1920929e-07 | 503/512 · 1.1920929e-07 | 508/512 · 5.96046448e-08 |
+| 12 | 5,464 | 503/512 · 1.1920929e-07 | 503/512 · 1.1920929e-07 | 508/512 · 5.96046448e-08 |
+| 13 | 5,460 | 503/512 · 1.1920929e-07 | 503/512 · 1.1920929e-07 | 503/512 · 1.1920929e-07 |
+| 14 | 5,456 | 508/512 · 5.96046448e-08 | 512/512 · 0 | 512/512 · 0 |
+| 18 | 5,440 | 508/512 · 5.96046448e-08 | 512/512 · 0 | 512/512 · 0 |
+| 25 | 5,412 | 508/512 · 5.96046448e-08 | 512/512 · 0 | 512/512 · 0 |
+
+The square regression uses two repetitions and a depth-one gain of −.5 on white. With just the drawing child, pixel (6, 4) retains 2⁻²³. With the later empty child it gives zero. With two drawing children only (7, 4) retains 2⁻²³. The previous release failed at (6, 4). An eight-repetition two-drawing-child control has distinct reference outputs at the same settings.
+
+Repeat three independent wave controls at 16² seed zero and 32 × 16 seed 42 in U8, U16, F16 and F32. Use nine repetitions with the empty sibling, three with both drawing children, and the four-repetition boundary with 14 draws removed. Across the 24 original settings the exact pixel count rises from 9,192/9,216 · 2.38418579e-07 to **9,216/9,216 · 0** on one reference processor. The current release matches all original pixels at eight processors and all 9,216 reopened pixels independently at each count. Every local reopen reproduces its original buffer.
+
+On the Directional Noise 2 control with one active branch and a later empty quadrant, 32² seed 103834 improves from 1,000/1,024 · 1.49011612e-08 to **1,024/1,024 · 0**. The 16² seed 103826 graph stays exact. Both configured ordinary saves match every pixel at both processor counts. The connected and disconnected files with identical identifiers also match all their alternating reference reads. The nine-tree two-drawing-child controls and the full root retain differences. [Root controls, sizes and parameters](#a-second-branch-beside-a-wrapped-wave)
+
+### Drawing a shared quadrant path with its last child
+
+In a grayscale additive FX-Map, follow a single path to its first fork with six more quadrant subdivisions to the deepest leaf. On a single emitted tree, the earlier connected children draw in slot order, then the shared path draws, then the last connected child draws. A connected empty quadrant can occupy that last slot. MaterialCraft now orders the raster ranges after evaluating the drawing properties. The ordinary package retains its connections.
+
+Build an FX-Map with nine quadrant subdivisions on a white background with roughness zero and opacity one. Follow child slots 0, 3, 1 to the fork. Draw a square at depth one with size (2, 2) and gain −1. From the fork, fill each active child subtree to depth nine. Draw only the terminal squares, with size (1.375, 1.375) and gain 2⁻²⁵. At 16², seed zero, one active slot leaves 2⁻²³ at (6, 4). Connecting an empty quadrant immediately after it gives zero there. With two, three or four drawing slots, only (7, 4), (6, 5) or (7, 5) retains 2⁻²³, respectively. All other pixels are zero. The regression first failed at (6, 4) with the exact prior F32 word.
+
+For the depth controls, use unit terminal squares. Move the fork through depths one to four, retaining an earlier drawing slot and a later empty slot. Compare five and six subdivisions below each fork. Test slots (0, 1), (1, 0), (2, 3) and (3, 1) at depth three. The square draws before the parent when its slot comes first and after the parent when its slot comes last. Across 22 connected and disconnected files, at 32² and 256² or 512², the new release matches **3,037,184/3,037,184** pixels on each processor count, maximum zero. Four-way, three-way, two-way and single-path descent controls also distinguish depth from leaf count.
+
+To distinguish the order among four occupied slots, shift the four children onto the first child with branch offsets of 0 or −1/16 per axis. Draw a unit square at each terminal quadrant. Permute gains of 1, −1, 2⁻²⁵ and zero among the shared path and the four children. Eighteen black-background settings and four white-background settings identify the same order on one and eight reference processors at 64², seed 17.
+
+An independent wave control uses a black background with roughness and opacity .5. From depth one, cycle through gains .3125, −.71875, .59375, .84375 and −.34375 and rotations .25, −.125 and .0625 turns. Set the frame offset to (.109375, −.09375), the first size to (1.5, 7), then alternate (1.5, 2.75) and (.875, 3.25). Use two or four connected drawing slots. Run both wave controls and the connected square control at 16² seed zero and 32 × 16 seed 42, in U8, U16, F16 and F32. Save each configured graph and reopen it in both applications. The original files and the 24 ordinary saves each give **9,216/9,216 · 0** on one and eight processors. The prior release gave 9,187/9,216 · 1.1920929e-07 on each file route.
+
+| Directional Noise 2 at 16², seed 103826, F32 | Prior exact pixels · maximum | Current exact pixels · maximum |
+|---|---:|---:|
+| Each of six possible two-child connections at the fourth subdivision, combined | 1,502/1,536 · 2.98023224e-08 | 1,536/1,536 · 0 |
+| Four connected drawing children | 238/256 · 2.98023224e-08 | 256/256 · 0 |
+| One drawing child followed by an empty quadrant | 251/256 · 7.4505806e-09 | 256/256 · 0 |
+| Ordinary save of the two-child graph with slots 0 and 1 | 253/256 · 3.7252903e-09 | 256/256 · 0 |
+
+Both reference processor counts give these 16² results. At 32², seed 103834 emits nine trees, and the six two-child controls give 6,085/6,144 · 1.49011612e-08 on one processor and 6,035/6,144 · 1.49011612e-08 on eight. Connecting the empty child still gives 1,000/1,024 · 1.49011612e-08 on both. The full additive root also retains its measured differences. [Whole-root settings](#all-sixty-original-directional-noise-2-settings) · [Original captures and single-wire controls](#a-second-branch-beside-a-wrapped-wave)
+
+### A second branch beside a wrapped wave
+
+Save the two-child Directional Noise 2 control with each size, seed, F32 storage and parameter set in its own file. The local reopens reproduce all 1,280 original pixels. Both reference worker counts give 253/256 at 16², maximum 3.7252903e-09, and 1,016/1,024 at 32², maximum 7.4505806e-09. The same three 16² words differ after reopening. [Two-child control and reference words](#additive-wave-overlaps-in-directional-noise-2)
+
+At 16², record each nonzero contribution to the three differing local pixels. Sampling the wrapped depth-one wave produces the first three values at each position. These copies share center, size, rotation and tint. The remaining draws are at the indicated quadrant depth. Each entry below is an F32 word in accumulation order. The instrumented MaterialCraft evaluator and its release `fdd01fb` gave identical F32 buffers across eleven whole controls.
+
+| Pixel | Three depth-one contributions | Later depth | Later contributions |
+|---|---|---:|---|
+| (7,2) | `3c588738`, `3c8d2705`, `3c1a6207` | 8 | `3bb890d6`, `ba45a384` |
+| (4,4) | `3cb11a4d`, `3d085ad2`, `3cbaed7d` | 4 | `bd1c5499`, `3aefca02` |
+| (9,5) | `3a6ec209`, `3a8de55e`, `39edea7b` | 9 | `3b0af779` |
+
+Connecting just slot 0 gives exactly the same local contributions, in exactly the same order, at (7,2) and (9,5). Connecting slot 1 as well changes the reference word at each of those positions by one representable value. At (4,4) it adds a fifth local contribution. Enumerating the six orders of the three depth-one copies with the descendants kept last cannot reproduce the reference word at (7,2) or (4,4). Moving all descendants ahead of the three copies reproduces all three reference words, but only 248/256 pixels across the image.
+
+Replay the recorded contributions across each complete 16² image, accumulating in F32 after every addition. Keep the relative order of descendant draws. The counts below use the one-worker reference. The third column processes all descendant contributions after the first contributing parent copy at each pixel.
+
+| Fourth subdivision | Existing order · max | After the first contributing copy · max | Before every parent copy · max |
+|---|---:|---:|---:|
+| Four single-child controls | 1,024/1,024 · 0 | 983/1,024 · 1.49011612e-08 | 982/1,024 · 1.49011612e-08 |
+| Six two-child controls | 1,502/1,536 · 2.98023224e-08 | 1,468/1,536 · 2.98023224e-08 | 1,463/1,536 · 2.98023224e-08 |
+| All four children | 238/256 · 2.98023224e-08 | 247/256 · 1.49011612e-08 | 243/256 · 1.49011612e-08 |
+
+Keep the first child fully connected. Give the second child its own quadrant with the same drawing data. Preserve its first zero, one, two, three or four outgoing slots in order. With all four, MaterialCraft reproduces its original two-child buffer at each size. The **same three 16² coordinates** differ by the same one-word amounts for all five variants, including when the second child draws as a leaf. At 32² the counts change with the branches.
+
+| Outgoing slots on the second child | 16², one and eight · max | 32², one · max | 32², eight · max |
+|---:|---:|---:|---:|
+| 0 | 253/256 · 3.7252903e-09 | 1,000/1,024 · 1.49011612e-08 | 1,000/1,024 · 1.49011612e-08 |
+| 1 | 253/256 · 3.7252903e-09 | 1,000/1,024 · 1.49011612e-08 | 1,000/1,024 · 1.49011612e-08 |
+| 2 | 253/256 · 3.7252903e-09 | 1,016/1,024 · 7.4505806e-09 | 1,016/1,024 · 7.4505806e-09 |
+| 3 | 253/256 · 3.7252903e-09 | 1,008/1,024 · 7.4505806e-09 | 1,008/1,024 · 7.4505806e-09 |
+| 4 | 253/256 · 3.7252903e-09 | 1,016/1,024 · 7.4505806e-09 | 1,016/1,024 · 7.4505806e-09 |
+
+With the second child disconnected from its descendants, try an empty shape, a wave of size (.125,.125) with zero opacity, and a wave of size (0,0) with unit opacity. Leave the first child and its descendants as authored. Each local frame reproduced its counterpart with only the first child connected. Read the two reference outputs for each control.
+
+| Second child | 16², one · max | 16², eight · max | 32², one · max | 32², eight · max |
+|---|---:|---:|---:|---:|
+| Empty shape | 251/256 · 7.4505806e-09 | 251/256 · 7.4505806e-09 | 1,000/1,024 · 1.49011612e-08 | 1,000/1,024 · 1.49011612e-08 |
+| Zero opacity | 251/256 · 7.4505806e-09 | 251/256 · 7.4505806e-09 | 1,000/1,024 · 1.49011612e-08 | 1,000/1,024 · 1.49011612e-08 |
+| Zero size | 251/256 · 7.4505806e-09 | 251/256 · 7.4505806e-09 | 1,000/1,024 · 1.49011612e-08 | 1,000/1,024 · 1.49011612e-08 |
+
+Repeat the empty-shape comparison using two files with the same package and graph identifiers and the same live math dependency. Their XML differs by exactly one connection to the empty leaf. Alternate sizes three times per worker count and compare with the first capture at each count. All eight reference reads agree for each size and connection state. With the wire disconnected, MaterialCraft matches 256/256 and 1,024/1,024, maximum zero. Connecting it changes **five reference pixels at 16² and 24 at 32²**, with the maxima above. Both entire MaterialCraft buffers retain their words. This isolates a connection-dependent change in the reference sum even when the additional branch contributes no visible value.
+
+### Seven tiled half-precision settings in Directional Noise 3 v2
+
+All seven previously recorded F16 settings now render in MaterialCraft, including the 64 × 32 output at seed 195062 and the 64² output at seed 411704. The three settings that previously reached the execution limit produce 7,168/7,168 exact pixels on each reference processor count, on the originals and their configured saves. [Earlier precision results and exposed parameter values](#half-precision-inputs-to-levels)
+
+| Size · seed | F16 original, one or eight · maximum | Configured save, one or eight · maximum |
+|---|---:|---:|
+| 16² · 0 | 256/256 · 0 | 256/256 · 0 |
+| 64 × 16 · 42 | 1,024/1,024 · 0 | 1,024/1,024 · 0 |
+| 32² · 103867 | 1,023/1,024 · 0.0068359375 | 1,024/1,024 · 0 |
+| 64 × 32 · 195062 | 2,048/2,048 · 0 | 2,048/2,048 · 0 |
+| 32 × 64 · 195109 | 2,048/2,048 · 0 | 2,048/2,048 · 0 |
+| 64² · 411704 | 4,096/4,096 · 0 | 4,096/4,096 · 0 |
+| 64² · 42 | 4,096/4,096 · 0 | 4,096/4,096 · 0 |
+
+The seven originals match **14,591/14,592** pixels, maximum .0068359375. Reopening each saved file in the reference app and MaterialCraft gives **14,592/14,592**, maximum zero. The local original and saved words agree in all seven settings. The remaining original pixel at (18,16) is documented with its stage-to-output captures. [F32 and U16 reads at the same coordinate](#a-recovered-rectangle-and-repeated-outputs-in-directional-noise-3-v2)
+
+At 64 × 32, seed 195062, set scale 3, disorder, speed, anisotropy and angle randomness .34375, both angles .09375 and tile offset (0,.10546875). Enable non-square expansion and leave tiling at its default. Choose U8, U16, F16 and F32 on the Levels node feeding the output. Save each configuration and reopen it with the stored controls. **8,192/8,192** original pixels and **8,192/8,192** saved pixels match each reference processor count, maximum zero. The graph generates its own input.
+
+### Whole images for sixty Directional Noise 2 v2 settings
+
+Directional Noise 2 v2 now has whole-buffer comparisons for **60/60 established original settings** and **12/12 archived reopened settings** across the measured releases. The earlier sweep rendered 30 originals and five archived reopens. Subsequent measurements covered the remaining settings. Every archived local reopen reproduced its corresponding original buffer. Only successful grayscale cooks count. Integer maxima are storage levels.
+
+| Cases | U8 exact · max | U16 exact · max | F16 exact · max | F32 exact · max |
+|---|---:|---:|---:|---:|
+| All 60 originals, one | 137,470/137,472 · 1 | 251,405/251,648 · 581 | 90,362/90,368 · 0.005859375 | 140,000/254,976 · 0.00887396932 |
+| All 60 originals, eight | 137,471/137,472 · 1 | 251,458/251,648 · 581 | 90,356/90,368 · 0.005859375 | 153,037/254,976 · 0.00887396932 |
+| Earlier 30 originals, one | 109,822/109,824 · 1 | 80,557/80,640 · 389 | 79,100/79,104 · 0.005859375 | 47,084/79,872 · 0.00593535602 |
+| Additional 30 originals, one | 27,648/27,648 · 0 | 170,848/171,008 · 581 | 11,262/11,264 · 0.00170898438 | 92,916/175,104 · 0.00887396932 |
+| All 12 archived reopens, one | 30,720/30,720 · 0 | 6,394/6,400 · 389 | 1,024/1,024 · 0 | 45,322/84,992 · 0.00393900275 |
+
+<details>
+<summary>Original settings and archived reopens</summary>
+
+Use the graph’s procedural input and its authored tiling. Set the storage on the second FX-Map, which receives the first as its background. In the controls column the values are scale, disorder, disorder speed, anisotropy, anisotropy angle, angle, angle randomness, tile offset and non-square expansion. Angles use turns. A dash leaves the exposed value at default. Each archived reopen opens the saved package before applying the listed setting.
+
+| Size | Seed | Controls | Original formats | Archived reopen |
+|---|---:|---|---|---|
+| 128² | 0 | Defaults | U8 | U8 |
+| 256² | 0 | Defaults | U8, U16, F16, F32 | — |
+| 128² | 42 | Defaults | U8 | — |
+| 128² | 0 | 2, 0.37, 0.6, 0.3, 0.125, 0.125, 0.2, (0.17, 0.29), — | U8 | — |
+| 32² | 113 | 2, 0.37, 0.6, 0.3, 0.125, 0.125, 0.2, (0.17, 0.29), — | F32 | — |
+| 64² | 42 | 2, 0.37, 0.6, 0.3, 0.125, 0.125, 0.2, (0.17, 0.29), — | U8, U16, F16, F32 | U8 |
+| 16² | 103839 | Defaults | F32 | — |
+| 32² | 103840 | 1, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, (0.0, 0.0), on | F32 | — |
+| 32² | 103841 | 1, 0.3125, 0.6875, 0.25, 0.3125, 0.15625, 0.21875, (0.125, −0.1875), off | U8, U16, F16, F32 | — |
+| 64 × 32 | 103845 | 2, 0.6875, 1.4375, 0.625, −0.21875, −0.21875, 0.40625, (−0.3125, 0.4375), on | F32 | — |
+| 32 × 64 | 103846 | 1, 0.3125, 0.6875, 0.25, 0.3125, 0.15625, 0.21875, (0.125, −0.1875), off | U16 | — |
+| 32² | 103847 | 3, 0.125, 0.875, 0.125, 0.15625, 0.375, 0.03125, (−0.0625, 0.125), off | F32 | — |
+| 64 × 32 | 103848 | 1, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, (0.0, 0.0), on | F16 | — |
+| 16² | 0 | Defaults | U8, U16, F16, F32 | — |
+| 64 × 16 | 42 | 2, 0.03125, 0.03125, 0.03125, −0.21875, −0.21875, 0.03125, (−0.3125, 0.37890625), on | U8, U16, F16, F32 | — |
+| 16 × 64 | 411629 | 1, 0.875, 0.875, 0.875, 0.625, 0.625, 0.875, (0.53125, −0.359375), off | U16, F32 | — |
+| 64² | 411690 | 3, 0.34375, 0.34375, 0.34375, 0.09375, 0.09375, 0.34375, (0.0, 0.10546875), on | U8, U16, F16, F32 | — |
+| 128 × 64 | 411751 | 2, 0.96875, 0.96875, 0.96875, 0.71875, 0.71875, 0.96875, (0.625, −0.44140625), off | U16, F32 | — |
+| 64 × 128 | 411812 | 1, 0.1875, 0.1875, 0.1875, −0.0625, −0.0625, 0.1875, (−0.15625, 0.2421875), on | U8, U16, F16, F32 | U8 |
+| 128² | 411873 | 3, 0.65625, 0.65625, 0.65625, 0.40625, 0.40625, 0.65625, (0.3125, −0.16796875), off | U16, F32 | — |
+| 128 × 512 | 411995 | 2, 0.53125, 0.53125, 0.53125, 0.28125, 0.28125, 0.53125, (0.1875, −0.05859375), off | U16, F32 | — |
+| 512 × 128 | 412056 | 1, 0.09375, 0.09375, 0.09375, −0.15625, −0.15625, 0.09375, (−0.25, 0.32421875), on | U16, F32 | — |
+| 16 × 32 | 194953 | Defaults | U16, F32 | — |
+| 64 × 32 | 195000 | 3, 0.34375, 0.34375, 0.34375, 0.09375, 0.09375, 0.34375, (0.0, 0.10546875), on | U8, U16, F16, F32 | U8 |
+| 32 × 64 | 195047 | 1, 0.1875, 0.1875, 0.1875, −0.0625, −0.0625, 0.1875, (−0.15625, 0.2421875), on | U8, U16, F16, F32 | — |
+| 64² | 195094 | 2, 0.53125, 0.53125, 0.53125, 0.28125, 0.28125, 0.53125, (0.1875, −0.05859375), off | U16, F32 | — |
+
+</details>
+
+At 64 × 16 and seed 42, set the listed nine controls and store each of the four formats in its own ordinary save. Reopen each in both applications with the stored configuration. All 4,096/4,096 local saved pixels reproduce their originals. The two fresh reference worker counts agree on every saved pixel.
+
+| Storage | Original, one · max | Original, eight · max | Ordinary save, one and eight · max |
+|---|---:|---:|---:|
+| U8 | 1,024/1,024 · 0 | 1,024/1,024 · 0 | 1,024/1,024 · 0 |
+| U16 | 1,022/1,024 · 1 | 1,023/1,024 · 1 | 1,023/1,024 · 1 |
+| F16 | 1,024/1,024 · 0 | 1,024/1,024 · 0 | 1,024/1,024 · 0 |
+| F32 | 690/1,024 · 8.94069672e-08 | 751/1,024 · 5.96046448e-08 | 709/1,024 · 7.4505806e-08 |
+
+At 512 × 128 and seed 412056, fresh captures isolate nine F32 pixels with absolute errors above 0.00001. The largest occurs at (136, 65). MaterialCraft gives 0.183100328 and both reference counts give 0.174226359. The reference captures themselves give 32,745/65,536 · 2.98023224e-07.
+
+Both processing nodes are FX-Maps. The first supplies the background for the second. Make a procedural comparison copy for each control. Disable the second map’s drawing shapes to read its background. Separately disconnect the background and keep the second map’s additive waves. For the final control change those four wave parameter sets to maximum blending. Use F32 at 64² seed 42 and 512 × 128 seed 412056 with the respective exposed values in the settings table. Compare the raw output after each change.
+
+| Stage | 64², one · max | 64², eight · max | 512 × 128, one · max | 512 × 128, eight · max |
+|---|---:|---:|---:|---:|
+| Whole original | 2,032/4,096 · 0.0017003715 | 2,162/4,096 · 0.00170040131 | 33,830/65,536 · 0.00887396932 | 37,581/65,536 · 0.00887396932 |
+| First map as background | 4,096/4,096 · 0 | 4,096/4,096 · 0 | 65,536/65,536 · 0 | 65,536/65,536 · 0 |
+| Second map on black, additive | 2,017/4,096 · 0.00170036405 | 1,798/4,096 · 0.00170037895 | 28,160/65,536 · 0.00887396559 | 28,565/65,536 · 0.00887396932 |
+| Second map on black, maximum | 4,096/4,096 · 0 | 4,096/4,096 · 0 | 65,536/65,536 · 0 | 65,536/65,536 · 0 |
+
+The isolated additive map retains two differences above 0.00001 at 64² and nine at 512 × 128. At the latter size its largest remains at (136, 65). The maximum-blend controls match all 69,632 pixels on each processor count.
+
+[64² configured saves](#a-tiled-square-in-directional-noise-2-v2) · [64 × 32 configured saves](#floored-modulo-in-seeded-drawing-properties)
+
+### A tiled square in Directional Noise 2 v2
+
+At 64², seed 195094, use scale 2, disorder, speed, anisotropy and angle randomness .53125, both angles .28125 and tile offset (.1875,−.05859375). Disable non-square expansion, keep the authored tiling and leave the other parameters at default. Choose each storage format on the node feeding the output, save the configuration and reopen the file with the stored controls. All four MaterialCraft saved buffers reproduce their originals, **16,384/16,384** pixels. [Related 64 × 32 setting and seeded drawing expression](#floored-modulo-in-seeded-drawing-properties)
+
+| Storage | Original, one · maximum | Original, eight · maximum | Saved, one · maximum | Saved, eight · maximum |
+|---|---:|---:|---:|---:|
+| U8 | 4,096/4,096 · 0 | 4,096/4,096 · 0 | 4,096/4,096 · 0 | 4,096/4,096 · 0 |
+| U16 | 4,093/4,096 · 1 | 4,093/4,096 · 1 | 4,093/4,096 · 1 | 4,093/4,096 · 1 |
+| F16 | 4,096/4,096 · 0 | 4,096/4,096 · 0 | 4,095/4,096 · 0.000122070312 | 4,095/4,096 · 0.000122070312 |
+| F32 | 2,170/4,096 · 1.78813934e-07 | 2,422/4,096 · 1.78813934e-07 | 2,218/4,096 · 2.38418579e-07 | 2,218/4,096 · 2.38418579e-07 |
+
+The earlier original F32 reference pair agreed at 1,899/4,096 · 1.78813934e-07. The exact counts above compare whole buffers. Both roots remain in progress.
+
+### Floored modulo in seeded drawing properties
+
+Directional Noise 2 v2 at 64 × 32 and seed 195000 now returns a whole image in each of four storage formats and on their four ordinary saves. The previous evaluator reached its property budget on this setting. It had completed 5,242,880 full property evaluations and still had pending drawing work. The drawing function wraps a two-component offset using floored modulo. The general evaluator already implements that operation. The bounded drawing evaluator now uses the same implementation for its fixed and seeded operands. It preserves the random register and the offset published to subsequent properties.
+
+Use scale 3, disorder, speed, anisotropy and angle randomness .34375, both angles .09375, tile offset (0,.10546875) and non-square expansion on. Keep tiling and all other defaults. The graph generates its own input. Set the node feeding the output to each storage format, save to its own file, close and reopen with the stored parameters. The four saved MaterialCraft buffers reproduce their originals, **8,192/8,192** pixels. Integer errors below are stored levels. [Earlier tiled settings](#tiled-outputs-of-ten-noise-roots-and-the-full-wood-fibers-2-series)
+
+| Storage | Original · one · max | Original · eight · max | Saved · one · max | Saved · eight · max |
+|---|---:|---:|---:|---:|
+| U8 | 2,048/2,048 · 0 | 2,048/2,048 · 0 | 2,048/2,048 · 0 | 2,048/2,048 · 0 |
+| U16 | 2,047/2,048 · 1 | 2,046/2,048 · 1 | 2,046/2,048 · 1 | 2,046/2,048 · 1 |
+| F16 | 2,048/2,048 · 0 | 2,048/2,048 · 0 | 2,048/2,048 · 0 | 2,048/2,048 · 0 |
+| F32 | 1,253/2,048 · 1.1920929e-07 | 1,348/2,048 · 1.78813934e-07 | 1,300/2,048 · 1.1920929e-07 | 1,300/2,048 · 1.1920929e-07 |
+
+The original F32 reference captures themselves agree at 1,096/2,048 pixels, maximum 1.34110451e-07. The remaining differences keep the root in progress.
+
+For the procedural controls, start with a two-component seeded offset. Subtract (.1875,.21875), then apply floored modulo to each component. With one shared random draw use a period of (.09375,.09375). With two independent draws use (.09375,−.125). For the third case use the signed periods in an offset that the tint assigns to a local variable used by the child. Compare 16² at seed 0, 32 × 16 at seed 42 and 16 × 32 at seed 329779 in U8, U16, F16 and F32. The 36 originals and 36 ordinary reopens each match **15,360/15,360** pixels against both reference processor counts, maximum zero. The regression compares positive and negative periods with the full evaluator and checks the next random draw at four seeds. [Seeded offsets and routing controls](#rectangular-clouds-and-directional-noise-graphs-with-seeded-quadrant-offsets)
+
+### Rectangular Clouds and Directional Noise graphs with seeded quadrant offsets
+
+Clouds 1 v2 and Clouds 2 v2 each produce whole images for all **60/60 established originals and 15/15 archived saves** across the recorded passes. Each previously produced 58 originals and 14 saves. The 64 × 16 Directional Noise 3 v2 at seed 42 now matches **4,096/4,096** original pixels across four formats and another **4,096/4,096** after opening its four ordinary saves, at both reference processor counts. Earlier same-setting reference differences still leave the three roots in progress. [Earlier Cloud rectangles](#two-more-whole-outputs-in-noise-clouds-1-v2) · [Earlier Directional Noise results](#a-recovered-rectangle-and-repeated-outputs-in-directional-noise-3-v2)
+
+An empty quadrant can still move its children. When the shape and seed mode are literal and its only active expression is a pure branch offset, the evaluator binds the fixed operands and evaluates its seeded arithmetic for each visit. It schedules all children in their original order. A terminal group can also reuse a discarded stamp’s already-evaluated properties. After the allowance for discarded draws is spent, another cached miss must pay its arithmetic cost out of both the remaining property allowance and work saved on earlier evaluations. Drawing, repetition, stack and cache limits still apply. No package edits are needed.
+
+Use the grayscale output and retain tiling on both axes. For the Clouds settings use scale 5, disorder .8125, speed 1.4375, anisotropy .625, anisotropy angle −.21875, tile offset (−.3125,.4375) and non-square expansion on. Use seed 103034 for Clouds 1 v2 at 64 × 32. For Directional Noise 3 v2 at 64 × 16 use scale 2, disorder, speed, anisotropy and angle randomness .03125, both angles −.21875, tile offset (−.3125,.37890625) and non-square expansion on. Leave every other exposed property at its default. Set the precision on the node feeding the output. Save each configuration separately and reopen it at its stored size and seed. Both roots generate their inputs procedurally.
+
+| Root | Storage | Original · one · max | Original · eight · max | Saved · one · max | Saved · eight · max |
+|---|---|---:|---:|---:|---:|
+| Clouds 1 v2 | U8 | 2,048/2,048 · 0 | 2,048/2,048 · 0 | 2,048/2,048 · 0 | 2,048/2,048 · 0 |
+| Clouds 1 v2 | U16 | 2,047/2,048 · 1 | 2,046/2,048 · 1 | 2,047/2,048 · 1 | 2,047/2,048 · 1 |
+| Clouds 1 v2 | F16 | 2,048/2,048 · 0 | 2,048/2,048 · 0 | 2,048/2,048 · 0 | 2,048/2,048 · 0 |
+| Clouds 1 v2 | F32 | 1,822/2,048 · 2.08616257e-07 | 1,821/2,048 · 2.68220901e-07 | 1,821/2,048 · 1.78813934e-07 | 1,821/2,048 · 1.78813934e-07 |
+| Directional Noise 3 v2 | U8 | 1,024/1,024 · 0 | 1,024/1,024 · 0 | 1,024/1,024 · 0 | 1,024/1,024 · 0 |
+| Directional Noise 3 v2 | U16 | 1,024/1,024 · 0 | 1,024/1,024 · 0 | 1,024/1,024 · 0 | 1,024/1,024 · 0 |
+| Directional Noise 3 v2 | F16 | 1,024/1,024 · 0 | 1,024/1,024 · 0 | 1,024/1,024 · 0 | 1,024/1,024 · 0 |
+| Directional Noise 3 v2 | F32 | 1,024/1,024 · 0 | 1,024/1,024 · 0 | 1,024/1,024 · 0 | 1,024/1,024 · 0 |
+
+All eight saved MaterialCraft outputs reproduce their source words, **12,288/12,288**. For the other panel rectangles use the same Clouds parameters, changing only the dimensions, seed and storage. The two tall comparisons include the last archived saved setting of each root. A dash marks an unmeasured file route.
+
+| Root | Size · seed · storage | Original · one · max | Original · eight · max | Archived save · one · max | Archived save · eight · max |
+|---|---|---:|---:|---:|---:|
+| Clouds 1 v2 | 32 × 64 · 103035 · U16 | 2,047/2,048 · 1 | 2,048/2,048 · 0 | 2,046/2,048 · 1 | 2,047/2,048 · 1 |
+| Clouds 2 v2 | 64 × 32 · 103056 · F32 | 2,031/2,048 · 5.96046448e-08 | 2,029/2,048 · 5.96046448e-08 | — | — |
+| Clouds 2 v2 | 32 × 64 · 103057 · U16 | 2,048/2,048 · 0 | 2,048/2,048 · 0 | 2,048/2,048 · 0 | 2,048/2,048 · 0 |
+
+For an independent control, route a square through a quadrant with no shape. Connect its top-left and bottom-right children to the same square. Use four versions of the branch offset. Give the two components one shared random draw, two separate draws, a polar offset with seeded angle and radius, or an offset assigned to a local that the child's frame reads. Use three repeats for the shared draw and five otherwise. Set the square size to (.5,.25) and its grayscale swatch to .1875. Use 16² at seed 0, 32 × 16 at seed 42 and 16 × 32 at seed 329779 in each format. All 48 originals and 48 saved settings match **20,480/20,480** on each route, maximum zero on one and eight processors. The earlier 24 controls with seeded drawing tints reproduce **10,240/10,240** on each route. [Drawing tint controls](#bound-arithmetic-in-seeded-quadrant-properties)
+
+Two 4 × 4 regressions compare all sixteen values with the full expression evaluator. A four-by-32 iterate with a seeded branch translation previously exhausted a 64-visit budget and now completes. A six-by-40 iterate with shared terminal offsets and a live tint previously exhausted a 256-visit budget and now completes. The two graphs still reach their budgets at 32 and 160 respectively.
+
+### Bound arithmetic in seeded quadrant properties
+
+BNW Spots 3 v2 now produces images for all **62/62 established settings and 14/14 archived saves**. Dirt 4 v2 at 32 × 16, seed 105532, now renders all four output formats with **2,048/2,048** whole pixels exact on both processor counts. These rectangles previously returned a work-budget error.
+
+A grayscale quadrant can publish a frame offset and use a seeded tint with a live multiplier. For short arithmetic expressions in its offset, tint, branch translation, size and rotation, the evaluator binds fixed operands at the current drawing depth. Each visit executes the remaining operations in dependency order. A shared random register draws once, including across function arguments and the two tint branches. The frame assignment reaches the children and the current multiplier still applies. The evaluator charges at least a quarter of an ordinary property pass to a prepared draw. It tests coverage after the properties run.
+
+Both roots have no image inputs. For BNW Spots 3 v2 use 64 × 32, seed 194535, scale 3 and .34375 for disorder, speed and anisotropy. Set anisotropy angle .09375 and tile offset (0,.10546875). For Dirt 4 v2 use 32 × 16, seed 105532, scale 2, disorder .8125, speed 1.4375, anisotropy .625, angle −.21875 and tile offset (−.3125,.4375). Enable non-square expansion and leave the remaining properties at their defaults. Set the precision on the node feeding the output. Compare raw words after a fresh reference capture at each processor count. Integer errors are storage levels.
+
+| Root | Storage | Original · one · maximum | Original · eight · maximum |
+|---|---|---:|---:|
+| BNW Spots 3 v2 | U8 | 2,048/2,048 · 0 | 2,048/2,048 · 0 |
+| BNW Spots 3 v2 | U16 | 2,048/2,048 · 0 | 2,047/2,048 · 1 |
+| BNW Spots 3 v2 | F16 | 2,048/2,048 · 0 | 2,048/2,048 · 0 |
+| BNW Spots 3 v2 | F32 | 1,756/2,048 · 1.1920929e-07 | 1,758/2,048 · 2.08616257e-07 |
+| Dirt 4 v2 | U8 | 512/512 · 0 | 512/512 · 0 |
+| Dirt 4 v2 | U16 | 512/512 · 0 | 512/512 · 0 |
+| Dirt 4 v2 | F16 | 512/512 · 0 | 512/512 · 0 |
+| Dirt 4 v2 | F32 | 512/512 · 0 | 512/512 · 0 |
+
+The earlier one- and eight-processor F32 captures of the BNW original gave 1,777/2,048 and 1,746/2,048 respectively, maximum 1.78813934e−7. The remaining archived U8 save at the same setting now matches all 2,048 pixels on both processor counts. An ordinary F32 save opened directly with its stored settings reproduces the original MaterialCraft F32 words. Its comparison with the two saved-file reference captures is 1,771/2,048 · 2.38418579e-07 on one and 1,771/2,048 · 2.38418579e-07 on eight. [Earlier original and archived settings](#seeded-quadrant-properties-with-a-live-tint-multiplier)
+
+Repeat the independent square-and-four-children control with the inner Iterate inheriting the outer seed. Use four outer iterations with gain (1 + number) × .25 and seven with gain (1 + number) × .125, two inner repeats and the existing three size/seed pairs in U8, U16, F16 and F32. The 24 originals and 24 ordinary reopens each match **10,240/10,240** pixels on one and eight processors, maximum zero. Resetting the inner seed also preserves the 24 original and 24 archived saved comparisons. In the 4 × 4 regression, six outer and forty inner iterations complete with a visit limit of 96. Before the change the same case exhausted its budget. The sixteen output values match the equivalent graph with a computed frame offset and a larger budget. [Procedural controls and size settings](#seeded-quadrant-properties-with-a-live-tint-multiplier)
+
+This revision still stopped at the two Clouds rectangles and the 64 × 16 Directional Noise 3 v2 graph. The subsequent traversal change produces complete images for those settings. [Raw comparisons](#rectangular-clouds-and-directional-noise-graphs-with-seeded-quadrant-offsets) BNW Spots 3 v2 has repeat-dependent F32 differences, and Dirt 4 v2 retains the previously measured differences at other settings. [Repeated BNW measurements](#repeated-f32-captures-of-28-noise-roots) [Clouds rectangular settings](#two-more-whole-outputs-in-noise-clouds-1-v2)
+
+#### Ordinary saves and release cook times for the two rectangles
+
+Save each of the four configured output formats separately, close the package, and reopen it directly at its saved path. Use the BNW Spots 3 v2 and Dirt 4 v2 dimensions, seeds and parameters above. All eight saved MaterialCraft outputs reproduce their source words, **10,240/10,240 pixels** in total. The reference columns compare the positional raw values at the stored precision. The final two columns compare the reference’s own original and saved captures.
+
+| Root | Storage | MaterialCraft save · one · max | MaterialCraft save · eight · max | Reference original vs. save · one · max | Reference original vs. save · eight · max |
+|---|---|---:|---:|---:|---:|
+| BNW Spots 3 v2 | U8 | 2,048/2,048 · 0 | 2,048/2,048 · 0 | 2,048/2,048 · 0 | 2,048/2,048 · 0 |
+| BNW Spots 3 v2 | U16 | 2,047/2,048 · 1 | 2,047/2,048 · 1 | 2,047/2,048 · 1 | 2,046/2,048 · 1 |
+| BNW Spots 3 v2 | F16 | 2,048/2,048 · 0 | 2,048/2,048 · 0 | 2,048/2,048 · 0 | 2,048/2,048 · 0 |
+| BNW Spots 3 v2 | F32 | 1,771/2,048 · 2.38418579e-07 | 1,771/2,048 · 2.38418579e-07 | 1,752/2,048 · 2.38418579e-07 | 1,745/2,048 · 2.38418579e-07 |
+| Dirt 4 v2 | U8 | 512/512 · 0 | 512/512 · 0 | 512/512 · 0 | 512/512 · 0 |
+| Dirt 4 v2 | U16 | 512/512 · 0 | 512/512 · 0 | 512/512 · 0 | 512/512 · 0 |
+| Dirt 4 v2 | F16 | 512/512 · 0 | 512/512 · 0 | 512/512 · 0 | 512/512 · 0 |
+| Dirt 4 v2 | F32 | 512/512 · 0 | 512/512 · 0 | 512/512 · 0 | 512/512 · 0 |
+
+At 16² F32, run three paired timings of the previous and current releases with a single cook thread. Use both orders within the three pairs. Use seed 0 and defaults for BNW Spots 3 v2 and seed 105526 and defaults for Dirt 4 v2. Time the engine cook with the package already loaded. Every run reproduced its original pixel hash. Median time on the measurement machine went from 9.62 to 4.39 seconds for BNW Spots 3 v2 and from 31.85 to 13.68 seconds for Dirt 4 v2.
+
+The 64 × 32 Directional Noise 2 v2 case at seed 195000 and the 128 × 32 Dirt 4 v2 case at seed 433595 still reach the execution limit in this release. On the latter, the one- and eight-processor reference captures agree at 4,064/4,096 pixels with a maximum difference of .00407773256. [Dimensions and changed Dirt 4 v2 parameters](#repeated-f32-captures-of-28-noise-roots)
+
+### Addition and maximum blending in Directional Noise 1 v2
+
+At 16² F32, seed 103813 and defaults, the first two FX-Maps match all 16 and 64 U8 pixels on all six reads. With the final draws disabled, the background alone matches all 256 F32 pixels. The complete final draw with its original background gives 158/256 on each of three one-processor reads. Disconnecting the background leaves differences in the additive result. Changing the final wave stamps to maximum blending gives all 256 pixels exact on every read, with 256 distinct values in the image.
+
+To reproduce, alternate the 16² setting with 32² at seed 113. At 32² set scale 2, disorder .37, speed .6, anisotropy .3, anisotropy angle and angle .125, angle randomness .2 and tile offset (.17,.29). Keep the other defaults and use the grayscale F32 output. Read each setting three times on one reference processor and three times on eight. The two initial FX-Maps at 32² also match all 64 and 256 U8 pixels on every read. For the background-only control, give the drawing quadrants of the last FX-Map the empty shape. In the disconnected cases preserve the drawing data and original seeds. For the one-path control retain only child slots 0, 3, 1, 2, 0 and 3 in the first six quadrant subdivisions. Keep both Iterate nodes and all lower connections.
+
+| Final FX-Map | 16² · one · max | 16² · eight · max | 32² · one · max | 32² · eight · max |
+|---|---:|---:|---:|---:|
+| Original graph | 158/256 · 1.78813934e-07 | 149–169/256 · 1.1920929e-07 | 604/1,024 · 2.38418579e-07 | 615/1,024 · 2.38418579e-07 |
+| Background only | 256/256 · 0 | 256/256 · 0 | 1,024/1,024 · 0 | 1,024/1,024 · 0 |
+| Disconnected background, additive waves | 125/256 · 8.94069672e-08 | 146–161/256 · 1.1920929e-07 | 491/1,024 · 8.94069672e-08 | 537/1,024 · 1.1920929e-07 |
+| Disconnected background, maximum of waves | 256/256 · 0 | 256/256 · 0 | 1,024/1,024 · 0 | 1,024/1,024 · 0 |
+| Disconnected background, maximum of squares | 256/256 · 0 | 256/256 · 0 | 1,024/1,024 · 0 | 1,024/1,024 · 0 |
+| Disconnected background, one path through six subdivisions | 256/256 · 0 | 256/256 · 0 | 1,024/1,024 · 0 | 1,024/1,024 · 0 |
+
+The 16² columns give the range of exact pixels and the largest absolute error over three returns. The 32² columns use the first return on each processor count. Combining the six new 16² full outputs with the earlier ten gives 55 positions with the same word in every capture. MaterialCraft matches 54. At (6,9) the difference is 2.98023224e−8. Each application produced full images at both sizes. [Earlier ten captures](#repeated-f32-captures-of-28-noise-roots)
+
+Configure the disconnected wave controls at each size and use ordinary Save. Open all four files without changing their stored parameters. All 2,560 MaterialCraft pixels reproduce their respective pre-save words.
+
+| Reopened wave control | Size | One processor · max | Eight processors · max |
+|---|---|---:|---:|
+| Additive | 16² | 125/256 · 8.94069672e-08 | 125/256 · 8.94069672e-08 |
+| Additive | 32² | 537/1,024 · 8.94069672e-08 | 537/1,024 · 8.94069672e-08 |
+| Maximum | 16² | 256/256 · 0 | 256/256 · 0 |
+| Maximum | 32² | 1,024/1,024 · 0 | 1,024/1,024 · 0 |
+
+The maximum-blend and isolated-path comparisons provide controls for the stamp arithmetic. A repeatable overlap order that reproduces the additive images remains unresolved.
+
+### Repeated F32 captures of 28 noise roots
+
+At one fixed setting per root, compare one MaterialCraft render with five reference returns at one processor and five at eight. Between returns, render a second setting at a different size to invalidate the previous image. Read the raw F32 output after every return. The same processor count produced multiple buffers on 8 of the 28 roots at one processor and on 25 at eight.
+
+Of the 27 whole images MaterialCraft produced, 19 matched every pixel that had the same F32 word across all ten captures. In total, **11,403/11,445** such pixels matched. In 18 of the 27 images, every position matched a value seen at that position in at least one capture. Those matches can belong to different frames. The 128 × 32 Dirt 4 v2 graph reached the execution budget.
+
+Each five-count column gives the number of exact pixels in each successive whole frame. The maximum is the largest absolute error across those ten frames. The last column counts exact pixels among those constant across all ten and gives their maximum absolute error. A dash indicates that MaterialCraft returned an error.
+
+| Root package | Size · seed | Five at one processor | Five at eight processors | Whole maximum | Constant pixels · maximum |
+|---|---|---|---|---:|---|
+| `noise_bnw_spots_1` | 16² · 0 | 256, 256, 256, 256, 256 | 155, 166, 169, 165, 161 | 1.1920929e-07 | 90/90 · 0 |
+| `noise_bnw_spots_1_v2` | 16² · 0 | 256, 256, 256, 256, 256 | 229, 231, 235, 225, 226 | 1.1920929e-07 | 211/211 · 0 |
+| `noise_bnw_spots_3` | 64² · 42 | 4094, 4093, 4094, 4091, 4093 | 4095, 4094, 4092, 4093, 4094 | 1.0728836e-05 | 4,089/4,089 · 0 |
+| `noise_bnw_spots_3_v2` | 16² · 0 | 232, 232, 233, 232, 232 | 238, 236, 234, 236, 233 | 5.9604645e-08 | 207/211 · 5.9604645e-08 |
+| `noise_clouds_1` | 32² · 103019 | 1023, 1023, 1023, 1023, 1023 | 1024, 1023, 1023, 1024, 1024 | 1.5258789e-05 | 1,022/1,022 · 0 |
+| `noise_clouds_1_v2` | 16² · 0 | 256, 256, 256, 256, 256 | 215, 223, 220, 220, 214 | 1.1920929e-07 | 198/198 · 0 |
+| `noise_clouds_2_v2` | 16² · 103050 | 256, 256, 256, 256, 256 | 252, 249, 250, 252, 252 | 5.9604645e-08 | 247/247 · 0 |
+| `noise_directional_noise_1` | 16² · 103800 | 256, 256, 256, 256, 256 | 255, 255, 255, 255, 256 | 1.1444092e-05 | 255/255 · 0 |
+| `noise_directional_noise_1_v2` | 16² · 103813 | 158, 158, 158, 158, 158 | 158, 156, 165, 166, 159 | 1.7881393e-07 | 63/67 · 2.9802322e-08 |
+| `noise_directional_noise_2` | 16² · 103826 | 75, 75, 75, 74, 75 | 74, 83, 82, 85, 71 | 1.4901161e-07 | 3/5 · 5.9604645e-08 |
+| `noise_directional_noise_2_v2` | 16² · 103839 | 148, 148, 157, 151, 150 | 167, 162, 167, 153, 161 | 8.9406967e-08 | 48/49 · 5.9604645e-08 |
+| `noise_directional_noise_3` | 32² · 113 | 1010, 1014, 1013, 1015, 1014 | 1022, 1013, 1020, 1022, 1020 | 2.5361776e-05 | 1,007/1,007 · 0 |
+| `noise_directional_noise_4` | 16² · 103878 | 127, 127, 127, 127, 127 | 148, 174, 135, 122, 128 | 2.682209e-07 | 48/51 · 5.9604645e-08 |
+| `noise_directional_noise_4_v2` | 16² · 0 | 110, 110, 110, 110, 110 | 142, 133, 123, 174, 136 | 2.3841858e-07 | 47/58 · 2.3841858e-07 |
+| `noise_dirt_1` | 16² · 105424 | 256, 256, 256, 256, 256 | 250, 246, 248, 246, 247 | 5.9604645e-08 | 242/242 · 0 |
+| `noise_dirt_1_v2` | 16² · 105441 | 256, 256, 256, 256, 255 | 251, 251, 253, 253, 253 | 5.9604645e-08 | 248/248 · 0 |
+| `noise_dirt_3` | 16² · 105475 | 254, 254, 254, 254, 254 | 254, 254, 255, 254, 255 | 2.9802322e-08 | 253/253 · 0 |
+| `noise_dirt_3_v2` | 16² · 105492 | 256, 256, 256, 256, 256 | 255, 256, 255, 256, 255 | 7.4505806e-09 | 255/255 · 0 |
+| `noise_dirt_4` | 16² · 105509 | 238, 238, 238, 238, 238 | 256, 256, 256, 256, 256 | 6.1035156e-05 | 238/238 · 0 |
+| `noise_dirt_4_v2` | 128 × 32 · 433595 | — | — | — | —/4,064 · — |
+| `noise_dirt_5` | 32² · 105545 | 1023, 1023, 1023, 1023, 1023 | 1024, 1024, 1024, 1024, 1024 | 5.081296e-05 | 1,023/1,023 · 0 |
+| `noise_dirt_5_v2` | 16² · 105560 | 237, 237, 237, 237, 237 | 230, 232, 231, 232, 233 | 5.9604645e-08 | 208/209 · 7.4505806e-09 |
+| `noise_dirt_gradient` | 16 × 32 · 281741 | 512, 512, 512, 512, 512 | 511, 511, 511, 511, 511 | 1.5258789e-05 | 511/511 · 0 |
+| `noise_dirt_gradient_v2` | 16² · 105594 | 185, 177, 177, 177, 172 | 180, 188, 184, 188, 193 | 2.3841858e-07 | 124/124 · 0 |
+| `noise_fur_2` | 16² · 75892 | 256, 256, 256, 256, 256 | 223, 231, 213, 199, 202 | 5.9604645e-08 | 183/183 · 0 |
+| `noise_fur_3` | 16² · 75899 | 174, 174, 174, 174, 174 | 201, 198, 187, 177, 201 | 5.9604645e-08 | 134/150 · 2.9802322e-08 |
+| `noise_gaussian_spots_2` | 16² · 87914 | 256, 256, 256, 256, 256 | 241, 237, 237, 238, 239 | 5.9604645e-08 | 225/225 · 0 |
+| `noise_gaussian_spots_2_v2` | 16² · 87921 | 256, 256, 256, 256, 256 | 236, 236, 243, 231, 236 | 2.9802322e-08 | 224/224 · 0 |
+
+The procedural generators have no image inputs. Use defaults except for these settings. BNW Spots 3 uses scale 2 and disorder .37. Clouds 1 uses scale 3, disorder .3125 and non-square expansion off. Directional Noise 3 uses scale 2, disorder .37, angle .125 and angle random .2. Dirt 5 uses scale 1, disorder .3125 and non-square expansion off. For Dirt 4 v2 at 128 × 32, set scale 3, disorder, speed and anisotropy .046875, anisotropy angle −.203125, tile offset (−.296875,.365234375) and non-square expansion on.
+
+For the intervening setting, use 32² at seed 113. Set scale 2 and disorder .37 when present. For the v2 roots set speed .6, anisotropy .3, anisotropy angle .125 and tile offset (.17,.29) where exposed. Use roughness .6 for both BNW Spots 1 versions and angle .125 with angle random .2 for the directional roots. Dirt Gradient and Dirt Gradient v2 use the disorder fields only. Fur 2 uses scale 2, waves scale .25 and waves rotation .2. Fur 3 uses scale 2, disorder .37 and waves amount 3. The exceptions use 16² and defaults at seeds 103017 for Clouds 1, 103852 for Directional Noise 3 and 105543 for Dirt 5.
+
+#### The final drawing stage of BNW Spots 3 v2
+
+At 16², seed 0 and defaults, read all three FX-Map outputs on twelve more returns per processor count. All 24 renders matched the first two stages at **16/16 and 64/64 U8 pixels**, maximum zero. Combining the 24 final F32 reads with the preceding ten produced 33 distinct whole images. They matched MaterialCraft at 223 to 241 of 256 pixels, with a maximum whole-image error of 1.1920929e−7. Of 185 pixels constant across all 34, 184 matched. At (8,10), all 34 returned `0x3eb84742` and MaterialCraft returned `0x3eb84743`, a difference of 2.9802322e−8. Each of the other 255 pixels matched at least one full capture.
+
+Keep the outer Iterate’s count expression connected to the first input of a Sequence and return a fixed count from its second input. Leave the three FX-Map connections and six four-way quadrant subdivisions intact. Use the functions library for the reusable math calls. For the last three rows, use a count of one and retain all four children in the first three, four or five subdivisions. At each remaining subdivision keep only the original slot from (0,3,1,2,0,3), indexed by depth. Alternate the same 32² and 16² cases and collect five returns per processor count.
+
+| Outer repeats · paths per repeat | Exact whole pixels of 256, range over ten returns | Whole maximum | Constant pixels · maximum | Distinct whole buffers |
+|---|---:|---:|---|---:|
+| 0 · 4,096 | 256 | 0 | 256/256 · 0 | 1 |
+| 1 · 4,096 | 230–243 | 5.9604645e-08 | 202/202 · 0 | 10 |
+| 2 · 4,096 | 227–240 | 5.9604645e-08 | 191/191 · 0 | 10 |
+| 4 · 4,096 | 228–246 | 1.1920929e-07 | 201/201 · 0 | 10 |
+| 8 · 4,096 | 228–238 | 1.1920929e-07 | 201/203 · 2.9802322e-08 | 10 |
+| 1 · 64 | 256 | 0 | 256/256 · 0 | 1 |
+| 1 · 256 | 255–256 | 5.9604645e-08 | 255/255 · 0 | 2 |
+| 1 · 1,024 | 254–255 | 5.9604645e-08 | 249/249 · 0 | 5 |
+
+At one, two and four outer repeats the reference returned both neighboring F32 words at (8,10). At eight repeats it returned the lower word on all ten captures. The reduced one-repeat graphs with 64, 256 or 1,024 active paths each match every constant pixel. The full root remains in progress.
+
+### Working precision of Blur inputs
+
+When an equal-sized normalized input feeds Blur and exactly one size depends on a graph parameter, the filter reads the texture at its floating-point destination precision. U8 and U16 inputs to F16 Blur are stored at half precision before the first pass. F32 Blur retains the normalized values and samples them as floats. The second pass reads the stored horizontal result. For fractional taps, the sampler precision affects the result even with identical source texels.
+
+Use the 16² U8 field of 58 with four changed neighbors from the Sharpen comparison. Have the input, Blur, both or neither read an exposed .375 and return (0,0) as the relative size offset. The fixed and both-reader settings agree. The two single-reader settings also agree. Each cell gives the value read from the reference output on one and eight processors. [Procedural field and size functions](#half-precision-inputs-to-sharpen)
+
+| Intensity · destination | Pixel | Fixed or both sizes | One size reads the parameter |
+|---|---|---:|---:|
+| 24 · F16 | (7,8) | .185546875 | .1854248046875 |
+| 32 · F16 | (6,7) | .2100830078125 | .2099609375 |
+| 32 · F32 | (6,5) | `0x3e673a97` | `0x3e673a99` |
+
+At intensity 32 with one size reading the parameter, filtering the already stored half pixels with F32 weights gives 251/256, maximum .0001220703125. Sampling them at F16 gives 256/256. For the F32 destination, the previous normalized sampler gave 213/256, maximum 9.9837779999e−7. Sampling the same normalized values at F32 gives 256/256.
+
+The first 55 Blur settings reuse the procedural grayscale and RGBA fields, sizes and seeds of the Sharpen series, with intensity 24. They improved from **26,321/30,976** to **30,976/30,976**, maximum .00048828125 to zero. The 55 Transformation 2D controls use matrix (.875,.125,−.125,.875) with centered translation and reproduce another 30,976/30,976 unchanged. For a separate intensity sweep use 0, 3.2, 10, 24 and 32 at each of the following settings. The fixed gray U8 control is 16² at seed 0. The variable-size gray U16 source uses 16² at seed 512. The gray U8 source with variable-size Blur uses 16 × 32 at seed 5034. The RGBA U16 source with its size driven uses 64 × 32 at seed 6211. Drive both sizes at 64², seed 4242, in the RGBA U16 control. Store all four output formats and compare every channel.
+
+| Intensity sweep · 25 settings per format | Before · maximum | After · maximum |
+|---|---:|---:|
+| U8 | 35,840/35,840 · 0 | 35,840/35,840 · 0 |
+| U16 | 35,840/35,840 · 0 | 35,840/35,840 · 0 |
+| F16 | 30,839/35,840 · 0.00048828125 | 35,840/35,840 · 0 |
+| F32 | 31,004/35,840 · 6.169080734e-06 | 35,840/35,840 · 0 |
+
+All 100 sweep settings now match **143,360/143,360** on both processor counts. Four F32 fractional or wider filters previously matched 28/4,864. Binding an F32 field with the exact normalized values from the corresponding input bridge independently reproduced 4,864/4,864 with zero error.
+
+In Dirt 1 use the 16² default at seed 0, 32 × 16 at seed 42 with Disorder .375, and 32² at seed 93 with Disorder .8125. Store U8, U16, F16 and F32 on the final Blend. With the original U8 quarter-size Blur at intensity 3.2, all 7,168 output pixels match. For the other cases, bring Blur to the full U16 FX-Map extent. Use intensity 24 and F16 on Blur, then intensity 32 and F32. Try fixed sizes, have only Blur read Disorder before returning (0,0) for the size, then have both nodes read it. The following rows cover the single-reader path. All three FX-Map inputs agree in each comparison.
+
+| Blur precision · final output | Before · maximum | After · maximum |
+|---|---:|---:|
+| F16 · U8 | 1,789/1,792 · 1 | 1,792/1,792 · 0 |
+| F16 · U16 | 1,533/1,792 · 8 | 1,792/1,792 · 0 |
+| F16 · F16 | 1,631/1,792 · 0.00048828125 | 1,792/1,792 · 0 |
+| F16 · F32 | 1,530/1,792 · 0.0001186728477 | 1,792/1,792 · 0 |
+| F32 · U8 | 1,791/1,792 · 1 | 1,792/1,792 · 0 |
+| F32 · U16 | 1,662/1,792 · 1 | 1,792/1,792 · 0 |
+| F32 · F16 | 1,763/1,792 · 0.0001220703125 | 1,792/1,792 · 0 |
+| F32 · F32 | 233/1,792 · 7.525086403e-06 | 1,792/1,792 · 0 |
+
+At Blur itself the three F16 cases improved from 1,334/1,792 · 0.0001220703125 to 1,792/1,792 · 0. The three F32 cases improved from 1/1,792 · 4.023313522e-06 to 1,792/1,792 · 0. The fixed and both-reader controls match every final output on both processors. Across the original and six changed Blur configurations all 84 final renders now match **50,176/50,176 pixels**, maximum zero.
+
+Use ordinary Save on configured cases and reopen without edits. The 16 direct filter files reproduce 15,360/15,360 pixels. The 10 whole Dirt 1 files reproduce 6,656/6,656 pixels. Each also matches the corresponding pre-save reference on one and eight processors, maximum zero. Dirt 1 remains in progress for its earlier processor-dependent results. [Original Dirt 1 comparison](#four-child-pattern-order-as-a-tile-copy-batch-fills)
+
+### Keeping an explicit file link when the configured library changes
+
+Ordinary Save keeps an explicit file reference tied to the file it resolved when the caller was opened. Previously, a caller outside the configured library could acquire a catalog alias when its explicitly linked package matched bundled bytes. Changing the configured library then redirected that saved caller to a different file.
+
+Use the four configured Waveform v2 callers with U8, U16, F16 and F32 outputs. Put two copies of the hash package in separate library directories. Keep the first original. In the second, set the result of the two-component hash function to .375. Keep the general math dependency equal in both. Open the callers outside either library with the first library configured and use ordinary Save. For each size try the relative filename pointing into the first directory and an explicitly authored catalog alias. Verify both linked file hashes before and after each caller save. Then save the first hash package at its own path so the reference compiler can read its version. Keep the saved callers fixed and reopen them with each directory configured. [Caller dimensions, settings and original function edit](#editing-the-linked-function-with-a-waveform-caller-open)
+
+With the second library configured, the previous relative-file saves matched **8,410/8,448** pixels of the original-function captures. All 38 differences were in the 16² U16 case at seed 725048, with a maximum of 65,535 levels. The corrected relative-file saves match **8,448/8,448** under either library, maximum zero. The four explicit catalog callers follow the configured library, matching all 8,448 original-function pixels with the first library and all 8,448 edited-function pixels with the second. Each comparison uses the raw words from both one and eight reference processors. A fresh open of the four corrected relative-file saves in the reference app also reproduced **8,448/8,448** original pixels at each processor count.
+
+The regression starts with an explicit disk reference to a bundled grayscale switch. It checks the resolved file after saving and reopening the caller and the catalog alias in a separate portable copy. Its in-place assertion failed on the previous engine. The older detached-package compiler behavior is recorded separately. [Reference app’s ordinary Save](#ordinary-save-in-the-reference-app-with-the-same-live-dependencies)
+
+#### Keeping catalog links when saving a caller inside its library
+
+An ordinary Save previously converted an explicit catalog link to a relative filename when the caller was inside the selected library. A later change of library still picked the old function. The in-place writer now preserves the authored choice for both graph instances and function calls.
+
+Create two library directories with the same general math package. Put the original hash function in the first and set its two-component hash result to .375 in the second. Under the first directory, create a child folder for callers. Use the four configured Waveform v2 inputs from the preceding comparison. In each configuration create one caller pointing to the hash package by its parent-relative filename and one using its catalog URI. Both use the catalog URI for the general math functions. With the first library selected, save each caller at its existing path. Keep all four external package files fixed and verify their hashes. Reopen all eight saved callers with each library selected. [Sizes, seeds and output formats](#saving-older-linked-packages-at-their-existing-paths)
+
+| Authored hash link | Selected library on reopen | Expected hash function | Previous exact · maximum | Current exact · maximum |
+|---|---|---|---:|---:|
+| Relative file | First or second | Original file in first | 8,448/8,448 · 0 | 8,448/8,448 · 0 |
+| Catalog | First | Original in selected library | 8,448/8,448 · 0 | 8,448/8,448 · 0 |
+| Catalog | Second | Edited in selected library | 8,410/8,448 · 65,535 U16 levels | 8,448/8,448 · 0 |
+
+Each count holds separately against the one- and eight-processor reference buffers. At 16², seed 725048, the corrected catalog caller reproduced all 256 edited U16 pixels. The earlier file choice reproduced 218. The U8, F16 and F32 cases reproduced all 8,192 pixels with either hash function. The regression saves two graph instances pointing to the same bundled switch through different link forms. Previously both serialized as the same filename.
+
+Ordinary Save in the reference app preserved both catalog URIs in all four catalog callers. Opening those files afresh there reproduced the original **8,448/8,448** pixels on each processor count, maximum zero. The same fresh-open comparison of the four MaterialCraft-saved catalog callers also reproduced **8,448/8,448**. The older external-file compiler limitation remains recorded for Waveform v2. [Older linked packages](#ordinary-save-in-the-reference-app-with-the-same-live-dependencies)
+
+### Points Preview graph links after switching the configured library
+
+Place four configured callers inside the first of two library directories. Use compatible spline dependencies and the generated point strip. Place the same licensed monospace font at the external filename declared by each spline package. In the second spline package connect a .375 grayscale U8 Uniform to the Points Preview output. Save two versions of each caller in the first directory. Give one a relative filename pointing to the first spline package and the other the catalog URI for that package. Close and reopen each caller with each library selected. The four U8 views are the four-point points-only and zero-point combined views at 16² and seed 0, eight-point labels at 32² and seed 42, and twelve points with labels at 32 × 16 and seed 507031. [Procedural inputs, font and external packages](#saving-older-linked-packages-at-their-existing-paths)
+
+| In-place link | First library selected | Second library selected | Maximum error against the selected source |
+|---|---:|---:|---:|
+| Relative filename | Original 2,048/2,048 | Original 2,048/2,048 | 0 U8 levels |
+| Catalog URI | Original 2,048/2,048 | Edited 2,048/2,048 | 0 U8 levels |
+
+Both reference processor counts give the same expected values. The previous writer turned the catalog URI into a relative filename. With the second library selected, it reproduced **0/2,048** edited pixels, maximum error 159 levels. Both dependency trees kept their package hashes through all eight caller saves. As a separate reference check, open the same four file-linked caller bytes beside each independent library, preserving the relative location of the generated image. Fresh reference opens at one and eight processors give **2,048/2,048** for each library, maximum zero. An initial copy supplied the first font under its friendly filename, while the saved package declared a content-addressed filename. This gave 1,992/2,048 in the reference, maximum 135 U8 levels. Providing the same font bytes at the declared path restored the 56 label pixels with the caller and spline package bytes unchanged. The newer writer’s root measurements use compatible linked packages. The older detached-package result remains open. [Reference saves with older links](#ordinary-save-in-the-reference-app-with-the-same-live-dependencies)
+
+### Saving a catalog dependency while its callers stay open
+
+A caller could keep an old graph or function after another tab saved the physical file selected by its catalog link. The open session refreshed the disk filename and retained an earlier snapshot under the catalog URI. Ordinary Save now refreshes the catalog entries for that file. It reads nested references relative to each catalog entry. An explicit dependency supplied by a project retains its own value.
+
+Keep one caller open and export its original output. Open the linked package by its physical filename in a second tab. For Points Preview, add a U8 grayscale Uniform at .375 to the linked graph, connect it to the output and save. For Waveform v2, set the linked two-component hash function’s result to .375 and save. Return to the caller tab and export. Undo the connection or function edit, save the dependency a second time and export from the still-open caller. Verify the caller’s file hash through the three exports. Repeat with a relative filename and a catalog URI in each configured caller. [Four Points Preview views and font placement](#points-preview-graph-links-after-switching-the-configured-library) · [Four Waveform sizes, seeds and storage formats](#saving-older-linked-packages-at-their-existing-paths)
+
+Each cell gives exact pixels against fresh reference buffers for the same saved source state, followed by maximum absolute error. The counts hold separately at one and eight reference processors. Points Preview uses U8. Waveform uses U8, U16, F16 and F32. The previous Waveform differences are all in U16.
+
+| Caller and link | Original | Saved edit before fix | Saved edit after fix | Undo and save |
+|---|---:|---:|---:|---:|
+| Points Preview · relative filename | 2,048/2,048 · 0 | 2,048/2,048 · 0 | 2,048/2,048 · 0 | 2,048/2,048 · 0 |
+| Points Preview · catalog URI | 2,048/2,048 · 0 | 0/2,048 · 159 | 2,048/2,048 · 0 | 2,048/2,048 · 0 |
+| Waveform v2 · relative filename | 8,448/8,448 · 0 | 8,448/8,448 · 0 | 8,448/8,448 · 0 | 8,448/8,448 · 0 |
+| Waveform v2 · catalog URI | 8,448/8,448 · 0 | 8,410/8,448 · 65,535 | 8,448/8,448 · 0 | 8,448/8,448 · 0 |
+
+All 16 caller files kept their original bytes. Fresh reference opens of the relative-file callers against the newly saved graph and function packages also match **10,496/10,496** pixels after the edit and **10,496/10,496** after undo, at each processor count. For this check, keep the caller bytes, the locations of the generated image and font, and the saved dependency bytes fixed. The function regression also checks an installed catalog source, one first loaded by the caller, and a project-supplied override. Saving .375 or .625 refreshes the corresponding file-backed entry. The override stays at .5 after a physical save of .75. The previously measured compiler behavior with older external package headers remains open. [Ordinary saves of callers with older linked files](#ordinary-save-in-the-reference-app-with-the-same-live-dependencies)
+
+### Editing the linked function with a waveform caller open
+
+Use the four configured Waveform v2 files and the relative function package. In a single MaterialCraft session, open a caller and export its Waveform output as raw linear F32. Open `curve_lookup.sbs` in another tab, set the result of `hash21` to a scalar constant .375 and save the linked file. Return to the caller tab and export again. Undo the function edit in its tab, save there, return to the caller and export a third time. Leave the caller open throughout and verify its file hash before and after. [Configured callers and dependency](#saving-older-linked-packages-at-their-existing-paths)
+
+Compare each export at the caller’s stored precision with reference captures at one and eight processors. Original, edited and restored states each match **8,448/8,448 pixels**, maximum zero. At 16², seed 725048, 38 of the 256 U16 pixels changed, with a maximum change of 65,535 levels. Undo restored all 256 original values. The U8, F16 and F32 settings retained all 8,192 of their original pixels after the edit. All four caller files kept the same bytes and relative function path. Opening the same callers afresh in MaterialCraft also reproduced both the edited and restored images.
+
+### Saving older linked packages at their existing paths
+
+An ordinary Save in MaterialCraft can update an older linked SBS at the same relative path. Both callers below then reopen in the reference app with their original connections. Saving just the caller leaves the older linked files at version `0.1.3`. The reference compiler rejected both configured callers in that state. After saving the linked files, it accepted the same caller bytes. All counts below compare whole pixels at native storage precision on both one and eight reference processors.
+
+| Root | Settings applied after opening the caller | Configured files opened directly | Maximum channel error |
+|---|---:|---:|---:|
+| Points Preview | 17,920/17,920 across 30 settings | 2,048/2,048 across 4 saves | 0 U8 levels |
+| Waveform v2 | 179,968/179,968 across 43 settings | 8,448/8,448 across 4 saves | 0 in U8, U16, F16 and F32 |
+
+For Points Preview, bind the generated two-row ellipse field and place the same licensed monospace face at `resources/LiberationMono-Regular.ttf` relative to the spline package. Use counts 4, 8 and 12 with points only, labels only and both, plus count 0 with both. Use 16² at seed 0, 32² at seed 42 and 32 × 16 at seed 507031. Open and save `blend_switch.sbs`, `quad_transform.sbs`, `spline_tools.sbs`, `uv_mapper.sbs` and `value_get_size.sbs` in place. Leave the already compatible `functions.sbs` as supplied. For the four-point, labels-only compiler control, all 31 proper subsets of the five saves failed to compile. Saving all five succeeded. The new package versions read `1.1.0.202401`. The spline package retains 51 graphs, 39 functions and the relative font resource. All 30 renders also match the earlier compatible-library buffers. [Settings, inputs and matched fonts](#overlapping-glyphs-and-points-preview-file-handoff)
+
+To check that the link stays live, use the four-point points-only, eight-point labels-only, twelve-point combined and zero-point combined callers. In the linked graph, connect a grayscale Uniform set to .375 and U8 to the output, then save. The four callers kept their original bytes. Across the three sizes every one of their 7,168 pixels changed, and both applications returned 96 at each pixel. Reconnect the original Pixel Processor and save again. The reference session's already-loaded callers still returned 96, with 0/7,168 matching the restored computation and a maximum difference of 159 U8 levels. Loading the same four caller paths afresh reproduced the original **7,168/7,168** in both applications, maximum zero.
+
+For Waveform v2, keep the existing relative `curve_lookup.sbs` filename and the `sbs://functions.sbs` library link. Open the older relative file in MaterialCraft and save it at its own path. All seven function identifiers survive. The three caller files retained their bytes. Reuse the seven sizes, seeds, changed parameters and fixed fields of the earlier waveform series. The three groups respectively reproduce 109,056/109,056, 44,288/44,288 and 26,624/26,624 pixels of their earlier compatible-file captures. [Full waveform settings](#reopened-starburst-symmetry-tile-and-waveform-graphs)
+
+For the direct-open column, configure and save the callers **before** saving their dependencies. For points, use counts 4, 8, 12 and 0 with the four views above at 16², 32², 32 × 16 and 16² respectively. For waveform, use U8 at 64 × 32, seed 725259, U16 at 16², seed 725048, F16 at 32 × 64, seed 769164, and F32 at 32 × 128, seed 725470. Save the linked files in place, verify the eight caller hashes still match, and open the callers directly with their stored inputs, sizes, seeds and parameters. Both applications reproduced the previous same-setting buffers. The two roots remain in progress for caller-only saves where the external packages keep their older encoding.
+
+#### Ordinary Save in the reference app with the same live dependencies
+
+Open the four configured Points Preview callers and the 16² U16 Waveform v2 caller from the preceding comparison. Supply the generated point-list image at the caller’s declared path and the same licensed font at the spline package’s declared path. Keep the linked packages at version `0.1.3`. Use the reference app’s own ordinary Save on each caller. The saved callers retain their relative SBS dependency names and the linked package bytes keep their original hashes. The point-list images move to the sidecar directories named by the saved callers. Each copied image has the same file hash as its procedural input.
+
+The reference compiler rejected all five reference-saved callers while the external packages still carried their three-part headers. It reported the version of the linked file as unreadable. The previous caller-only saves from MaterialCraft gave the same compiler result. In a separate directory keep the reference-saved callers and all their image sidecars byte-for-byte identical. Open and save the five linked point packages or the single waveform hash package at their respective paths in MaterialCraft. The compiler then accepted every caller.
+
+| Reference-saved caller opened directly | Stored pixels exact at one processor | At eight | Against earlier compatible caller | Maximum |
+|---|---:|---:|---:|---:|
+| Four Points Preview views, U8 | 2,048/2,048 | 2,048/2,048 | 2,048/2,048 | 0 |
+| Waveform v2, U16, seed 725048 | 256/256 | 256/256 | 256/256 | 0 |
+
+As an independent control, use the 16² F32 caller returning (called value + .21875, 0, .53125, .75) at seed 596087. Set the file-based function result to .34375. Ordinary Save in the reference app retained the relative function name with either dependency header. The four-part input compiled directly. The three-part input compiled after saving the function file at its original path. Both gave **256/256 RGBA pixels** at each processor count, maximum error zero. Points Preview and Waveform v2 remain in progress for the older detached files. [Original scalar control and tested headers](#reopening-a-portable-copy-with-detached-function-packages)
+
+### Half-precision inputs to Sharpen
+
+Sharpen reads equal-sized normalized integer inputs at half precision when it writes F16 and exactly one of the two sizes depends on a graph parameter. The shared evaluator now applies that conversion before the four-neighbor filter. The 55 grayscale and RGBA probes improved from **23,181/30,976** to **30,976/30,976** pixels on both reference processor counts. The maximum component error fell from .001953125 to zero.
+
+For a minimal case, fill a 16² U8 input with 58. Store 5 at (7,8), 78 at (9,8), 31 at (8,7) and 42 at (8,9). Use intensity 1 and an F16 destination. Have the source, the filter, both or neither read an exposed .375 and return (0,0) as the relative size offset. At (9,8) the two single-reader cases give .61865234375. The other two give .619140625. The four images now match all 1,024 pixels. For the larger series use the same procedural fields, sizes and seeds as the Levels comparison, intensity 1 for gray and .4375 for color. Include U8, U16, F16 and F32 sources, and check the F32 output control. Six configured ordinary saves reproduce all 3,584 pixels. The 130 repeated Levels controls retain 56,320/56,320. [Procedural inputs and size functions](#half-precision-inputs-to-levels)
+
+In Dirt 4 and Dirt 4 v2, edit the final Sharpen size property so it has the same extent as its FX-Map input. Set it first to half the parent on both axes, then to the input size with zero offset. Use a 16² parent, seed 0 and defaults. Repeat at 32 × 16, seed 93, scale 1, disorder .3125 and non-square expansion disabled. Store U8, U16, F16 and F32 on each route. Both processor counts agree at the FX-Map, Sharpen and output. The first root feeds U16 into the filter and the second feeds U8.
+
+| Root and size mode | F16 before · maximum | F16 after · maximum | All four formats after |
+|---|---:|---:|---:|
+| Dirt 4, half the parent | 79/192 · .001953125 | 192/192 · 0 | 768/768 · 0 |
+| Dirt 4, relative to input | 192/192 · 0 | 192/192 · 0 | 768/768 · 0 |
+| Dirt 4 v2, half the parent | 68/192 · .001953125 | 192/192 · 0 | 768/768 · 0 |
+| Dirt 4 v2, relative to input | 192/192 · 0 | 192/192 · 0 | 768/768 · 0 |
+
+Across these 32 whole-graph settings, exact pixels rose from 2,835/3,072 to **3,072/3,072**. Opening eight configured F16 files without further edits gives another 768/768, maximum zero.
+
+With the original Sharpen size property, Dirt 4 enlarges the FX-Map. Use scale 1, disorder 0 and non-square expansion enabled at 64 × 32, seed 299618. For the 32 × 64 settings use seed 299697, scale 2, disorder 0.8125 and non-square expansion enabled. Each cell gives exact output pixels and maximum absolute error.
+
+| Original size · storage | Earlier capture, either processor count | Fresh one-processor capture | Fresh eight-processor capture | Ordinary save, either processor count |
+|---|---:|---:|---:|---:|
+| 64 × 32 · F16 | 2,045/2,048 · 0.0001220703125 | 2,045/2,048 · 0.0001220703125 | 2,048/2,048 · 0 | 2,044/2,048 · 0.00048828125 |
+| 64 × 32 · F32 | 2,035/2,048 · 5.340576172e-05 | 2,007/2,048 · 6.103515625e-05 | 2,048/2,048 · 0 | 2,048/2,048 · 0 |
+| 32 × 64 · F16 | 2,040/2,048 · 0.001953125 | 2,040/2,048 · 0.001953125 | 2,040/2,048 · 0.001953125 | 2,048/2,048 · 0 |
+| 32 × 64 · F32 | 2,026/2,048 · 4.583597183e-05 | 2,026/2,048 · 4.583597183e-05 | 2,048/2,048 · 0 | 2,037/2,048 · 6.103515625e-05 |
+
+The two fresh reference reads of the U16 FX-Map differ by one level at three of 512 input texels on the wide case and one of 512 on the tall case. MaterialCraft matches all 512 on the eight-processor read of each. In the tall F16 case the eight-processor Sharpen result matches MaterialCraft on all 2,048 pixels while the separately read reference output differs at eight. In Dirt 4 v2, both original-size 16 × 32 controls at seed 0 agree in F16 and F32 across both reference counts and their ordinary saves, 1,024/1,024 on each file route. Larger pattern executions and reference variation remain open. [Dense Dirt comparisons and work limits](#dense-seeded-quadrants-in-moisture-noise-and-dirt-4)
+
+### Half-precision inputs to Levels
+
+Levels now converts a normalized integer image to half precision before applying the curve when the input and output have equal pixel dimensions and only one size is parameter-controlled. The curve runs in F32 and the output uses its declared storage precision. The untiled 16 × 32 Directional Noise 3 v2 graph at seed 731257 now matches **512/512 F16 pixels**, up from 99/512. The ordinary F16 save also improves from 99/512 to 512/512. Maximum error falls from .0009765625 to zero on one and eight reference processors. All four storage formats match **2,048/2,048** on the original and another **2,048/2,048** after opening the four normally saved files. [Graph parameters and intermediate sizes](#a-recovered-rectangle-and-repeated-outputs-in-directional-noise-3-v2)
+
+To reproduce the precision change in isolation, fill a 16² U8 input with 58/255. Set input low to 7/32, mid to .5 and high to 15/32. On the input or on Levels, read an exposed float of .375 in the relative size function, then return the original exponent offset (0,0). The stored F16 output is .03466796875 when exactly one node reads the parameter and .0347900390625 when both or neither read it. The regression checks all four combinations using a shared cook cache.
+
+The raw grayscale and RGBA comparisons cover U8, U16, F16 and F32 input storage, the original root curve, a linear curve, the default Levels curve and a clamped curve with different endpoints per channel. For the nonuniform inputs use channel c at (x,y) equal to (((73 + 4c)x + 29y + 13xy + 37j + 47c) mod 997)/996. Use j = 1 at 32 × 16, j = 2 at 16 × 32, and j = 3 for the 16 × 32 source at a 32² parent. Use seed 843173 + 19j. The 154 settings improved from **54,099/66,560** to **66,560/66,560** on each reference processor count. The largest channel error fell from .001953125 to zero. Eight ordinary saves across all four output formats match another **4,096/4,096** per processor count.
+
+The original tiling gives the following seven F16 comparisons. The two reference processor counts agree on each file. Each table cell gives whole pixels exact and maximum absolute error. The four completed originals improved from **1,407/7,424** to **7,423/7,424**. All four ordinary saves match **7,424/7,424**, maximum zero.
+
+| Size · seed | Original before | Original after | Ordinary save after |
+|---|---:|---:|---:|
+| 16² · 0 | 56/256 · .0009765625 | 256/256 · 0 | 256/256 · 0 |
+| 64 × 16 · 42 | Work limit | Work limit | Work limit |
+| 32² · 103867 | 204/1,024 · .007080078125 | 1,023/1,024 · .0068359375 | 1,024/1,024 · 0 |
+| 64 × 32 · 195062 | Work limit | Work limit | Work limit |
+| 32 × 64 · 195109 | 354/2,048 · .0009765625 | 2,048/2,048 · 0 | 2,048/2,048 · 0 |
+| 64² · 411704 | Work limit | Work limit | Work limit |
+| 64² · 42 | 793/4,096 · .0009765625 | 4,096/4,096 · 0 | 4,096/4,096 · 0 |
+
+Use defaults at 16² and the [recorded directional parameters](#reference-repeatability-across-31-open-noise-roots) at 32². The original reference returns .428466796875 at (18,16) there. Both reference reopens and both MaterialCraft file routes return .435302734375. For the other non-square settings and the 64² seed 411704 case, enable non-square expansion and set disorder, disorder speed, anisotropy and angle randomness to the same value. At 64 × 16 use scale 2, common value .03125, angle and anisotropy angle −.21875 and tile offset (−.3125,.37890625). At 64 × 32 and 64² seed 411704 use scale 3, common value .34375, both angles .09375 and tile offset (0,.10546875). At 32 × 64 use scale 1, common value .1875, both angles −.0625 and tile offset (−.15625,.2421875). At 64² seed 42 leave non-square expansion at default and use scale 2, disorder .37, speed .6, anisotropy .3, both angles .125, angle randomness .2 and tile offset (.17,.29).
+
+Six F16 controls in Noise Clouds 2, Directional Noise 3, Dirt 2 and Dirt 5 match another 3,072/3,072 pixels against each processor count.
+
+Histogram Select matches **5,120/5,120** across three input fields and all four output formats at both processor counts. Use the constant gray field at 16² with defaults. At 32 × 16 use position .71875, range .3125 and contrast .6875. At 16 × 32 use .375, .625 and .125. The ten recorded F16 Perlin Noise originals match **100,352/100,352** at both processor counts. Its previously configured 64 × 32 F16 save matches **2,048/2,048** on the recorded saved-file comparison. [Perlin Noise settings](#perlin-noise-and-plasma-across-rectangular-projections)
+
+### A recovered rectangle and repeated outputs in Directional Noise 3 v2
+
+Disable tiling on both axes and leave the exposed parameters at their defaults. At 16 × 32 and seed 731257 the previous evaluator stopped at its work limit. With seeded quadrant geometry reuse, the original and four individually configured ordinary saves render under the same limit. U8, U16 and F32 each match **512/512** against both reference processor counts on both file routes, maximum zero. Before the [Levels input precision fix](#half-precision-inputs-to-levels), F16 gave **99/512** on each comparison, maximum .0009765625. For each format, the two reference originals and both reference file reopens agree on all 512 pixels. [Dense quadrant regression](#dense-seeded-quadrants-in-moisture-noise-and-dirt-4)
+
+The three pattern stages feeding Levels have U8 storage at 2 × 4, 4 × 8 and 16 × 32. Set the Levels input low, mid and high to .350414991, .479999989 and .92156899 respectively and disable intermediate clamping. Rounding only the matching F32 output toward zero to F16 reproduces 99/512 stored reference values. Rounding the normalized U8 input toward zero to half before evaluating the curve in F32 and storing the result in half reproduces 512/512. This comparison measures that rectangle and curve.
+
+At 32², enable the original tiling, use seed 103867 and the [recorded directional parameters](#reference-repeatability-across-31-open-noise-roots). For U16 the original one- and eight-processor captures differ at (18,16). MaterialCraft gives 28,554, matching 1,023/1,024 on one processor and 1,024/1,024 on eight, maximum 446 and zero. Its F32 output matches 1,024/1,024 on both.
+
+To repeat the stage comparison, switch to 16², seed 103865 and default exposed parameters before returning to the 32² U16 and F32 pair. Make two returns on each processor count. All four U16 reads match MaterialCraft at the 4², 8² and 32² patterns and at the 32² Levels output. One eight-processor graph output instead returns 28,108 at (18,16). On a one-processor F32 return the last U8 pattern differs by one level there, and the Levels stage reads .428904921 while the graph output reads .435707599. The remaining three F32 stage-to-output reads match at every pixel. The root remains in progress.
+
+### Input-relative size and precision on a pattern background
+
+The FX-Map uses its connected background for input-relative size and precision. The 20 outputs in the paired-instance comparison now match **32,256/32,256 pixels**. Eight previously had the wrong dimensions. Together with the child image bridges, all 140 outputs match **235,520/235,520** on one and eight reference processors. The separate 26-output instance comparison now matches 25,856/25,856. [Paired instances and original input fields](#input-relative-dimensions-on-a-child-image-bridge)
+
+Give a standalone FX-Map a 16 × 32 background and a 32² stamp. With the parent at 32 × 16, omitted or explicit input-relative dimensions produce 16 × 32. A (−1,+1) input-relative exponent offset produces 8 × 64. Parent-relative dimensions give 32 × 16. A disconnected background leaves the parent as the size source even with the stamp wired. Repeat inside a child fixed at 64² with a wired and an unwired background, then fix the background bridge on the child and on the caller. Across 60 output reads at three parent extents, **93,952/93,952** pixels match, maximum error zero.
+
+Set the background bridge to U16, the stamp bridge to F32 and the parent to U8. Keep the draw's format input-relative. At parent sizes 16², 32 × 16 and 16 × 32, test both inputs, background only, stamp only and both disconnected. The first two configurations inherit U16 and the last two inherit U8. Both the actual storage type and dimensions match in **12/12 cases**, up from 5/12. Raw PNG exports and direct reads of configured files agree with the reference originals on **5,632/5,632 pixels**. Selecting an explicit format in the editor switches that property to absolute inheritance. Preserve the authored mode for this comparison.
+
+For each of U8, U16, F16 and F32, set the connected background bridge to that precision and leave the FX-Map's precision input-relative. Read the bridge directly and through the draw with the stamp disconnected. Use original grayscale byte fields at 8², 16 × 32 and 128², with the bridge fixed to 16 × 32. For the two smaller fields set byte (x,y) to (17x + 43y + 23(xy mod 7)) mod 251. The 128² field is the linked background used above. All **12,288/12,288** pixels match. Opening the four normally saved draw configurations with the 128² source in the reference app reproduces **2,048/2,048** pixels at each processor count. Maximum error is zero.
+
+The seven measured roots with an input-relative pattern and a connected background retain their recorded results. Bevel Smooth's position helper retains 354,560/354,560 pixels on both original and saved paths. Paths Trace retains 73,984/73,984 original and 28,928/28,928 saved pixels, and the irradiance UV helper retains 16,384/16,384 on each route. The two newer Tile Random roots retain 180,224/180,224 and the two older roots retain 484,864/484,864 on the originals and again on ordinary saves.
+
+### One repeated branch in Dirt 4 v2
+
+At 128 × 32 with scale 2 and seed 433595, the previous evaluator stopped at its visit limit. With an empty initial branch and exactly one repetition, the Iterate node can enter its child directly after evaluating the count and its assignments. The child receives its usual iteration number, seed and local variables. The pending stack, property work and raster work retain their bounds. This change applies to the shared evaluator.
+
+Start from the procedural root, set disorder, disorder speed and anisotropy to .046875, anisotropy angle to −.203125 and tile offset to (−.296875,.365234375). Enable non-square expansion, keep the other defaults and choose each output format on the node feeding the output. Save each configuration separately and reopen without edits. All **16,384/16,384** stored MaterialCraft pixels agreed between original and saved files. Each entry compares stored pixel words with the reference and reports maximum absolute error. Integer errors are in storage levels.
+
+| Storage | Original · one processor | Original · eight | Ordinary reopen · one | Ordinary reopen · eight |
+|---|---:|---:|---:|---:|
+| U8 | 4,096/4,096 · 0 | 4,096/4,096 · 0 | 4,096/4,096 · 0 | 4,096/4,096 · 0 |
+| U16 | 4,096/4,096 · 0 | 4,096/4,096 · 0 | 4,096/4,096 · 0 | 4,096/4,096 · 0 |
+| F16 | 4,096/4,096 · 0 | 4,096/4,096 · 0 | 4,096/4,096 · 0 | 4,096/4,096 · 0 |
+| F32 | 4,096/4,096 · 0 | 4,096/4,096 · 0 | 4,096/4,096 · 0 | 4,096/4,096 · 0 |
+
+For separate procedural controls, compare an inner Iterate with and without an initial child and with reset or inherited seed. Test shared and independent random draws in a count expression that writes a float read by the drawing child. Use 16² at seed 0, 32 × 16 at seed 42 and 16 × 32 at seed 329779 in all four formats. The 48 one-repeat settings match **20,480/20,480** original and **20,480/20,480** reopened pixels at each reference processor count. The 24 settings with conditional counts match **10,240/10,240** per route. Maximum error is zero. In the 4² regression, one child under each of 64 outer repetitions reproduces all 16 full-budget values at a limit of 64. The previous traversal stopped there. The new traversal still reaches the limit at 32.
+
+At 32², the previous and current evaluators also produced the same stored pixels for all eight Dirt 5 and Dirt 5 v2 controls. Use scale 1, disorder .3125 and non-square expansion off. For Dirt 5 use seed 105545. For v2 use seed 105562, anisotropy .25, anisotropy angle .3125, disorder speed .6875 and tile offset (.125,−.1875). Keep the other defaults.
+
+| Root | U8 · one / eight processors | U16 · one / eight | F16 · one / eight | F32 · one / eight |
+|---|---:|---:|---:|---:|
+| Dirt 5 · exact pixels of 1,024 | 1,024 / 1,024 | 1,023 / 1,024 | 1,023 / 1,024 | 1,023 / 1,024 |
+| Maximum error | 0 / 0 | 3 / 0 | .0001220703125 / 0 | .0000508129597 / 0 |
+| Dirt 5 v2 · exact pixels of 1,024 | 1,024 / 1,024 | 1,024 / 1,024 | 1,024 / 1,024 | 887 / 922 |
+| Maximum error | 0 / 0 | 0 / 0 | 0 / 0 | 5.96046448e−8 / 5.96046448e−8 |
+
+With scale 3 and the same remaining Dirt 4 v2 settings, the release still stops during the pattern draw. A bounded diagnostic run completed 55,245,436 visits and retained 49,761 draws. Its U8 intermediate agrees at all **1,023/1,023** texels that stayed fixed across six reference reads. Its F32 output matches **4,096/4,096** on five reads and **4,064/4,096** on the sixth, maximum .00407773256. The diagnostic used a larger allowance. The complete scale 2 measurements above used the release limits. [The one changing input texel at scale 3](#a-one-level-pattern-change-before-sharpen-in-dirt-4-v2)
+
+### A one-level pattern change before Sharpen in Dirt 4 v2
+
+At 128 × 32, seed 433595, the graph renders a U8 pattern at 64 × 16 before Sharpen produces the full-size output. Alternate the changed rectangular setting with 32² at seed 113 and read each node directly on three returns at one processor and three at eight. The six pattern buffers have two distinct images. They agree at 1,023/1,024 texels, with 142 or 143 at (52,6). The six F32 graph outputs also have two distinct images. They agree at 4,064/4,096 pixels, with a maximum difference of .00407773256. The word returned by a separate node read can vary between evaluations. [Whole-root seeds and parameters](#repeated-f32-captures-of-28-noise-roots)
+
+To isolate the filter, retain its original properties and the drawing input’s size function. Use a 64 × 16 U8 field with value ((17x + 37y + 3xy + 29) mod 211) + 12. Compare center values 142 and 143 at (52,6). In a second pair place the following five-by-five neighborhood around that texel, varying only the center. Coordinates start at the first row and column in the raw buffer.
+
+```text
+51  140  62  142   31
+173 136  96    0    0
+78  185 142   93    0
+104  47  86   18    0
+0   105 136   66  110
+```
+
+All sixteen procedural outputs match **65,536/65,536** pixels in each reference processor configuration, maximum zero. Their U8 input reads match the supplied fields at **16,384/16,384** texels. Configure and save the two neighborhood inputs separately in each storage format. Both applications reopen the eight saved callers at their stored settings with **32,768/32,768** exact output pixels and maximum zero.
+
+| Output storage | Pixels unchanged when 142 becomes 143 | Maximum change |
+|---|---:|---:|
+| U8 | 4,086/4,096 | 3 |
+| U16 | 4,067/4,096 | 267 |
+| F16 | 4,065/4,096 | 0.0048828125 |
+| F32 | 4,064/4,096 | 0.00407773256 |
+
+The F32 difference covers 32 pixels from (102,10) to (107,15). At (104,12) the values are .678542137 and .682619870. Each isolated input reproduces **32/32** affected whole-root values for its respective observed output. Subtracting the two complete isolated buffers reproduces the whole-root difference at **4,096/4,096** pixels, maximum error zero. MaterialCraft’s measured release still reaches its execution budget drawing the intact 128 × 32 root. The isolated filter comparisons use complete renders.
+
+### Dense seeded quadrants in Moisture Noise and Dirt 4
+
+Moisture Noise at 128 × 32, seed 433959, now renders under the existing execution limits. The intact root matches **16,384/16,384 stored pixels** across U8, U16, F16 and F32 on both one and eight reference processors. Saving each configured format and reopening it before any edit gives another **16,384/16,384** on each processor count. Maximum error is zero. Each of the two U16 pattern stages independently matches 4,096/4,096 pixels in the same graph. Both stages previously stopped before producing an image.
+
+Set scale to 3, disorder to .046875, pattern size to (.47265625,1.4677734375), angle to −.203125, angle randomness to .046875, global opacity to .462890625 and non-square expansion on. Each branch emits 36 trees from 169 iterations. A tree visits 349,525 quadrants. On the 64² control at seed 433922, the F32 root matches 4,092/4,096 against each processor count in the latest pair, maximum 1.52587891e−5. The reference pair agrees at 4,094/4,096. [Iteration counts, smaller depth controls and repeated captures](#repeated-noise-pixels-and-the-moisture-noise-iteration-count)
+
+A grayscale procedural quadrant can reuse its branch offset, frame offset, size, rotation and tint for the same node, depth and seed when its expressions read only fixed graph inputs and traversal state represented in that key. The two translations retain their separate F32 additions. The expanded terminal records share the existing 96 MiB budget with the other analytic records. A fully evaluated parent that misses every sample can use one previously skipped terminal evaluation to account for that miss. Cached parents still spend a streaming credit. The traversal still evaluates every connected child in order, and the full-property, retained-draw and raster limits still apply.
+
+For a reduced regression at 4², put four outer repetitions around 41 inner draws with reset seed inheritance. Give each narrow parent four square children. Use a seeded random rotation up to .125 turns, a branch offset of (.03125,−.015625) and a frame offset of (−.015625,.03125). At an allowance of 128 the previous evaluator stops. The corrected cook agrees with the complete 1,024-allowance image. The independent 64-allowance negative control still stops.
+
+For Dirt 4 at 32 × 16, seed 105515, set scale to 2, disorder to .8125 and non-square expansion on. The previous build stopped before producing F32 pixels. The current evaluator finishes in all four formats. Each entry gives exact pixels and maximum error. Integer errors are storage levels.
+
+| Format | Original, one processor | Original, eight processors | Ordinary save, one processor | Ordinary save, eight processors |
+|---|---:|---:|---:|---:|
+| U8 | 512/512 · 0 | 512/512 · 0 | 512/512 · 0 | 512/512 · 0 |
+| U16 | 501/512 · 3 | 512/512 · 0 | 501/512 · 3 | 501/512 · 3 |
+| F16 | 512/512 · 0 | 509/512 · 0.00048828125 | 512/512 · 0 | 512/512 · 0 |
+| F32 | 512/512 · 0 | 512/512 · 0 | 512/512 · 0 | 512/512 · 0 |
+
+Read the Dirt 4 pattern, sharpen and graph output after the same cook. Run U8, U16, F16, F32, U16 and F16 in sequence, once per reference processor count. Across these 12 captures the MaterialCraft pattern matches all 1,536/1,536 U16 pixels and its output matches all 6,144/6,144 sharpen pixels, maximum error zero. On the first eight-processor U16 capture the reference output matches its own sharpen at 501/512, maximum three levels. On the one-processor F32 capture it matches at 500/512, maximum 5.34057617e−5. The other ten output reads match their sharpen exactly. The repeated U16 capture also matches on both processor counts.
+
+Dirt 4 and Moisture Noise remain in progress. The second Dirt 4 also still reaches its full-property limit at 32 × 16, seed 105532. Use the same scale and disorder, speed 1.4375, anisotropy .625, anisotropy angle −.21875 and tile offset (−.3125,.4375). The original F32 reference and the ordinary save agree at all 512 pixels on the recorded one- and eight-processor reads.
+
+In that second graph, take the minimum of the original Iterate count and a fixed integer so its expression still publishes its variables. Cap only the outer count at one or four, only the inner count at zero, then the outer at two and the inner at one. All four full outputs match MaterialCraft at **2,048/2,048 F32 pixels** on both processor counts. The 16 × 8 U8 pattern stage also agrees between reference processors in all four controls. The uncapped reference control reproduces all 512 original pixels.
+
+### Input-relative dimensions on a child image bridge
+
+An image bridge inside a graph instance now resolves its input-relative dimensions against the image wired to that port on the caller. Across 120 bridge outputs, 36 previously had the wrong dimensions. All **203,264/203,264 pixels** now match on both one and eight reference processors. The previous 84 comparable outputs matched 179,200/179,200. Maximum error is zero wherever dimensions agree.
+
+Use two instances of the same child. Give the caller a 32² absolute stamp input and a background input that follows the parent. Wire both inputs to the first instance and only the stamp to the second. Read either bridge directly at the child output. Use the [two original 128² byte fields](#sampling-a-retained-input-after-an-editor-change). Exercise 32², 16², 32 × 16 and 16 × 32 parent sizes with inherited and fixed 64² instances. Repeat with the background field bound on the caller. Check omitted and explicit input-relative sizes, a (−1,+1) exponent offset, parent-relative and absolute sizes, a fixed 16² child and F32 bridge storage.
+
+At a 16 × 32 parent with both instances fixed at 64², the offset background bridge produces 8 × 64 on the wired instance and 32 × 128 on its unwired sibling. Store these two outputs in U8, U16, F16 and F32. Opening the four configured ordinary saves and reading before any edit gives **18,432/18,432** pixels, identical to the four originals and to both reference processor counts. The existing 82 parent-relative sampling controls retain **4,661,248/4,661,248** pixels with zero maximum error.
+
+Reading the downstream FX-Map exposes a separate size difference. Eight of 20 outputs in the same two-instance comparison still have the wrong dimensions. The other 12 match 27,648/27,648 pixels. On a standalone FX-Map with a 16 × 32 background and a 32 × 16 parent, the reference gives 16 × 32 for omitted or input-relative size and 32 × 16 for parent-relative size. With (−1,+1) relative to input it gives 8 × 64. Disconnecting the background gives the parent dimensions. Both reference processor counts agree in each comparison.
+
+### Overlapping glyphs and Points Preview file handoff
+
+Points Preview now matches **26,880/26,880 pixels across 45 settings** with the same font on both sides. The licensed monospace face gives 17,920/17,920 in 30 settings. The original overlapping digit face improves from 8,952 to 8,960/8,960 in 15 settings. At 16², 32² and 32 × 16, use point counts 4, 8 and 12 with labels alone, count 4 with points alone and count 12 with both. For digit `i`, use 1,024 units per em, an advance of 640, ascent 768 and descent −256. Draw three rectangles with opposite corners (0,0) and (64 + 32(i mod 4),512), (224,640) and (416,1088 + 64(i mod 3)), and (128,−576 − 64(i mod 3)) and (416,−128). Both reference processor counts give zero maximum error. [Point fields, label sizes and offsets](#stored-and-wired-values-at-graph-instance-inputs)
+
+For the independent Text probe, use a zero-advance A consisting of a rectangle from (0,0) to (width,512). Draw one through four copies at 32², size .5, left alignment and zero offset. Widths 6, 8, 11, 32 and 41 give **20,480/20,480 pixels**, up from 20,392. At pixel (16,12), width 11 yields the successive byte values 44, 80, 110 and 135. Width 32 yields 128, 192, 224 and 240. MaterialCraft now composes the new glyph's coverage with the existing byte and rounds after each glyph. It reads edge coverage in canvas coordinates. The 32 quadratic controls retain 81,132/81,152, the 96 straight-sided controls retain 261,700/262,144 and all 83,328 licensed glyph and sheet pixels remain exact.
+
+| Original and normally reopened Text | Size · seed · format | Previous exact · maximum | Current exact · maximum |
+|---|---|---:|---:|
+| Width 11, two glyphs | 32² · 0 · U8 | 1,016/1,024 · 1 level | 1,024/1,024 · 0 |
+| Width 32, three glyphs | 32² · 42 · U16 | 1,016/1,024 · 257 levels | 1,024/1,024 · 0 |
+| Width 11, three glyphs | 32 × 64 · 261017 · F16 | 2,032/2,048 · .00390625 | 2,048/2,048 · 0 |
+| Width 41, four glyphs | 64 × 32 · 903331 · F32 | 2,040/2,048 · .0039215684 | 2,048/2,048 · 0 |
+
+Save configured whole-root callers with their bound procedural point fields and open the files directly in both applications. Eight monospace cases give 5,632/5,632. All 15 overlapping-digit cases give 8,960/8,960. These counts are identical at one and eight processors, maximum zero. The caller requests U8, U16, F16 and F32 across the files. The root's observed output on these direct opens is U8 throughout.
+
+One ordinary handoff still fails. From a caller pointing directly to the loose spline package with its three-part format version, save four views at three sizes. MaterialCraft reproduces the expected 7,168/7,168 grayscale pixels. The reference app returns a transparent RGBA F32 image in all 12 files on both processor counts. The standalone compiler rejects the linked package before rendering.
+
+To isolate the dependency, take private copies of the six linked package files with the same licensed font. Use format revision `1.1.0.202401` for the five three-part package headers and zero for the braced file identifiers in dependency records. The reference compiler accepts the package when the spline package's top-level file identifier is still braced and its dependency file identifiers are numeric. Restoring the braced identifier in its self dependency makes the compiler reject it. With the compatible metadata, the original Points Preview graph body compares identically with the inventory graph. Rendering the 30 settings and comparing against MaterialCraft opening the original graph gives 17,920/17,920 on one and eight processors. The installed catalog path selects a different face and gives 17,548/17,920, maximum .380392157. The root remains in progress for the loose-file handoff.
+
+### Whole design coordinates at implicit glyph joins
+
+With the same linked, licensed monospace font, all **30 Points Preview settings match 17,920/17,920 pixels** on both one and eight reference processors, maximum zero. The seven previously differing pixels all had count 12. The independent 42 Text renders now match 83,328/83,328, up from 82,571. They cover individual glyphs, digits and the four-line label sheet from 8² through 128 × 64. The catalog-path comparison selects different faces and gives 17,548/17,920, maximum .380392157. [Whole-root inputs and sizes](#stored-and-wired-values-at-graph-instance-inputs)
+
+Draw an original TrueType A with a quadratic from (0,0) through consecutive off-curve controls (55,−385), (492,126) and (675,612), ending at (1010,0). Close along the baseline. Use 1,024 units per em, ascent 768, descent −256, size .5, left alignment and offset (−.1875,1/256). Insert explicit on-curve points (273,−130) and (583,369) between the controls in a second face. The reference renders both faces identically at 64², 128 × 64 and 64 × 128, or 20,480/20,480 pixels. Rounding each midpoint upwards instead gives 20,288/20,480, maximum .047058821. MaterialCraft now uses the lower whole design coordinate for these implied joins in simple TrueType contours. The original negative-coordinate face improves from 20,330 to 20,480 exact. A positive-coordinate variant with controls (51,789), (492,286) and (671,−125) reaches 20,462/20,480, maximum one grayscale level. Composite glyph transforms remain a separate measurement.
+
+For four ordinary file saves, compare original and reopened Text output in each application at one and eight processors. The positive-coordinate face at 64² U8, seed 0 gives 4,096/4,096. The negative-coordinate face at 128 × 64 U16, seed 42 gives 8,192/8,192. A licensed zero at 64 × 32 F16, seed 261017 gives 2,048/2,048. The licensed label sheet at 32 × 64 F32, seed 903331 gives 2,048/2,048. Maximum error is zero in all four cases.
+
+An additional original font uses rectangular digits that extend above the ascent and below the descent. In 15 whole-root settings with that face, Points Preview matches 8,952/8,960, maximum .0039215684. The same results recur after an ordinary save. Isolating individual digits reproduces their coverage in both applications. Where the combined glyphs overlap, the two partial coverages 34 and 94 produce 115 in MaterialCraft and 116 in the reference. Coverages 183 and 48 produce 197 and 196 respectively. The root stays in progress for these same-input differences.
+
+### Quadratic glyph outlines in Points Preview
+
+In the same 30 whole-root settings, Points Preview with the same licensed font now matches **17,913/17,920 pixels** on both one and eight reference processors. The previous result was 17,869/17,920. The largest difference fell from 42 grayscale levels to one (.0039215684 on F32 readback). Point-only output matches 5,376/5,376. Labels alone match 5,371/5,376, and points plus labels including the empty input match 7,166/7,168. All seven remaining differences occur at count 12. The catalog-path comparison, where the reference resolves a different font, gives 17,548/17,920 and a maximum of .380392157. The root remains in progress. [Whole-root inputs, offsets and label sizes](#stored-and-wired-values-at-graph-instance-inputs)
+
+To isolate the contributing stage, render the original licensed four-line label sheet separately at 8², 16² and 16 × 8. Use the resulting byte field in place of Text in a private comparison graph. At root sizes 16², 32² and 32 × 16, use counts 4, 8 and 12 with labels alone, then count 12 with points and labels. MaterialCraft fed the reference sheet reproduces all 7,168/7,168 original reference pixels. Feeding its own sheet reproduces all 7,168/7,168 of its previous pixels. Reimporting the sheet as a linked bitmap in the reference also changes some final samples. The totals above compare the original Text graphs.
+
+For an independent TrueType face, give A one quadratic from (0,0) through control (512,1024) to (1024,0) and close the contour along the baseline. Use 1,024 units per em, ascent 768, descent −256, centered alignment, offset (−.0625,1/256), and grayscale on black. A second face replaces the curve by straight segments at equal parameter intervals. At 32² the reference gives exactly the four-segment raster at size .35 and the eight-segment raster at .35001. Both comparisons cover 1,024/1,024 F32 pixels, maximum zero. At size .5, use four segments at 16², eight at 32², 64², 128 × 64 and 64 × 128, and sixteen at 128². All six reference curves agree with their corresponding reference polygons.
+
+MaterialCraft now subdivides a quadratic while its midpoint is more than .35 pixels from the chord at the smaller axis scale. The existing outline storage budget also covers the new segments. Across 32 renders of the curved A, including fractional scales, shear, rotation, reflection and rectangular outputs, agreement improved from 79,823/81,152 to **81,132/81,152**, maximum .431372568 to .003921599. The 42 licensed-face sizes and strings improved from 81,267/83,328 to 82,571/83,328, maximum .631372556 to .533333357. The 96 straight-sided controls retain 261,700/262,144. [Original outline and font measurements](#text-block-bounds-for-linked-font-outlines)
+
+For each handoff below, save the configured graph normally and reopen it in both applications. Original and reopened counts agree on both reference processor settings. The reference before and after these saves matches all 5,120/5,120 pixels, maximum zero. The zero glyph uses the linked licensed monospace face, centered at size .5 with zero offset.
+
+| Text configuration | Size · seed · format | Previous exact pixels · maximum | Current exact pixels · maximum |
+|---|---|---:|---:|
+| Quadratic at .35 | 32² · 0 · U8 | 1,006/1,024 · 36 levels | 1,024/1,024 · 0 |
+| Quadratic at .35001 | 32² · 42 · U16 | 1,002/1,024 · 8,224 levels | 1,024/1,024 · 0 |
+| Quadratic at .5, matrix (.70710677,−.70710677,.70710677,.70710677) | 64 × 16 · 261017 · F16 | 988/1,024 · .431030273 | 1,024/1,024 · 0 |
+| Single zero | 64 × 32 · 903331 · F32 | 1,973/2,048 · .450980395 | 2,021/2,048 · .415686272 |
+
+### Text block bounds for linked font outlines
+
+The shared Text renderer now clips glyph ink to the outward-rounded bounds of the transformed text block. It uses the horizontal header ascent and descent, line spacing and aligned line widths. An overhang may extend between two lines of the same block. A wrapped copy carries the same clip to its new position.
+
+For an original TrueType reproduction, use 1,024 units per em, ascent 768, descent −256 and advance 640. Give A a stem from (0,0) to (96,512). Add rectangles from (128,640) to (256,1024) and (320,832) to (512,960) above the stem, and from (128,−512) to (256,−128) and (320,−512) to (512,−384) below it. At 64² with size .5, left alignment, identity transform and zero offset, both overhangs must stay within rows 8 through 39. The old output matched 3,984/4,096 pixels, maximum 1. The corrected output matches all 4,096. Moving down half a pixel extends coverage into row 40. A quarter-turn moves the clip onto the horizontal axis. Fifteen original F32 cases cover upper and lower ink, translation, rotation, shear, changed header metrics, real line breaks and overlapping glyph advances. They improved from 60,482/61,440 pixels to **61,440/61,440**, maximum 1 to zero.
+
+The following four separately configured graphs reopened in both applications after an ordinary SBS save. Each current count applies independently to the original and reopened graph on one and eight reference processors. The input is the face above. The two-line case uses A followed by a newline and B, with B drawn from (64,64) to (256,704). All reference original/reopen comparisons are exact.
+
+| Changed Text setting | Size · seed · format | Previous exact pixels · maximum | Current exact pixels · maximum |
+|---|---|---:|---:|
+| Wrapped, offset (.4375,.4375) | 32 × 64 · 0 · U8 | 1,992/2,048 · 255 levels | 2,048/2,048 · 0 |
+| Two lines, size .25, offset (−.25,−.25) | 64 × 32 · 42 · U16 | 2,038/2,048 · 65,535 levels | 2,048/2,048 · 0 |
+| Wrapped, quarter-turn, offset (.4375,−.40625) | 32 × 64 · 261017 · F16 | 1,992/2,048 · 1 | 2,048/2,048 · 0 |
+| Ascent 640, descent −384, offset (−.125,0) | 64² · 903331 · F32 | 3,984/4,096 · 1 | 4,096/4,096 · 0 |
+
+The 96 existing rectangle and diagonal controls retain 261,700/262,144 pixels, maximum .584313743. An overhanging triangle with vertices (128,−512), (384,1024) and (640,−512) at a half-pixel vertical offset gives 4,010/4,096, maximum .168627471. Replaying the 30 Points Preview settings with the same licensed font in both applications gives **17,869/17,920**, maximum .164705887. The saved-library label-only group remains 5,338/5,376. The catalog-path comparison gives 17,545/17,920, maximum .380392157. The root remains in progress for the visible label edges. [Root cases and font selection](#font-line-height-and-coverage-over-a-constant-background)
+
+### Reference repeatability across 31 open noise roots
+
+Compare the archived original outputs directly between one and eight allowed reference processors. Pair the same graph, output, parameter values, dimensions, seed, input bindings and storage format. Both captures restored the graph settings and recorded the requested processor count. The 31 roots are inventory indices 236–239, 244–247, 251–258, 261–271, 279–280 and 285–286. All 31 have at least one measured difference. The first eleven unresolved roots precede this group and also have differing reference captures. [Whole noise series](#whole-and-saved-outputs-for-the-two-gaussian-spots-2-noise-generators) · [Directional series](#directional-noise-and-scratch-pattern-sources) · [Earlier reference processor comparisons](#patterns-with-an-explicit-reference-worker-count)
+
+| Stored output | Paired renders | Renders with differing pixels | Equal reference pixels / compared | Maximum difference |
+|---|---:|---:|---:|---:|
+| U8 | 324 | 15 | 3,902,947/3,902,976 | 4 levels |
+| U16 | 591 | 336 | 8,984,706/8,991,744 | 446 levels |
+| F16 | 306 | 54 | 3,007,771/3,008,000 | .00439453125 |
+| F32 | 656 | 524 | 6,759,290/7,924,480 | .00408181176 |
+
+At 16² F32 with default exposed parameters, compare the two reference buffers for `noise_bnw_spots_1.sbs` at seed 0, `noise_dirt_4.sbs` at seed 105509 and `noise_fur_2.sbs` at seed 75892. The counts are 171/256, 238/256 and 203/256, with maxima 1.19209290e−7, 6.103515625e−5 and 1.19209290e−7, respectively. For a U16 example, open `noise_directional_noise_3_v2.sbs` at 32², seed 103867. Set scale 1, disorder .3125, disorder speed .6875, anisotropy .25, anisotropy angle .3125, angle .15625, random angle .21875 and tile offset (.125,−.1875). Disable non-square expansion. The two reference images agree at 1,023/1,024 pixels, with a 446-level difference at the remaining pixel.
+
+These are reference-to-reference counts. On the 32 × 16 F32 Spots 1 setting at seed 456654, MaterialCraft still differs at seven of 370 pixels that stayed constant across repeated one-processor reads. The inventory retains the measured cross-processor and implementation differences. [Whole-root and invariant-pixel measurements](#receiving-quadrant-subtrees-after-the-second-pair-fills)
+
+### Reference variation in eight further roots
+
+Each row compares a reference image against the same setting on eight allowed processors, starting from one. The first and seventh rows use the first of three paired captures. Integer differences are storage levels. All inputs and unspecified parameters use the linked settings or their defaults.
+
+| Root | Size · seed · format | Equal reference pixels | Maximum difference |
+|---|---|---:|---:|
+| Noise Moisture Noise (295) | 64² · 433922 · F32 | 4,094/4,096 | 1.52587891e−5 |
+| Noise Moisture Noise 1 v2 (296) | 16 × 32 · 732011 · U16 | 511/512 | 1 |
+| Noise Moisture Noise 2 (297) | 16 × 32 · 732011 · F32 | 280/512 | 1.78813934e−7 |
+| RT Caustics Base (451) | 64² · 4127 · U16 | 4,095/4,096 | 1 |
+| Scratches 2 (464) | 16² · 115727 · F32 | 248/256 | 5.96046448e−8 |
+| Vertical Noise (534) | 32 × 16 · 739049 · U16 | 501/512 | 1 |
+| Wood Fibers 1 (544) | 64² · 703748 · F32 | 4,084/4,096 | 1.81198120e−5 |
+| Wood Fibers 2 (545) | 256² · 0 · U16 | 65,336/65,536 | 2 |
+
+For root 295 use scale 1, disorder .9375, pattern size (1.140625,.85546875), angle .6875, random angle .9375 and global opacity 2.1328125. Disable non-square expansion. For root 451 use the procedural height, normal and noise fields, photon grid size 1, surface height scale .3125, surface height position .75, surface IOR 1.375, photon size 5.5, jitter .3125 and light position (.3125,.6875). Set Disorder to .3 for Vertical Noise and .375 for Wood Fibers 1. [Moisture comparisons](#recovered-dirt-4-and-moisture-renders-at-seed-113) · [Caustic procedural inputs](#paths-caustics-and-cell-fields-after-pattern-sampling) · [Fiber comparison settings](#repeated-wood-fiber-renders-and-isolated-drawing-depths)
+
+Return to each 64² F32 setting in rows one and seven three times, rendering the other sizes in between. On one processor all 4,096 pixels repeated on both returns in both graphs. On eight, Noise Moisture Noise gave 4,093/4,096 exact on both returns, maximum 1.52587891e−5. Wood Fibers 1 gave 4,089/4,096 and 4,095/4,096, maximum 1.81198120e−5 in each comparison. Across all six captures per graph, MaterialCraft at `fc5ad59` matched 4,090/4,091 invariant pixels in Noise Moisture Noise and 4,080/4,082 in Wood Fibers 1, with maxima 1.52587891e−5 and 1.75237656e−5. Noise Moisture Noise at 128 × 32, seed 433959, still reached the local pattern execution budget.
+
+### Repeated noise pixels and the Moisture Noise iteration count
+
+Keep twelve returns to the same F32 setting on one processor and twelve on eight. Before every return, change to 16 × 32. Use seed 0 for Spots 1 and Moisture Noise at that intervening size and 703211 for Wood Fibers 1. For Spots 1 use scale 1, roughness 1 and disorder 0 there. Use defaults on the other two. On return, use scale 2, roughness .375 and disorder .28125 for Spots 1 and the [earlier moisture and fiber parameters](#reference-variation-in-eight-further-roots). Count a pixel as invariant only if its F32 value repeats in all 24 captures.
+
+| Graph · returned size · seed | Exact invariant pixels | Exact whole-image pixels per return, one processor | Eight processors | Greatest absolute error over all returns |
+|---|---:|---:|---:|---:|
+| Noise BNW Spots 1 · 32 × 16 · 456654 | 259/259 | 430–454/512 | 410–441/512 | 1.19209290e−7 |
+| Noise Moisture Noise · 64² · 433922 | 4,088/4,088 | 4,092/4,096 | 4,091–4,094/4,096 | 1.52587891e−5 |
+| Wood Fibers 1 · 64² · 703748 | 4,070/4,070 | 4,084–4,088/4,096 | 4,087–4,091/4,096 | 1.86562538e−5 |
+
+At every location, at least one reference capture gave the MaterialCraft value. Each individual frame still differed. The counts also depend on the processor setting. Across the twelve one-processor returns, Spots 1 matched 310/311 invariant pixels and Wood Fibers 1 matched 4,076/4,079. The largest differences on those invariant pixels were 2.98023224e−8 and 1.80006027e−5. Across the twelve eight-processor returns the corresponding counts were 286/287 and 4,073/4,073, maxima 2.98023224e−8 and zero. The moisture and fiber counts update the earlier six-read comparisons.
+
+Read the two U16 pattern outputs feeding the Moisture Noise blend at each return. For each of the two outputs, 4,092/4,092 invariant pixels match, and all 4,096 locations have at least one matching observation. At destination (33,40) the reference alternates between 43,348 and 43,349, and MaterialCraft gives 43,349. At source (60,17) the observations include 14,962 and 14,963, and MaterialCraft gives 14,962. Both values at both locations occur even at one processor.
+
+At 128 × 32 and seed 433959 use scale 3, disorder .046875, size (.47265625,1.4677734375), angle −.203125, random angle .046875, opacity .462890625 and non-square expansion enabled. Each original pattern output separately reaches the local execution budget. The one- and eight-processor reference buffers agree on all 4,096 U16 pixels in each output, maximum zero.
+
+To count the work, retain the original Iterate and Switch. Replace their receiving quadrant with a centered unit square, additive blend, an RGB swatch of 1/64 and alpha 1. Use a zero background, zero roughness, unit global opacity and F32 storage. Remove the quadrant’s original offset and children. Each branch now matches all 4,096 pixels on both processor settings at each extent, 16,384/16,384 in total. At 64² the entire image is 1/64. At 128 × 32 exactly 100 pixels are 36/64 and the other 3,996 are zero. Force the switch open and compare one iteration, two and its authored iteration count at both sizes. All 24,576 additional pixels match on one and eight, maximum zero. On the rectangle the same 100 pixels read 1/64, 2/64 and 169/64. The original switch therefore accepts 36 of 169 iterations there. Each accepted iteration expands ten full quadrant levels, or 349,525 visits. Both original branches independently require 12,582,900 quadrant visits before rasterization.
+
+Cut the four child connections below depth six, seven or eight in each original pattern graph, counting the first quadrant as depth zero. Keep its original seed, Switch, drawing properties and all upstream function links. At 128 × 32 both branches now finish all six reduced graphs. For the blend destination the one/eight comparisons at depths six, seven and eight give 4,096/4,096, 4,096/4,096, 4,096/4,096. For the blend source they give 4,096/4,096, 4,095/4,094, 4,096/4,096. Every count is out of 4,096 raw U16 pixels. The largest storage error is 1.0. Both branches match all 4,096 pixels on both processor settings when cut below depth eight at this rectangle. Restoring the final depth causes the local execution error.
+
+### Saved image inputs and automatic filtering in Tile Random
+
+Bind generated gray and color images to graph inputs and use an ordinary **Save As**. The two tile roots previously stored the resource names only in editor options. Opening the saved 32² F32 files in the reference app gave 0/4,096 exact pixels across the four files. For a 1 × 1 grid with both images connected, the maximum errors were .501960814 grayscale and .937254906 color. With only the pattern connected to a regular 2 × 2 grid, they were .694605947 and .854413688. An independently authored one-input package shows the resource URL on the image bridge's `bitmapresourcepath` parameter. Adding that field to the four test files recovered 4,096/4,096 on one and eight processors, maximum zero.
+
+MaterialCraft now reads and writes this bridge parameter with the package resource path and dependency UID. To test a file-authored binding, connect an image input directly to an output at 16² U8. Use `u(x,y) = x + 16y` for gray and `(u(x,y), u(y,x), 255−u(x,y), u((x−3) mod 16,y))` for RGBA. Write PNGs with no transfer tag, an sRGB tag and gAMA values 100000, 45455 and 220000. Open the ten SBS files directly, save them normally and reopen them in both applications. The previous reader matched 5/2,560 pixels with a maximum error of 255 byte levels. The corrected reader matches 2,560/2,560 on one processor, eight and on ordinary reopen, maximum zero. At gray level 128 the three gamma-tagged files read back as 186, 128 and 221 respectively. Alpha retains its original levels. The 549 tracked SBS files contain 2,495 input bridges and zero authored `bitmapresourcepath` bindings on those bridges.
+
+For the editor binding path, use the same 16² gray and RGBA fields, each with no transfer tag and with gAMA 100000. Bind the image through `graph.input.bind` with the color setting omitted, save and reopen. The previous default matched 262/1,024 U8 pixels in the four reopened files. The largest error was 135 byte levels in the gamma-tagged RGBA image. The editor now uses the file's color interpretation by default. Open the four saved files directly and read the output before editing any property. All **1,024/1,024 pixels** match on one and eight reference processors, maximum zero. Repeating the four bindings with each explicit color setting preserved the previous MaterialCraft output across 2,048 pixels. The regression also switches modes on the same input and checks its alpha.
+
+Run the [145 grayscale and 76 color settings](#integer-assignments-read-by-pattern-seeds) with a separate path to the same original procedural bitmap for each connected input in each setting. Read the whole output on one reference processor, on eight and after opening an ordinary MaterialCraft save and reapplying those inputs. Every setting matches on all three routes. Each cell gives exact pixels per route. Maximum error is zero throughout.
+
+| Root | U8 | U16 | F16 | F32 | Total |
+|---|---:|---:|---:|---:|---:|
+| Tile Random | 9,728/9,728 | 124,928/124,928 | 11,776/11,776 | 131,328/131,328 | 277,760/277,760 |
+| Tile Random Color | 9,728/9,728 | 124,928/124,928 | 11,776/11,776 | 60,672/60,672 | 207,104/207,104 |
+
+For a file handoff, configure each root in MaterialCraft before saving. Use the defaults at 128² with seeds 0 and 42 and both procedural inputs. At 32² F32 and seed zero, use a 1 × 1 grid with both inputs and the regular 2 × 2 grid with only the pattern. Include the four formats at 32 × 64/530371, 64 × 32/89027 and 16 × 32/2747 from the [rectangular parameter matrix](#integer-assignments-read-by-pattern-seeds). Open each of the 32 files directly. Read the reference output without setting any property, verify its stored seed and compare it with the original configured image and the MaterialCraft reopen. On one and eight processors, all three images match **106,496/106,496 pixels** each. Per root this is 4,608 U8, 37,376 U16, 4,608 F16 and 6,656 F32, maximum zero in every format.
+
+For the outstanding live edit, keep the 128² pattern connected while removing the background and selecting the regular 2 × 2 grid at 32², seed zero. The sequential result matches 4/1,024 grayscale pixels (maximum .267032921) and 0/1,024 color pixels (.416119799). Giving the same pattern a fresh binding restores 1,024/1,024 each. Insert identity Levels at U8 between the pattern input and its first consumer. Automatic filtering then reproduces the sequential reference result, while explicit bilinear reproduces the fresh result. All six independent comparisons with the Levels graph, including nearest filtering, match 6,144/6,144 F32 pixels in total. These results distinguish the two filtering outcomes even when the input bridge has identical pixel values.
+
+For a standalone reproduction, generate 128² byte fields `(13x + 7y + 3xy) mod 253` and `(31x + 19y + 5xy) mod 251`. Connect the first to a centered half-size image stamp, with unit opacity and a black background. At 32² F32, adding the second field as background while retaining the pattern gives 833/1,024 exact pixels with automatic filtering, maximum .001968503. Removing it gives 833/1,024, maximum .001968443. Rebinding the pattern or changing to 16² and back restores all 1,024. Explicit bilinear matches 12,544/12,544 across the 13 settings on one processor, eight and after ordinary reopen. Both tile roots retain their open live-edit comparison.
+
+### Sampling a retained input after an editor change
+
+Use the two 128² procedural byte fields and half-size image stamp above. Give the image input an absolute 32² or 32 × 64 output. Compare the direct connection with an identity Levels node that inherits the input dimensions and stores U8. For each bridge, set the stamp output to 32², 32 × 64, 64 × 32 and 64² in turn. At each size render F32, change only the stamp precision to U16, then return to F32. Keep the graph extent and binding in place during both precision changes.
+
+The direct reference result agrees with the base-level sample on the first render at each new extent and with the full mip chain after each precision change. Across 24 comparisons, these two paths account for **36,864/36,864 F32 pixels** and **18,432/18,432 U16 pixels**, maximum zero on one and eight processors. With the 32 × 64 bridge and 64 × 32 output, continuing to sample the base level on the second render gives 1,538/2,048 U16 pixels, maximum 23,644 levels. Temporarily setting a rectangular output to a square and back during a precision change starts a new extent and changes the result. Reapplying the same precision at the same extent before any other edit retained the initial 32² F32 output in the square control.
+
+Selecting between the two sampling paths offline also reproduces all 484,864 pixels of the earlier 221 sequential root settings. The editor at the time used the fresh-render path for both live background edits. The [live preview measurements](#live-preview-sampling-in-tile-random) record the correction.
+
+### Live preview sampling in Tile Random
+
+Open each root once and keep the same editing session for every render. Reuse the same imported resource whenever a procedural input path recurs. Apply the exposed values, seed, extent and storage format from the [221 whole-root settings](#integer-assignments-read-by-pattern-seeds) in sequence. For rectangular cases set the parent to the square width first, then to the requested height. Repeat the sequence after opening an ordinary MaterialCraft save. Compare whole stored pixels to independent reference captures at one and eight processors. The reference captures at those processor counts also agree with each other.
+
+| Root | Settings | Previous exact pixels | Exact pixels after live edits | Maximum F32 error before → after |
+|---|---:|---:|---:|---:|
+| Tile Random | 145 | 276,740/277,760 | 277,760/277,760 | .267032921 → 0 |
+| Tile Random Color | 76 | 206,080/207,104 | 207,104/207,104 | .416119799 → 0 |
+
+The original and reopened editing sessions give the same counts. U8, U16, F16 and F32 each match every stored pixel. Repeating the sequence with a fresh resource path per setting also matches 484,864/484,864. The 32 configured files opened and read before any edit give 106,496/106,496 exact pixels. The two other qualified random-tile roots retain 180,224/180,224 across 52 independent controls. [Pixel counts by format, procedural inputs and configured-file settings](#saved-image-inputs-and-automatic-filtering-in-tile-random)
+
+The editor records which texture each image stamp sampled in the last published preview. When an edit changes a stamp while retaining that texture, its next draw can sample the mip chain. A new binding, seed or parent extent starts a fresh acquisition. The isolated consumer gives 17,664/17,664 exact pixels, two stamps sharing a texture give 25,088/25,088 across both outputs, and fixed seed and size controls give 33,792/33,792. Maximum error is zero in all three comparisons. The regression reads F32 pixel (9,8) in two half-size stamps. Editing one stamp from F32 to U16 and back changes its word from `0x3f014181` to `0x3f018182` while the other remains at its first word. A full cook and an edit from 32² to 64² and back before preview both give the first word for both stamps. [Probe settings](#filtering-after-independent-edits-to-stamps-sharing-an-image) · [Editor regression](../crates/engine/src/session.test.rs)
+
+A separate non-root control puts the same fixed 32² F32 child stamp inside two graph instances, wires the same 32² U8 bridge to both, and wires the background only to the first. Change the first instance’s precision while leaving its child at F32. The first per-stamp change gave 25,860/26,624 across 13 paired renders, up from 25,478. Four precision edits on the first instance still gave 833/1,024 each, maximum .00196844339. The editor now carries the resolved precision of each calling instance into the sampling state of its child. The same 26 outputs match **26,624/26,624 F32 pixels** on one and eight processors, maximum zero. At pixel (9,8) both instances start at `0x3f014181`. Set only the first instance to U16, then back to F32. Its child returns `0x3f018182` after each edit, while its sibling retains `0x3f014181`. A fresh full cook returns the initial word for both. The 221 original and ordinary-saved Tile Random settings retain 484,864/484,864 on each route. With inherited child size and precision, 25 comparable outputs match all 25,600 U8 pixels. With a 16² parent and a 32² stamp input, the reference returns 16² for the instance with both wires and 32² for its sibling. MaterialCraft returns 32² for both.
+
+### Filtering after independent edits to stamps sharing an image
+
+Use the [two 128² byte fields and half-size image stamp](#sampling-a-retained-input-after-an-editor-change). Give the pattern bridge an absolute 32² U8 output. Start the graph at 32², seed 99173, with the pattern connected, no background, and F32 output. Keep the parent extent in place on same-size edits. Compare each result on one and eight processors with the direct, base-level MaterialCraft cook and with a separate identity Levels control that supplies the full mip chain.
+
+Recomputing identical settings retains the first image. Changing the graph seed, selecting a different file with the same image bytes, and moving to 16² and back each recover the base-level result. Adding or removing the background while keeping the pattern and graph seed selects the full mip chain. Changing the stamp precision from F32 to U16 at the same extent also selects the full chain. Repeating that U16 cook retains its result. Returning to F32 continues to use the full chain. Across 18 sequential renders the fresh path alone gives 16,518/17,664 pixels. The observed sampling modes account for 17,664/17,664 on both processor counts, maximum zero. At 32² a precision change gives 833/1,024 against the base level, maximum 129 U16 levels.
+
+Add a second stamp and output to the same graph. Both stamps sample the same pattern bridge. Connect the background only to the first stamp. Change only the first stamp's output precision to U16 and back. The first stamp now matches the full chain. The second still matches the base level on all 1,024 pixels. Adding the background to the first stamp also leaves the second at the base level. The two outputs together give 23,942/25,088 for the fresh path alone. The sampling modes account for 25,088/25,088 at one and eight processors, maximum zero, across 13 paired renders.
+
+Finally run the seed, size and precision changes in four graphs. Independently give the stamp a fixed seed of 71 and absolute size 32², and give the pattern bridge a fixed seed of 71. Use graph seeds 6621, 6622 and 6623, with parent extents 32² and 16². Changing the parent seed or extent restores base-level sampling even in the graph with both overrides, where the pattern, stamp dimensions and their own seeds stay fixed. Across 36 renders the two measured paths account for 33,792/33,792, maximum zero, compared with 30,992/33,792 from the fresh path alone. The [subsequent editor replay](#live-preview-sampling-in-tile-random) covers both whole roots.
+
+### Integer assignments read by pattern seeds
+
+The two roots in `tile_random.sbs` each match **142,592/142,592 pixels in all 19 established settings** on one reference processor, on eight and after reopening an ordinary MaterialCraft save. The previous grayscale and color totals were 111,207 and 111,194. The same 1,702,705-byte save was reproduced with the tested build. Both roots also match at 32² with a freshly connected image in the edit-order control described below. [Previous comparison](#returned-vectors-in-pattern-properties)
+
+In a pattern seed expression, an integer assigned by an earlier property supplies the bits of its F32 storage word. A published integer supplies its integer bits. Both yield the same numeric value to an ordinary integer getter. For an independent F32 probe, put a square with additive Random(1) luminosity over black below two single-iteration Iterate nodes. Disable seed inheritance on the inner Iterate. At graph seed zero, a published seed of 17 gives .5091854334. Assign 17 to a new integer in the global opacity multiplier or the outer iteration count, then use it for the inner seed. Both give .2648949623. Adding 3 inside the seed expression changes that result to .2363138199.
+
+Use graph seeds 0, 113 and 42 with integer inputs 17, 41 and 16,777,217 respectively. Compare direct literal and published seeds, and assign each of six sources in the global multiplier and again in the outer Iterate. The sources are literal 17, the published integer, that integer plus 3, a cast of 17.5, a cast of the float input plus .5, and a cast of Random(200000000). Set the float input to the published integer plus .125. Render each at 16², reading either the random luminosity or the numeric integer divided by 268435456. All **84 settings and 21,504/21,504 F32 pixels** match on each route, maximum zero. In 24 additional single-processor settings, integer addition, conditional selection and assignment within the same seed expression match 6,144/6,144 pixels. Assigning to the name of an exposed integer remains a separate difference in six controls, 0/1,536 with maximum .447026968.
+
+The wider whole-root comparison renders each setting in order. Each cell below counts whole pixels with all stored channels exact. The maximum error is the largest stored component difference on any of the three routes.
+
+| Output | Grayscale settings | Grayscale exact pixels | Maximum error | Color settings | Color exact pixels | Maximum error |
+|---|---:|---:|---:|---:|---:|---:|
+| U8 | 5/5 | 9,728/9,728 | 0 | 5/5 | 9,728/9,728 | 0 |
+| U16 | 10/10 | 124,928/124,928 | 0 | 10/10 | 124,928/124,928 | 0 |
+| F16 | 6/6 | 11,776/11,776 | 0 | 6/6 | 11,776/11,776 | 0 |
+| F32 | 123/124 | 130,308/131,328 | 0.267032921 | 54/55 | 59,648/60,672 | 0.416119799 |
+
+Across 145 grayscale settings the previous build matched 61 whole images and 228,741/277,760 pixels, maximum 59,881 in U16. The new result is 144 and 276,740/277,760. Across 76 color settings the previous build matched 33 images and 160,393/207,104, maximum 65,535 in U16. The new result is 75 and 206,080/207,104.
+
+For the additional open-pin controls, set 32² F32 and seed 0. Use grids (1,1), (2,1), (1,2), (2,2) and (4,4). At each grid compare defaults, zero X/Y size randomness and zero split threshold in mode 0, the latter with pattern 1, pattern 1 with threshold 1 in mode 1, and pattern 1 with zero split and .5 size randomness on both axes. At seeds 1, 42 and 113 repeat the default (1,1) and (4,4) grids. In grayscale also cross (2,1), (1,2) and (2,2) with both split modes, thresholds 0/.5/1 and X/Y randomness (0,0), (.5,0), (0,.5) and (.5,.5).
+
+Test both image pins open, each alone and both connected for the (1,1) grid, the (2,2) regular grid with pattern 1, defaults and a (7,3) grid with pattern 3 and pattern rotation randomness .3. Use the original grayscale or RGBA pattern and background fields from the [whole-root input comparison](#whole-caustic-scratch-splatter-tile-and-vertical-noise-comparisons). Add three rectangles in U8, U16, F16 and F32. For 32 × 64 use seed 530371, both inputs, a (3,2) grid, pattern 1, split mode 0, threshold .375 and size randomness (.4375,.21875). For 64 × 32 use seed 89027, both inputs, a (7,3) grid, pattern 3, split mode 1, threshold .625, size randomness (.3125,.5) and shape rotation randomness .125. For 16 × 32 use seed 2747, open inputs, a (2,5) grid, pattern 1, split mode 0, threshold 0 and size randomness (.375,.25). Count duplicate settings once.
+
+One F32 setting has two reproducible reference results. At seed 0 use the 32² (2,2) regular grid with pattern 1 and just the pattern input connected. Opening this setting directly gives 1,024/1,024 exact pixels in each root. Starting from a (1,1) grid with both inputs connected, then removing only the background while keeping the pattern connected, gives 4/1,024 grayscale and 0/1,024 color, with maxima .267032921 and .416119799. Both input bridge images have the same bytes in the two terminal states. Rebinding the identical pattern file by a second path restores all 1,024 pixels, including upon switching back to the original path. Each sequence reproduced on one processor, on eight and after opening the ordinary save. The three other roots with a driven pattern seed retained 2,449,920/2,449,920 pixels in 383 regression settings. Both older tile roots remain open on the sequential edit comparison.
+
+### Hue rotation and saturation in Replace Color
+
+Replace Color matches **170,240/170,240 pixels in 39 settings** on one reference processor, eight processors and after reopening a normal MaterialCraft save. All channels match exactly on each route. The earlier build matched 18 whole images and 158,780 pixels. The same 35,695-byte save reopened for the reference comparison was reproduced byte for byte with the corrected build.
+
+| Output | Settings | Exact pixels before | Maximum error before | Exact pixels after | Maximum error after |
+|---|---:|---:|---:|---:|---:|
+| U8 | 10 | 125,439/125,440 | 1 | 125,440/125,440 | 0 |
+| U16 | 9 | 13,734/13,824 | 1 | 13,824/13,824 | 0 |
+| F16 | 7 | 12,794/12,800 | .00048828125 | 12,800/12,800 | 0 |
+| F32 | 13 | 6,813/18,176 | .0000009983778 | 18,176/18,176 | 0 |
+
+Repeat the [31 established settings](#hue-and-chroma-rounding-near-equal-rgb-channels). Add two linear F32 inputs and render each in all four output formats. With zero-based coordinates and color channel c from 0 to 2, set RGB to ((7x + 11y + 3xy + 41c + 5cx + 13cy + 19j) modulo 259)/256 and alpha to ((31x + 13y + 5) modulo 129)/128. For j = 0 use 32 × 64, seed 5309719, source color (.25,.5,.75) and target (.6875,.125,.5625). For j = 1 use 64 × 16, seed 9072209, source (.75,.25,.375) and target (.375,.71875,.09375).
+
+The shared HSL adjustment adds the minimum-channel sector in the same multiply-add as the biased channel difference times the reciprocal chroma. It adds the slider displacement in sixths of a turn. Removing whole turns in a multiply-add preserves the small residuals seen at wrap boundaries. A second multiply-add applies the saturation shift before rounding. At saturation 1 and lightness .5, a .5 gray rotated with hue 1 gives RGB (1, 2⁻²³, 0). At hue .359375, saturation .8125 and lightness .5, the F32 input (.6109035,.6431967,.35680333) has output words 3f74a640, 3d359c00, 3f120e45.
+
+For a separate 32 × 8 linear field, use two grays, .5 and .25, followed by seven colors for each minimum channel in R, G, B order. The minimum is 1/8192 and the maximum is 1 − 1/8192. Set the channel pairs (B,G), (R,B) and (G,R), respectively, to give first − (second + 3/4096) equal to −.75, −.5, −.25, 0, .25, .5 and .75 while retaining that maximum. Repeat the 23 colors across x. Set alpha to ((23x + 29y) modulo 129)/128. At saturation 1 and lightness .5, render hue 0, .03125, .125, .21875, 1/3, .421875, .5, .5625, .625, .765625, .9375, 1 and the two adjacent F32 values on either side of .375. Use seed 9314041 + 13j, starting at j = 0. The 14 settings improved from 1,136/3,584 to **3,584/3,584** on each route, maximum error zero.
+
+The [five gray ramps, six-sector RGB fields, near-grays and shifted lightness controls](#hue-and-chroma-rounding-near-equal-rgb-channels) match 327,680/327,680, 24,576/24,576, 16,384/16,384 and 14,336/14,336 pixels respectively. A standalone HDR channel-offset comparison still matches 20,462/20,480, maximum .000001013279. On the 32 × 8 field, hold the seed at 9314041 and set hue to .5 + t/2 + q for t = −2048, −128, −16, −4, −2, −1, 0, 1, 2, 4, 16, 128 and 2048 and q = 0 or .125. This out-of-range sweep matches 4,672/6,656, maximum 1. The eight differing settings exceed the scalar parameter's current hard range of −16 to 17.
+
+### Gradient warp on stretched pixels
+
+Liquid matches **820,480/820,480 pixels in 91 distinct settings** on one reference processor, eight processors and after reopening an ordinary MaterialCraft SBS save. The maximum stored error is zero in every format on each route.
+
+| Output | Settings | Exact pixels on each route |
+|---|---:|---:|
+| U8 | 11 | 102,912/102,912 |
+| U16 | 22 | 342,016/342,016 |
+| F16 | 12 | 104,960/104,960 |
+| F32 | 46 | 270,592/270,592 |
+
+The previous build matched 53/60 established settings and 702,029/785,664 pixels. The seven failures used rectangular outputs with non-square expansion disabled. At seed 106898, compare a 64 × 32 F32 output at scale 5 with disorder and warp intensity both .3125. The previous build matched 2/2,048 pixels, maximum .451499209. Holding the generator settings fixed and setting warp intensity to zero matched all 2,048. At seed 106898, cross 64 × 32, 32 × 16, 16 × 32 and 32² with both expansion settings and warp intensities 0, .03125 and .3125. Keep scale 5 and disorder .3125. This gives 24 F32 settings including the original. For two additional disabled-expansion cases in all four formats use 32 × 64, seed 7001129, scale 9, disorder .3125 and warp .5625, then 64 × 16, seed 8008137, scale 4, disorder .71875 and warp .1875.
+
+To reproduce the 60 established settings, combine the original 19 Liquid comparisons with the table below and count identical settings once. A single value in the disorder/warp column sets both controls. “All” means U8, U16, F16 and F32. [Original 19 settings](#liquid-fiber-and-related-noise-sources)
+
+| Size | Seed | Scale | Disorder/warp | Non-square expansion | Output |
+|---|---:|---:|---|---|---|
+| 16 × 32 | 0 | defaults | defaults | defaults | All |
+| 32 × 16 | 42 | 16 | .21875 | on | U16, F32 |
+| 64² | 433818 | 5 | .9375 | off | All |
+| 128 × 32 | 433855 | 11 | .046875 | on | U16, F32 |
+| 32 × 128 | 433892 | 27 | .5625 | off | All |
+| 128² | 0 | defaults | defaults | defaults | All |
+| 256 × 128 | 433966 | 19 | .328125 | off | U16, F32 |
+| 128 × 256 | 434003 | 32 | .8125 | on | U16, F32 |
+| 256² | 42 | defaults | defaults | defaults | All |
+| 512 × 128 | 434077 | 12 | .671875 | on | U16, F32 |
+| 16 × 32 | 300442 | defaults | defaults | defaults | U16, F32 |
+| 64 × 32 | 300521 | 1 | 0 | on | All |
+| 32 × 64 | 300600 | 13 | .8125 | on | All |
+| 64² | 300679 | 16 | .21875 | on | U16, F32 |
+
+Warp now uses the resolved pixel ratio when measuring displacement. With a gradient the same size as the output, its slope is the current texel minus the adjacent texel on that axis. At intensity one, multiply the slope by the squared axis length divided by 256 to get the displacement in stretched output pixels. The square-pixel setting uses the shorter axis as its length for both directions. For example, with a step of .5 horizontally and .25 vertically at the center of a 32 × 16 image, the center samples the source 2 pixels right and .25 pixels down in stretched mode. With square pixels it samples .5 pixels right and .25 down.
+
+For independent controls, use X and Y coordinate ramps with a single-pixel impulse or a two-axis step gradient. Cross both ramps and gradients with nearest and bilinear sampling at 16², 32 × 16, 16 × 32 and 64 × 32. Explicitly set the Warp pixel ratio to 0 (stretched) or 1 (square). These 64 settings match 53,248/53,248 F32 pixels on each route. The earlier build matched ten of 16 stretched settings per sampler, with 13,178/13,312 pixels in each. [Procedural fields, intensities and seeds](#gradient-warp-displacement-and-sampling)
+
+With stretched pixels, repeat the eight mixed-size settings in each of configurations 1 through 8 in the linked table. Across 64 settings, 64 whole images and 194,432/194,432 pixels match on each route. Maximum error is zero. The 14 other inventory roots with a reachable Warp retain 1,938,176/1,938,176 exact pixels across 185 regression settings. The 45,472-byte Liquid save produced by the tested build is byte-identical to the ordinary save used for the reference readback.
+
+### Returned vectors in pattern properties
+
+The two roots in `pattern_tile_random.sbs` now match all **1,154,048 pixels across 283 distinct settings** on one processor, eight processors and after reopening an ordinary MaterialCraft save. Maximum error is zero in each format. The [preceding seed correction](#driven-seeds-in-pattern-nodes) had left 20 settings with differences in each of the two main comparison sets.
+
+| Output | Grayscale settings | Grayscale exact pixels on each route | Color settings | Color exact pixels on each route |
+|---|---:|---:|---:|---:|
+| U8 | 10 | 33,792/33,792 | 11 | 37,888/37,888 |
+| U16 | 19 | 184,832/184,832 | 20 | 188,928/188,928 |
+| F16 | 10 | 30,720/30,720 | 11 | 34,816/34,816 |
+| F32 | 65 | 175,872/175,872 | 137 | 467,200/467,200 |
+| All | **104** | **425,216/425,216** | **179** | **728,832/728,832** |
+
+Start with the 79 grayscale and 154 color settings in the linked seed comparison. Repeat the connected 64² F32 position case from that section. Open its input pins, then independently disable position randomness, shape rotation and its randomness, pattern rotation randomness, both sets of rotations, and both sets of rotations together with position randomness. Also try zero X/Y size randomness, zero interstice, disabled shape rotation constraint, grids (1,1), (2,1) and (4,4), disabled non-square expansion, pattern 2, defaults with open pins and the original settings at seeds 0 and 113. Count the original once.
+
+For eight further settings per root, use all four formats on each of two original connected cases. In the 64² position case change the extent to 32 × 64, seed to 4047289, position randomness to .3125, split mode to 0 and shape rotation randomness to .21875. Disable the position randomness constraint. In the connected 5 × 3 case use 64 × 32, seed 1741031, position randomness .625, a 3 × 4 grid and pattern 2. Enable the position randomness constraint and disable the shape rotation constraint. The ordinary save from the verified build matched the 1,741,759-byte file reopened for the reference measurements.
+
+In the square isolation, assigning the computed frame offset to a new vector variable preserved the reference image. MaterialCraft's two expressions had differed at 49 pixels. The same assignment recovered all 358 differing pixels in a connected 3 × 5 rectangle. Returning a vector from a pattern property now evaluates the operands of its first component before drawing values for the next component, just as an explicit vector assignment does. Reused operands consume one draw.
+
+Independent checks use one additive square over black. Pack independent Random(.5) draws into two vectors. Return their sum as the frame offset. Repeat with a product sharing a component, scaling by one draw, or a conditional choice. Return an interpolation by .375 as the branch offset, a product as the size, and four-component sums or products as the color. Use 32², 64 × 32, 32 × 64 and 64² F32 at seeds 0, 113, 137 and 845872. All **32/32 settings and 73,728/73,728 pixels** match on each route, up from 12/32 and 54,544/73,728. Adding (.3125, .265625) to the product size gives visible footprints of 100, 280, 216 and 360 pixels. These four settings improved from 9,116/9,216 to 9,216/9,216, maximum error zero.
+
+The structural scan identified 17 already-qualified roots with potentially affected arithmetic results in a pattern property. All 103 rechecked settings match 1,063,936/1,063,936 pixels. The overlapping 36-root regression set retained 1,350,656/1,350,656 across 396 distinct settings. The older roots in `tile_random.sbs` remain open on one processor, eight processors and ordinary reopen. Grayscale went from 111,274 to 111,207 of 142,592 pixels, and color from 111,101 to 111,194 of 142,592, each over 19 settings. Their maximum U16 errors remain 59,881 and 65,535 respectively.
+
+### Driven seeds in pattern nodes
+
+A pattern node's Random Seed expression now uses the same scalar storage arithmetic as a graph or filter seed. It still reads the incoming pattern stream and the variables available to the node. A driven float-to-integer conversion returns the F32 word of the floored value. A driven scalar sum adds the two 32-bit words. Rounding an intermediate signaling NaN sets its quiet bit and retains its sign and payload.
+
+Use a single additive square with Random(1) luminosity over .125 gray. Drive its parent Iterate's seed with a float converted to an integer, a sum of two floats converted afterward, the sum of two individually converted floats, a product converted afterward, and a converted literal −1.5. Repeat the single-float cast on a Switch and a Quadrant. On a Quadrant also convert ten times the Y component of `$pos`. Use (first, second, graph seed) of (0, 1, 0), (1, .5, 845872), (3, .75, 113), (5.25, .5, 845872), (17, 1, 42) and (−1.25, −.5, 37). Cycle through 16², 16 × 32 and 32 × 16 F32. All **48/48 settings and 20,480/20,480 pixels** matched on one processor, eight processors and after reopening an ordinary MaterialCraft save. Maximum error was zero on each route.
+
+A separate parent-to-child graph passes two floats to a graph or filter seed. Compare the raw output of a 16² random Pixel Processor. For (3, .75), (5.25, .5), (5.75, .625), (−3, .75), (−5.25, .5) and (−5.75, .625), the recovered seed words are `7f800000`, `7fe80000`, `7fd80000`, `ff800000`, `ffe80000` and `ffd80000`. The finite controls (.75, .25) and (0, 1) give `7dc00000` and `3f800000`. Both seed locations match all 4,096 pixels in aggregate on each of the three routes. Direct integer offsets in 180 single-processor settings at three Iterate depths, including disabled inheritance, retain all 46,080 F32 pixels.
+
+Both random tile roots now match **20/20 settings and 10,752/10,752 F32 pixels** in the [rectangular expansion controls](#rectangular-expansion-in-the-two-random-tile-roots), up from 10/20 and 10,414. The tall and wide defaults match all 512 pixels each. In each of the layout and drawing passes, read the first, second and fourth visits to the center and outer tall segments and the outer wide segment. Compare the original seed expression and float-driven seed overrides 0, 1, 3, 5 and 17. Each pass matches all **54 settings and 27,648/27,648 F32 pixels**, maximum zero.
+
+Repeat all established settings on each processor count and reopen an ordinary save. Include the preceding 20 F32 settings and two further rectangular settings in each output format. For the first additional case use the connected 3 × 5 setting, a 32 × 64 output, seed 7011107, pattern 1, split threshold .3125, X/Y size randomness .25/.6875, interstice .15625, pattern rotation option 1 and non-square expansion. For the second start at defaults with open pins, 64 × 16, seed 1024053, a 5 × 2 grid, pattern 3, split mode 1, split threshold .8125, X/Y size randomness .5625/.375, shape scale randomness .25 and non-square expansion. Count identical settings once. All three reference routes agree with each other. The table compares the production evaluator with each route.
+
+| Output | Grayscale complete | Grayscale exact pixels | Maximum error | Color complete | Color exact pixels | Maximum error |
+|---|---:|---:|---:|---:|---:|---:|
+| U8 | 4/8 | 28,395/29,696 | 251 | 5/9 | 32,485/33,792 | 254 |
+| U16 | 11/17 | 178,576/180,736 | 64507 | 12/18 | 182,750/184,832 | 65278 |
+| F16 | 4/8 | 24,883/26,624 | 1 | 5/9 | 29,235/30,720 | 1 |
+| F32 | 40/46 | 99,548/102,144 | 1.00000006 | 112/118 | 391,330/393,472 | 1.00000006 |
+
+Grayscale reaches **59/79 settings and 331,402/339,200 pixels**. Color reaches **134/154 and 635,800/642,816**. On the established settings alone, grayscale improved from 32/52 and 300,698/316,672 to 36/52 and 310,112/316,672. Color improved from 106/126 and 602,588/619,776 to 110/126 and 614,180/619,776. The 100 previously qualified Brick 3 settings still match all 1,295,872 pixels. The two older random tile roots retain 111,274/142,592 and 111,101/142,592 pixels across 19 settings each.
+
+Random positioning remains open. Use the connected 64² F32 setting with a 2 × 7 grid, pattern 3, filtering 1, pattern rotation randomness .2578125, split threshold .421875, shape scale .837890625, position randomness .0859375, shape rotation −.0078125 and shape rotation randomness .171875. At seed 846324 grayscale differs at 49 pixels. At seed 846361 color differs at 36. Changing position randomness alone to zero gives 4,096/4,096 on both. Passing the original frame offset through an otherwise unused vector assignment reproduces the untouched grayscale reference in this square and in the connected 3 × 5 rectangle. The reference output is identical with either expression.
+
+### Component reads in color tile function arguments
+
+The color graph in `pattern_tile_generator.sbs` matches all **777,472 RGBA pixels in 339 distinct settings** on one processor, on eight processors, and after opening a regular MaterialCraft save in the reference app. A pixel counts only when all four stored channels match. The earlier evaluator matched 206 complete settings. The fresh single-processor renders also reproduced the 765,184 archived pixels in the [331 established settings](#three-related-tile-roots-with-the-current-evaluator).
+
+| Storage | Settings | Earlier exact pixels · maximum error | Current exact pixels on each of the three routes · maximum error |
+|---|---:|---:|---:|
+| U8 | 9 | 20,575/24,064 · 88 | 24,064/24,064 · 0 |
+| U16 | 23 | 146,922/158,208 · 22,635 | 158,208/158,208 · 0 |
+| F16 | 21 | 33,806/37,376 · 0.345214844 | 37,376/37,376 · 0 |
+| F32 | 286 | 436,635/557,824 · 0.345388740 | 557,824/557,824 · 0 |
+
+For the eight new settings, use image filter 0, global opacity .75, rotation −.09375 turns, pattern rotation randomness .125, position randomness (.1875, .3125) and non-square expansion. Keep other controls at defaults. Render each of the following at all four precisions.
+
+| Size · seed | Pattern · grid · input count · blend mode | Color · component randomness | Input pins |
+|---|---|---|---|
+| 16 × 64 · 504108 | 1 · 4 × 3 · 4 · 1 | (.25, .625, .875, .6875) · (.4375, .25, .3125, .125) | Connect all seven generated 32 × 16 U8 fields |
+| 64 × 32 · 504131 | 3 · 2 × 5 · 6 · 0 | (.875, .375, .125, .9375) · (.25, .4375, .125, .375) | Leave the pins open |
+
+For the connected fields, index the background and the six pattern inputs by m = 0 through 6 and channels by c = 0 through 3. At texel (x,y), take h = ((67x + 43y + 13xy + 11cx + 29m + 59c + 112713) mod 383)/382. Use .75h plus .25 wherever (5x + 7y + 3m + c) mod 17 exceeds 9. Set channel c to one at ((3c + 8) mod 32, (m + 4) mod 16). Round to the nearest U8 level. The complete 560,378-byte SBS written by the corrected build matched the file used for the reference reopens byte for byte.
+
+The randomized tint passes three components to a straight-line arithmetic function. Reversing the pack and reversing the selection inside that function preserved the reference output and reproduced the correct draw order in the earlier evaluator. The shared pattern evaluator now evaluates packed scalar inputs when the called arithmetic first reads their components. A repeated component reuses its value. An unused component and a swizzle into zero padding consume no draws. The change applies to function calls in FX-Maps.
+
+To reproduce this independently, pack separate Random(1) draws into a vector and call a function that reads three channels a, b, c in the indicated order. Return .5a + .25b + .125c. Add .0625 times a separate Random(1) after the call and use the result as the opacity of a full-coverage additive square over black. Render F32 at 16², seed 0, at 32 × 16, seed 113, and at 16 × 32, seed 137.
+
+| Independent functions | Earlier exact pixels · maximum error | Current exact pixels on each route · maximum error |
+|---|---:|---:|
+| Float3 in XYZ, ZYX, YZX, ZXX and YYZ order, plus ZYX through replicated swizzles | 1,280/7,680 · 0.406245291 | 7,680/7,680 · 0 |
+| Float2 YXY, WYW and WZW, Float4 WYX and ZWZ, Float3 WXZ, and a function returning .375 with its argument unused | 0/8,960 · 0.364476055 | 8,960/8,960 · 0 |
+
+At seed 0 the F32 word for XYZ and ZYX is `3e373b24`. The two-component WYW and WZW functions give `3d4da9dc` and `3c3d4b90`. Returning .375 gives `3ec5ea5c` after the outer draw. The two Rust regressions reproduced the first-use and zero-padding errors separately.
+
+The single-channel color series matches **128,000/128,000 F32 pixels** in 320 additional archived settings. The earlier evaluator matched 71,680/128,000, with maximum error .625. Use one tile, pattern 1, a 32² opaque white U8 image in the first pattern input and the other pins open. Select one input, filter 2, blend mode 0, full size and opacity, zero rotation and position randomness, and disable non-square expansion. Use the five base colors (.6875,.375,.8125,.78125), (.25,.5,.125,.25), (.9375,.3125,.5625,1), (.5,.625,.4375,.5) and (1,1,1,.375). Vary just one of the four randomness channels. Use seeds 0, 1, 17, 31, 97, 213, 3019, 12071, 42191, 68047, 133107 and 631883, cycling through 16², 32 × 16 and 16 × 32 in that order. Set the varying channel to .25 and .75 at seed indices 0, 3, 7 and 9, and to .5 at every other seed. [Earlier single-tile configuration and stock comparisons](#selected-blend-inputs-and-odd-sized-float-backgrounds-in-tile-generators)
+
+The 221 grayscale tile settings and 175 settings from 35 other qualified roots retained all 1,350,656 pixels. Both modern circular roots retained 70 exact settings each and the older pair retained 62 each. The 141 vector settings, 90 pure-call settings and raw outputs of 56 Pixel Processor programs retained their earlier values. All 590 node and evaluator release tests passed, along with formatting, strict workspace Clippy, dependency layers and WebAssembly.
+
+### Rectangular expansion in the two random tile roots
+
+The shared function change also corrected two whole RGBA settings in `pattern_tile_random.sbs`. Repeating the [established random tile settings](#three-related-tile-roots-with-the-current-evaluator) gives 106/126 complete settings and 602,588/619,776 exact pixels in color, up from 104/126 and 601,273. Grayscale retains 32/52 settings and 300,698/316,672 pixels. Maximum errors in U8, U16, F16 and F32 are 255, 65,535, 1 and 1.00000006 for color and 254, 65,535, 1 and 1.00000006 for grayscale. Both roots remain open.
+
+At F32 with open pins and seed 845872, the two roots have the same pattern of differing pixels. Run 20 single-processor settings per root. Start at defaults at 16 × 32, then separately set the grid to (1,1), set both size randomness values to zero, and apply both changes together. Set the split threshold to zero and one with the default grid and with the single-tile grid. Try split mode zero with each grid. At (1,1), combine split threshold one, zero interstice and zero size randomness. With the default grid, set interstice to zero, then separately set interstice mode to zero. Try (2,1), (1,2), and disabling non-square expansion. Repeat defaults at seeds 0 and 113. Finally compare 32² and 32 × 16 at seed 845872. Each root gives 10 complete settings and **10,414/10,752** exact pixels, maximum error 1. At the tall default the count is 472/512. Turning expansion off or disabling both size variations gives 512/512. The square default gives 1,024/1,024.
+
+For the grayscale default, keep the outer Switch and its assignments and add a filter on the segment number it publishes. Allow all visits, then numbers zero through eight separately. The tall output has 245 nonzero center-segment pixels on both sides and matches 512/512 when only that segment runs. Selecting segment five preserves all 40 discrepancies. At 32 × 16, the center also matches 512/512 and selecting segment three preserves all 54 discrepancies. The other seven segment selections on either rectangle return black in both applications.
+
+### Circular pattern angles and random draws with computed bounds
+
+Both roots in `pattern_splatter_circular.sbs` now match **216,064/216,064 pixels across 70 distinct settings per root**. The earlier evaluator at `02f2e7d` matched 14/70 complete images per root, including 13/54 in the established series. The original on one processor, the original on eight and the one-processor reopen of the ordinary MaterialCraft SBS save all gave the same result. A color pixel counts as exact only when all four stored channels agree. [Established settings and input formulas](#circular-splatter-geometry-and-the-order-of-random-draws)
+
+| Storage | Settings per root | Earlier grayscale exact · maximum | Earlier color exact · maximum | Current exact per root on each route | Current maximum |
+|---|---:|---:|---:|---:|---:|
+| U8 | 4 | 7,978/9,216 · 243 | 6,831/9,216 · 254 | 9,216/9,216 | 0 |
+| U16 | 8 | 122,131/123,904 · 62,451 | 121,002/123,904 · 65,535 | 123,904/123,904 | 0 |
+| F16 | 4 | 7,967/9,216 · 0.952941895 | 6,831/9,216 · 0.996078491 | 9,216/9,216 | 0 |
+| F32 | 54 | 69,451/73,728 · 1 | 68,484/73,728 · 1 | 73,728/73,728 | 0 |
+
+Start with the 54 linked settings for each root. For the additional F32 geometry comparisons, use the connected 64 × 32 setting at seed 70031 and its seven original input fields. Compare separate changes to unconnected patterns, pivot zero, rotation zero, and symmetry mode zero. Set all three of pivot, rotation and symmetry mode to zero together. Try one ring and one pattern, one ring alone, and one ring with three patterns. Disable the five varying terms together. Repeat the original at 32², at seed 113, and at 32² seed 113 with pivot, rotation and symmetry mode zero. The original occurs in both series and counts once.
+
+For four more F32 settings on each root, use that same connected control with the following symmetry probabilities. Keep the other exposed values and the original grayscale or RGBA input fields.
+
+| Size | Seed | Connected patterns | Symmetry mode | Symmetry probability |
+|---|---:|---|---:|---:|
+| 64 × 32 | 70031 | On | 0 | .375 |
+| 32 × 64 | 113 | On | 1 | .625 |
+| 32² | 42 | Off | 2 | .8125 |
+| 64 × 32 | 0 | Off | 2 | .375 |
+
+In the connected setting, the angle already differed before drawing the first stamp. Both engines used the third unit draw for the later angle increments. Replacing the computed random range with the same literal, the same exposed scalar, or a unit draw multiplied by the range preserved the reference image. The separate rotation difference followed a function that makes a random choice using a computed symmetry probability. In the shared pattern evaluator, a draw can take its range or a called sampler’s arguments from expressions over immutable inputs. A shared inner conditional now consumes its draws when that conditional runs. Assignments and sampled image reads retain their order.
+
+For an independent full-coverage additive square at 16² F32, use three seeds (0, 113 and 137) and both values of an exposed switch. Store S = switch ? .1875 : A, then return (E × .5 + A × .25) + S × .125, with E a separate Random(1). For A, compare Random(7), Random(exposed 7), Random(max(0, X of the converted integer pair (7,7))) and Random(1) × 7. The second family calls a function returning −1 when its own Random(1) is below its argument and +1 otherwise. Supply .25, a public .25, or half a public .5. At seed 113 the range outputs are `3f94855e` and `3f70a852` in switch order off/on. The probability outputs are `3f4de37f` and `3f33e37f`.
+
+| Independent F32 controls | Settings | Earlier exact · maximum | Current exact on each route · maximum |
+|---|---:|---:|---:|
+| Four random bounds | 24 | 5,376/6,144 · 0.725004077 | 6,144/6,144 · 0 |
+| Three probability arguments | 18 | 2,304/4,608 · 0.290001631 | 4,608/4,608 · 0 |
+| Exposed and nested choices | 72 | 10,752/18,432 · 0.151002526 | 18,432/18,432 · 0 |
+| Circular graph scalar field reads | 48 | 48,978/49,152 · 0.423094749 | 49,152/49,152 · 0 |
+
+The 48 field outputs read the stamp index, angles, radii, positions, offsets, sizes, rotation and tint on the connected, disconnected and one-stamp controls. Each of the two older circular roots retained all 190,720 pixels across 62 settings. The 221 grayscale Tile Generator settings and 175 settings across 35 other qualified roots retained all 1,350,656 pixels. The 141 vector settings, 90 pure-call settings and raw output words of 56 Pixel Processor programs stayed unchanged. Two new Rust regressions failed on the earlier evaluator. All 588 node and evaluator release tests, formatting, strict workspace Clippy, dependency layers and WebAssembly passed. [Nested choice and field reproduction](#compile-time-conditions-before-a-shared-pattern-draw) · [Older circular roots](#splatter-circular-color-and-assignments-before-a-later-function-call)
+
+### Three related tile roots with the current evaluator
+
+The same evaluator also rendered the established whole settings for the color Tile Generator and the two Tile Random roots. These counts compare the unmodified roots with the archived raw buffers. The earlier column comes from the [original tile series](#selected-blend-inputs-and-odd-sized-float-backgrounds-in-tile-generators) and includes changes across intervening revisions. All three roots were open at that revision.
+
+| Root | Exact settings | Earlier exact pixels | Current exact pixels | Maximum U8 / U16 / F16 / F32 error |
+|---|---:|---:|---:|---|
+| Tile Generator Color | 206/331 | 621,344/765,184 | 634,737/765,184 | 27 / 12,307 / 0.104003906 / 0.341796875 |
+| Tile Random | 32/52 | 291,084/316,672 | 300,698/316,672 | 254 / 65,535 / 1 / 1.00000006 |
+| Tile Random Color | 104/126 | 498,989/619,776 | 601,273/619,776 | 255 / 65,535 / 1 / 1.00000006 |
+
+At that revision, the 32² one-tile color generator test with pattern 2, the input pins open, seed 31 and hue randomness .5 still differs. In a private control, sending the randomized three-component value directly to the tint bypassed its color conversion and matched 14,336/14,336 F32 pixels across 14 settings at seeds 31 and 12071. Leaving the conversion in place and fixing all four draws to half their bounds also matched 14,336/14,336. The subsequent [component-read comparison](#component-reads-in-color-tile-function-arguments) records the fix. [Single-tile settings and procedural fields](#selected-blend-inputs-and-odd-sized-float-backgrounds-in-tile-generators)
+
+### Compile-time conditions before a shared pattern draw
+
+A quadrant can use the same random value in an optional assignment and in a later calculation. With a compile-time condition, the discarded arm consumes no draws. In the test below, a condition that reads an exposed variable yields different pixels even when it selects the same arm as a constant condition. An unwired argument of a called function behaves as a constant in this comparison. MaterialCraft now keeps this distinction when compiling pattern branches.
+
+Use a full-coverage additive square over black at 16² F32. Give its opacity function three separate Random(1) nodes A, T and E. Form L = A + (inner ? T : .3125). In the first input of a Sequence, store S = outer ? L : .1875. In the second, return (E × .5 + L × .25) + S × .125. Render both inner switch values at seeds 0, 113 and 137. Keep the pattern seed offset at its default. For the direct and called forms of T use Random(1) and a zero-argument function returning that draw. For the packed form, pack A and the inner result as Float2, then sum X and Y.
+
+| F32 cases | Settings | Earlier exact pixels | Earlier max error | Current exact pixels on each route | Current max error |
+|---|---:|---:|---:|---:|---:|
+| Folded condition on a direct or called draw | 12 | 1,536/3,072 | 0.143974781 | 3,072/3,072 | 0 |
+| Reversed literal, negation and constant comparison | 18 | 0/4,608 | 0.143974781 | 4,608/4,608 | 0 |
+| Literal wire, open argument and constant-returning call | 18 | 0/4,608 | 0.143974781 | 4,608/4,608 | 0 |
+| Exposed or partly exposed condition | 24 | 3,072/6,144 | 0.151002526 | 3,072/6,144 | 0.151002526 |
+| Nested exposed conditions | 48 | 7,680/12,288 | 0.151002526 | 7,680/12,288 | 0.151002526 |
+
+For the fixed conditions, use literal false, swap arms with literal true, negate literal true, or compare .25 > .5. In a called function test its scalar outer argument with > .5 and pass literal zero, leave it open at its zero default, or wire a function returning literal zero. For exposed controls use a public outer value, or AND it with false in each operand order. Exercise both exposed switches in the direct, called and packed forms. The originals on one processor, on eight and the one-processor reopens of ordinary MaterialCraft saves gave identical reference words.
+
+At seed 113, with the inner switch off, a fixed outer condition yields F32 word `3ee92f65`. An outer condition reading a public value yields `3f19b678` when it takes the same arm. With the inner switch on, the words are `3f171545` and `3f3bbfde`. The 48 fixed settings rose from 1,536 to **12,288/12,288** pixels. Both exposed series still have differences in the order of draws across nested choices.
+
+The two older circular roots retained 190,720/190,720 pixels apiece in 62 settings per root. The two roots in `pattern_splatter_circular.sbs` retained 13/54 exact settings each. The 221 grayscale Tile Generator settings and 175 archived settings on 35 other qualified roots retained 1,350,656/1,350,656 pixels. The 141 stored-vector cases, 90 pure-call controls and raw output words of 56 Pixel Processor programs also held. [Whole circular comparisons](#circular-splatter-geometry-and-the-order-of-random-draws) · [Older circular color settings](#splatter-circular-color-and-assignments-before-a-later-function-call)
+
+### Splatter Circular Color and assignments before a later function call
+
+Splatter Circular Color in `splatter_circular.sbs` matches all **190,720/190,720** pixels in **62 distinct whole settings**, up from 185,121 pixels and 31 complete settings at `4080c38`. Both reference processor counts and the one-processor reopen of the ordinary MaterialCraft SBS save gave the counts below. The 19 established reference captures reproduced their archives in 142,592/142,592 pixels. The grayscale root retained 190,720/190,720 across its own 62 settings on all three routes.
+
+| Storage | Settings | Earlier exact pixels | Earlier maximum | Current exact pixels on each route | Current maximum |
+|---|---:|---:|---:|---:|---:|
+| U8 | 5 | 8,587/9,216 | 247 | 9,216/9,216 | 0 |
+| U16 | 10 | 123,129/124,416 | 65,535 | 124,416/124,416 | 0 |
+| F16 | 6 | 10,635/11,264 | 0.96862793 | 11,264/11,264 | 0 |
+| F32 | 41 | 42,770/45,824 | 1 | 45,824/45,824 | 0 |
+
+Use the [19 established settings](#tile-weave-splatter-and-fiber-stage-comparisons) and the [35 color settings](#grayscale-splatter-circular-across-four-output-formats) with their original RGBA inputs. For the eight additional renders, apply the exposed defaults at 64 × 16 and seed 724903 with the original 16² input pair. At 32 × 64 and seed 724934, use the 32² inputs of the first changed color setting with two patterns, radius .25, size (.25,.25), pattern 2, filtering 2, zero rotation and zero radius, size and mask randomness. Keep center orientation off. Render each rectangle in U8, U16, F16 and F32.
+
+In the quadrant opacity expression, the first input of a Sequence assigns the rotation, position and size. Its second input computes the tint and calls a function that can use the random stream. The evaluator had let that call change how it planned the earlier assignments. It now follows the boundary between the two inputs when the assignments finish in the first and the second exports no writes.
+
+Use one full-coverage additive square at 16² F32 and seeds 0, 113 and 137. Make the last operation in the opacity expression a Sequence. Let E be a call to a zero-argument function returning Random(1). The second input adds E/8 to the value described below. Repeat with a direct Random(1) in place of that call. A, B, C and D denote separate Random(1) nodes. Render both values of an exposed switch.
+
+| First input and value read by the second | Settings including direct controls | Earlier exact pixels | Earlier maximum F32 error | Current exact pixels on each route | Current maximum |
+|---|---:|---:|---:|---:|---:|
+| Assign the interpolation of (A,B) and (C,D) by .375, then select X or Y | 12 | 1,536/3,072 | 0.188753158 | 3,072/3,072 | 0 |
+| Assign A when true and B when false, then read the assignment plus A/4 | 12 | 2,304/3,072 | 0.435002506 | 3,072/3,072 | 0 |
+| Assign Y of (A,B), then return the assigned scalar | 12 | 1,536/3,072 | 0.579116881 | 3,072/3,072 | 0 |
+
+At seed 113 the interpolated-vector outputs with the additional E/8 were `3f1b5b11` and `3f297df4`. The conditional outputs were `3f846c61` and `3ee92f7e`. These words matched with either form of E, on one processor, on eight and after an ordinary save. The Rust regression exercises both sequences and failed on the previous evaluator.
+
+The 221 grayscale Tile Generator settings and the 175 archived controls on 35 other qualified roots retained **1,350,656/1,350,656** pixels, maximum zero. The 141 stored-vector and 90 pure-call controls retained their original words, as did 56 independent Pixel Processor graphs. The two modern circular roots in `pattern_splatter_circular.sbs` still have 13/54 exact settings each. [Vector controls](#storing-computed-vectors-in-a-quadrant-function) · [Modern circular cases](#circular-splatter-geometry-and-the-order-of-random-draws)
+
 ## 2026-11-26 root comparisons
+
+### Grayscale Splatter Circular across four output formats
+
+The grayscale root in `splatter_circular.sbs` now matches all **62 distinct whole settings**, including the ordinary SBS saves. Its 19 established settings improved from 6 to 19 exact images and from 139,334 to 142,592/142,592 pixels. The one-processor reference reproduced all 142,592 archived pixels. The graph stores a randomized vector size and position. The shared quadrant evaluator now preserves the random draws that feed each stored component. [Stored-vector controls](#storing-computed-vectors-in-a-quadrant-function) · [Established inputs and settings](#tile-weave-splatter-and-fiber-stage-comparisons)
+
+| Storage | Distinct settings | Exact pixels on one processor | Exact pixels on eight processors | Exact pixels after ordinary save | Maximum error on each route |
+|---|---:|---:|---:|---:|---:|
+| U8 | 5 | 9,216/9,216 | 9,216/9,216 | 9,216/9,216 | 0 |
+| U16 | 10 | 124,416/124,416 | 124,416/124,416 | 124,416/124,416 | 0 |
+| F16 | 6 | 11,264/11,264 | 11,264/11,264 | 11,264/11,264 | 0 |
+| F32 | 41 | 45,824/45,824 | 45,824/45,824 | 45,824/45,824 | 0 |
+
+For the additional rectangles, keep the 16² source and background of the established default. Render 64 × 16 at seed 724381. At 32 × 64 and seed 724412 use the two 32² fields from the first changed setting. Set Number to 2, Radius to .25, Pattern to 2, PatternSize to (.25,.25) and image input filtering to 2. Set radius, size and mask randomness to zero, with rotation zero and center orientation off. Render each rectangle in all four storage formats.
+
+For the separate 35-setting series, start at 32² F32 and seed 113 with the two 32² procedural F32 fields from the established changed setting. Use Number 5, Radius .375, Radius_Random .21875, Pattern 1, PatternSize (.1875,.3125), PatternSize_Random .15625, Rotation 22.5, image input filtering 1, center orientation on and RandomMask .1875. Compare the exposed defaults, the changed values, all three random amounts zero and each random amount alone. With the pins open, use Pattern 2, rotation zero and center orientation off. Repeat with 1, 2, 5 and 7 patterns, all three random amounts zero and each alone. With both pins supplied, use Pattern 1 and repeat the zero-randomness and changed settings at 1, 2 and 5 patterns. Also disconnect each pin separately and both together, try U8, U16 and F16, and render 16 × 64 at seed 0 and 64 × 16 at seed 137. The repeated five-pattern setting counts once.
+
+At `4080c38`, Splatter Circular Color was still open. The same 35-setting series used its rotation .21875 and its original color input fields. All three routes gave 17/35 exact settings and 32,615/35,840 exact pixels. Maximum errors were 165 U8 levels, 42,524 U16 levels, .648803711 in F16 and 1 in F32. With one analytic stamp and only radius randomness enabled, 1,004/1,024 pixels matched, maximum 1.
+
+### Whole caustic, scratch, splatter, tile and vertical noise comparisons
+
+At `67ee598`, MaterialCraft rendered the 19 established whole outputs for each of seven roots using their original inputs, seeds, parent sizes and storage formats. The first comparison uses archived raw buffers. The caustic graph uses the height, normal and noise fields from its original comparison. The two splatter roots and two tile roots in this table are from `splatter_circular.sbs` and `tile_random.sbs`. [Caustic settings and input formulas](#paths-caustics-and-cell-fields-after-pattern-sampling) · [Scratch, splatter, tile and vertical noise settings](#tile-weave-splatter-and-fiber-stage-comparisons) · [Four-format inventory comparison](#four-format-inventory-comparison)
+
+| Root | Previous exact pixels | Current exact pixels | Complete settings | Current maxima in U8 / U16 / F16 / F32 |
+|---|---:|---:|---:|---|
+| RT Caustics Base | 152,777/172,288 | 167,462/172,288 | 9/19 | 0 / 1 / 0 / 3.33786011e-06 |
+| Scratches 2 | 118,291/142,592 | 141,575/142,592 | 6/19 | 0 / 1 / 0 / 1.78813934e-07 |
+| Splatter Circular | 139,297/142,592 | 139,334/142,592 | 6/19 | 231 / 59,438 / 1 / 1.00000006 |
+| Splatter Circular Color | 140,218/142,592 | 140,218/142,592 | 6/19 | 247 / 65,535 / 0.96862793 / 0.996078431 |
+| Tile Random | 111,364/142,592 | 111,364/142,592 | 0/19 | 223 / 57,311 / 1 / 1.00000006 |
+| Tile Random Color | 111,228/142,592 | 111,228/142,592 | 0/19 | 250 / 65,535 / 1 / 2.00000003 |
+| Vertical Noise | 142,088/142,592 | 142,295/142,592 | 9/19 | 0 / 2 / 0 / 1.75237656e-05 |
+
+Take one case per storage format from first-pass controls, the precision matrix and the additional settings above. Choose the lowest exact fraction in that format, breaking ties by smaller pixel count. Save each graph as an ordinary SBS file from MaterialCraft. Capture each original with one and eight reference processors and reopen the save with one. Integer maxima are storage levels. Float maxima are absolute errors.
+
+| Root | U8 dimensions / seed | U16 dimensions / seed | F16 dimensions / seed | F32 dimensions / seed |
+|---|---|---|---|---|
+| RT Caustics Base | 64 × 64 / 42 | 64 × 64 / 4127 | 64 × 64 / 42 | 128 × 128 / 4159 |
+| Scratches 2 | 32 × 32 / 115729 | 32 × 32 / 115729 | 32 × 32 / 115729 | 64 × 32 / 115735 |
+| Splatter Circular | 32 × 32 / 116154 | 32 × 32 / 116154 | 32 × 32 / 116154 | 64 × 32 / 116160 |
+| Splatter Circular Color | 32 × 32 / 116171 | 32 × 32 / 116171 | 32 × 32 / 116171 | 32 × 32 / 116171 |
+| Tile Random | 32 × 32 / 116715 | 32 × 32 / 116715 | 32 × 32 / 116715 | 32 × 32 / 116715 |
+| Tile Random Color | 32 × 32 / 116732 | 32 × 32 / 116732 | 32 × 32 / 116732 | 32 × 16 / 116736 |
+| Vertical Noise | 32 × 32 / 116919 | 32 × 32 / 116919 | 32 × 32 / 116919 | 32 × 32 / 116918 |
+
+| Root | One processor · maxima U8 / U16 / F16 / F32 | Eight processors · maxima | Ordinary save · maxima |
+|---|---|---|---|
+| RT Caustics Base | 25,402/28,672 · 0 / 0 / 0 / 7.74860382e-07 | 25,295/28,672 · 0 / 1 / 0 / 8.34465027e-07 | 25,092/28,672 · 0 / 0 / 0 / 8.34465027e-07 |
+| Scratches 2 | 5,120/5,120 · 0 / 0 / 0 / 0 | 4,960/5,120 · 0 / 1 / 0 / 1.1920929e-07 | 5,120/5,120 · 0 / 0 / 0 / 0 |
+| Splatter Circular | 3,814/5,120 · 231 / 59,438 / 0.906524658 / 0.929198086 | 3,814/5,120 · 231 / 59,438 / 0.906524658 / 0.929198086 | 3,814/5,120 · 231 / 59,438 / 0.906524658 / 0.929198086 |
+| Splatter Circular Color | 3,388/4,096 · 174 / 44,618 / 0.680664062 / 0.680815682 | 3,388/4,096 · 174 / 44,618 / 0.680664062 / 0.680815682 | 3,388/4,096 · 174 / 44,618 / 0.680664062 / 0.680815682 |
+| Tile Random | 1,921/4,096 · 223 / 57,222 / 0.947509766 / 0.947844714 | 1,921/4,096 · 223 / 57,222 / 0.947509766 / 0.947844714 | 1,921/4,096 · 223 / 57,222 / 0.947509766 / 0.947844714 |
+| Tile Random Color | 1,619/3,584 · 187 / 48,014 / 0.732543945 / 2.00000003 | 1,619/3,584 · 187 / 48,014 / 0.732543945 / 2.00000003 | 1,619/3,584 · 187 / 48,014 / 0.732543945 / 2.00000003 |
+| Vertical Noise | 4,080/4,096 · 0 / 1 / 0 / 1.75237656e-05 | 4,085/4,096 · 0 / 1 / 0 / 1.75237656e-05 | 4,080/4,096 · 0 / 1 / 0 / 1.75237656e-05 |
+
+MaterialCraft reproduced every original pixel on its own reopens. At `67ee598` all seven roots were in progress.
+
+| Root | Fresh one vs archive · maxima U8 / U16 / F16 / F32 | One vs eight · maxima | One vs reopened · maxima |
+|---|---:|---:|---:|
+| RT Caustics Base | 24,931/28,672 · 0 / 1 / 0 / 1.07288361e-06 | 25,294/28,672 · 0 / 1 / 0 / 7.15255737e-07 | 26,889/28,672 · 0 / 0 / 0 / 4.17232513e-07 |
+| Scratches 2 | 4,835/5,120 · 0 / 1 / 0 / 1.1920929e-07 | 4,960/5,120 · 0 / 1 / 0 / 1.1920929e-07 | 5,120/5,120 · 0 / 0 / 0 / 0 |
+| Splatter Circular | 5,120/5,120 · 0 / 0 / 0 / 0 | 5,120/5,120 · 0 / 0 / 0 / 0 | 5,120/5,120 · 0 / 0 / 0 / 0 |
+| Splatter Circular Color | 4,096/4,096 · 0 / 0 / 0 / 0 | 4,096/4,096 · 0 / 0 / 0 / 0 | 4,096/4,096 · 0 / 0 / 0 / 0 |
+| Tile Random | 4,096/4,096 · 0 / 0 / 0 / 0 | 4,096/4,096 · 0 / 0 / 0 / 0 | 4,096/4,096 · 0 / 0 / 0 / 0 |
+| Tile Random Color | 3,584/3,584 · 0 / 0 / 0 / 0 | 3,584/3,584 · 0 / 0 / 0 / 0 | 3,584/3,584 · 0 / 0 / 0 / 0 |
+| Vertical Noise | 4,080/4,096 · 0 / 1 / 0 / 1.69277191e-05 | 4,081/4,096 · 0 / 1 / 0 / 1.69277191e-05 | 4,096/4,096 · 0 / 0 / 0 / 0 |
+
+#### Scratches 2 across all established settings and two new rectangles
+
+Repeat the full 19-setting series at both processor counts and on ordinary reopen. Add the exposed defaults at 64 × 16 at seed 727889 and the first changed scratch setting at 32 × 64 at seed 727920, each in U8, U16, F16 and F32. The changed values are `Pattern_size_width` 100.0, `Pattern_size_height` 100.0, `Disorder` 0.0.
+
+| Settings | One processor · exact images · exact pixels · maxima U8 / U16 / F16 / F32 | Eight processors | Ordinary save |
+|---|---|---|---|
+| Established | 19/19 · 142,592/142,592 · 0 / 0 / 0 / 0 | 7/19 · 141,518/142,592 · 0 / 1 / 0 / 2.38418579e-07 | 19/19 · 142,592/142,592 · 0 / 0 / 0 / 0 |
+| Additional rectangles | 8/8 · 12,288/12,288 · 0 / 0 / 0 / 0 | 6/8 · 12,016/12,288 · 0 / 0 / 0 / 1.78813934e-07 | 8/8 · 12,288/12,288 · 0 / 0 / 0 / 0 |
+
+A second eight-processor render of 64 × 64 at seed 42 matched 3,696/4,096 pixels of the first, maximum 2.38418579e-07. Repeating the new F32 rectangle at 32 × 64 at seed 727920 matched 1,887/2,048, maximum 1.78813934e-07. The original and reopened local buffers agreed for all 27 settings.
+
+### Storing computed vectors in a quadrant function
+
+A quadrant that stores a computed vector evaluates the operands for its first component before it draws the operands for the second. MaterialCraft now uses that order for stored sums, products, scalar multiples and interpolations. A scalar shared by two components consumes one draw.
+
+Use one full-coverage additive square over black at 16 × 16 F32 and graph seeds 0, 113 and 137. In its opacity function, pack independent Random(1) draws into vectors A and B. Store the result, then return one component of the stored value per render. For widths two, three and four, add A and B, multiply them component by component, scale A by another random draw and interpolate from A to B by .375. Repeat the product after connecting the first component of A to the last component of B. For width two also choose between the two vectors with a condition, then read the selected component. Compare the original on one and eight reference processors and the one-processor reopen of an ordinary MaterialCraft save.
+
+| Vector width | Settings | Previous exact pixels | Previous maximum F32 error | Current exact pixels | Current maximum F32 error |
+|---:|---:|---:|---:|---:|---:|
+| 2 | 36 | 2,304/9,216 | 0.302005053 | 9,216/9,216 | 0 |
+| 3 | 45 | 0/11,520 | 0.843028545 | 11,520/11,520 | 0 |
+| 4 | 60 | 0/15,360 | 0.71621437 | 15,360/15,360 | 0 |
+
+Each of the three routes matched **36,096/36,096** raw F32 pixels, up from 2,304. Both local renders also agreed in every setting. The three- and four-component interpolation results uniquely fit successive draws for (A₁,B₁), then (A₂,B₂), continuing through the final component. For example, at seed 113 the first two stored components were .496003091 and .551222920. A regression reads both components of five assignments at each of the three stamp seeds.
+
+Pixel Processor product rounding uses the consumers in the original expression. Six size and storage settings for each of 16 independent returned-vector expressions matched **282,624/282,624** pixels, maximum zero, with this fix and at `67ee598`. Use 16² F32 at seed 47, 64² U8, U16, F16 and F32 at seed 223, and 32² F32 at seed 449. The regression for independently returned product components also passed.
+
+The 221 grayscale Tile Generator settings and 175 settings from 35 other qualified roots matched **1,350,656/1,350,656** archived pixels, maximum zero. All 90 earlier pure-function settings stayed exact. Each root in `pattern_splatter_circular.sbs` still matched 13/54 whole settings on one processor, on eight and after saving. [Pure-function expressions](#shared-draws-and-channel-selection-across-pure-pattern-calls) · [Circular geometry and per-format errors](#circular-splatter-geometry-and-the-order-of-random-draws)
+
+### Shared draws and channel selection across pure pattern calls
+
+A quadrant expression can assign a value, call a function and later reuse a draw from a conditional arm. When each called function computes only from its declared arguments and constants, MaterialCraft now preserves the shared draw's position and evaluates only the selected channel of a packed value. The check follows nested calls. A call that draws a random value, samples an image, writes a variable or reads an undeclared name can observe evaluation order.
+
+Start with one ring and one stamp from the [circular geometry control](#circular-splatter-geometry-and-the-order-of-random-draws). Use a full-coverage additive square over black at 16 × 16 F32, offsets (0,0), size (1,1), and seeds 0, 113 and 137. In the opacity graph let A and B be independent Random(1) nodes. Choose A or B by comparing an exposed float of 0 or 1 with .5, assign the result to a named float and return that result plus A/4 plus π/8. Supply π through a constant-returning function. At seed 113 the F32 words for false and true are `3fa910f3` and `3f3da6cd`. Repeat with a literal in place of the call, with and without the assignment, and with another read of the assigned value added to the result.
+
+| F32 controls | Settings | Exact pixels before | Maximum error before | Exact pixels after | Maximum error after |
+|---|---:|---:|---:|---:|---:|
+| Shared draw, assignment, constant call and controls | 30 | 6,144/7,680 | 1.015005827 | 7,680/7,680 | 0 |
+| One or two calls computing from a declared argument | 12 | 1,536/3,072 | .435002476 | 3,072/3,072 | 0 |
+| Selecting channels of packed draws or their product | 12 | 0/3,072 | .578230530 | 3,072/3,072 | 0 |
+| Direct draws shared across two conditions and independent controls | 36 | 6,912/9,216 | .578230530 | 9,216/9,216 | 0 |
+
+For the argument cases, replace π/8 with a function that returns one eighth of its scalar input. Supply the switch as 0 or 1, directly or through an enclosing function. For the channel cases pack (A,B), select X or Y and store it, then add one quarter of a fresh draw and a function returning .125. Repeat with the X component of (A,B) × (C,D), and with its Y component also added at the end. For the two-condition cases store the first choice between A and B, then add one quarter of a second choice between A and C. Exercise all four switch combinations. Repeat with the first arms reversed and with the second condition using only independent draws. Supply the first switch divided by eight through a function.
+
+Both reference processor counts and the reference reopen of ordinary MaterialCraft saves matched **23,040/23,040** pixels in these 90 settings. The original and reopened MaterialCraft buffers also agreed. In the separate two-condition control where the shared draw happens inside a called function, only 1,536/3,072 pixels matched. When assigning an entire pairwise vector product, sum or interpolation before reading the result, each operation matched 0/1,536 pixels. At seed 113, interpolating (A,B) toward (C,D) by .375 gave (.496003091, .551222920) in the reference. Across all three seeds this matches drawing A, C, B, D.
+
+Grayscale Tile Generator retained **757,504/757,504** pixels in its 221 established settings. One or more archived renders of each of the 15 other qualified roots whose quadrant expressions combine assignments, calls and conditional or channel selection matched **227,840/227,840** pixels in 71 settings, maximum zero. The two circular splatter roots retained the same per-format counts and maxima in all 54 settings each on one processor, on eight and after saving. Both remain in progress. [Whole circular results](#circular-splatter-geometry-and-the-order-of-random-draws) · [Grayscale tile inputs and output formats](#selected-channels-in-pattern-expressions)
+
+### Circular splatter geometry and the order of random draws
+
+The two roots in `pattern_splatter_circular.sbs` at `bd12ea4` matched every pixel in 13 of 54 distinct settings each. Both original reference processor counts and the one-processor reopen of an ordinary MaterialCraft SBS save gave identical raw buffers in all 54. Each application also reproduced its own originals after saving. The fresh reference buffers for all nine established settings agree with the archives in 132,096/132,096 pixels per root, maximum zero. [Earlier nine whole outputs](#other-roots-using-uniform-arc-tangents)
+
+| Root | U8 exact pixels · max levels | U16 exact pixels · max levels | F16 exact pixels · max error | F32 exact pixels · max error |
+|---|---:|---:|---:|---:|
+| Grayscale | 7,978/9,216 · 243 | 122,131/123,904 · 62,451 | 7,967/9,216 · 0.952941895 | 41,608/44,032 · 1 |
+| Color | 6,831/9,216 · 254 | 121,002/123,904 · 65,535 | 6,831/9,216 · 0.996078491 | 40,425/44,032 · 1 |
+
+Start the 32 × 32 F32 control at seed 113 with pattern 3, two rings, seven patterns, radius .35, pattern size (.7,1.2) and scale .8. Set amount random, radius random, angle random, spiral factor and rotation random to (.2,.15,.2,.1,.3). Use the 32² procedural fields numbered one for the background and two through seven for the six pattern image pins. Render with all fields, just the background, just the pattern inputs, or all pins open. Also render exposed defaults, seed 42, 64 × 16, 16 × 64, and the original 32² setting at U8, U16 and F16. [Procedural field formulas](#four-format-inventory-comparison)
+
+At 32² vary the ring count to one or three and the pattern count to one, three or five, including one of each. Toggle each of the five varying terms off separately. At both one ring and one pattern and the original two rings and seven patterns, enable each varying term alone, the first three together, the last two together, all five or none. Add the nine earlier cases. At 64 × 32 seed 70031 enable connected patterns, set the pivot to 2, rotation to .125 and symmetry random mode to 1. At 32 × 64 seed 74571 use pattern 1, three image inputs, distribution 0, rotation −.1875, five patterns and three rings. Render these two rectangles in all four formats. Duplicate settings count once.
+
+In the independent seed-113 setting both roots differ at the same 21 of 1,024 pixels. Maximum F32 errors are .921568625 in grayscale and .996078431 in color. With one ring and one pattern, the two roots each match 882/1,024. Radius variation alone gives 1,020/1,024, rotation variation alone gives 872/1,024, and disabling all five varying terms gives 1,024/1,024.
+
+To read the geometry, retain the Iterate and Switch graph, the original count expressions and every assignment of the quadrant opacity function. Reset a scalar draw counter before the outer count. After evaluating opacity, increment the counter and use the requested published scalar as the opacity of an additive square of size (.025,.025). Place successive squares at distinct pixel centers starting at (0,0) in a black, untiled 32² F32 field. The independent control has 12 draws and the one-ring, one-pattern control has one. In the latter, the initial angle 3.103569269 and initial radius .331919193 match. MaterialCraft then publishes radius .277020574 and rotation .457172245, where the reference gives .281947523 and .538937986. Pattern size and tint match.
+
+For a separate stream control, replace the quadrant expression with 24 consecutive assignments of Random(1) and read each assigned value. The two seeds 113 and 137 match 49,152/49,152 F32 pixels on both processor counts and on reopen, maximum zero. At seed 113 the second, sixth and seventh samples are .858505130, .288028121 and .560580373. With only radius variation enabled, MaterialCraft uses sample seven. Sample two reproduces the recorded radius. With only rotation variation enabled, MaterialCraft uses sample six. Sample seven reproduces the recorded rotation. These indices reproduce every observed scalar word at seeds 0, 113, 137, 12071 and 68119. For radius use `r + (r * (r * u) − r) * .15` with r = .35 and unit draw u. For rotation use the starting angle of three quarters of a turn, interpolate in radians toward `2πu − π` by .3, then divide by 2π. Round each operation to F32. Both roots remain in progress.
+
+### Pattern Fibers 1 at default and changed tiling
+
+Pattern Fibers 1 now matches **438,528/438,528 pixels across 36 whole settings** on one processor, on eight and when reopened from an ordinary MaterialCraft SBS save. All 24 earlier whole settings now match their original archived buffers, including the 7,393 pixels that differed in the previous comparison. This version of the graph takes no image inputs and exposes tiling and non-square expansion. [Established 24 settings, dimensions and seeds](#fibers-and-fluid-pattern-stages) · [Earlier differences by storage format](#pattern-rotation-phase)
+
+For the additional three rectangles use 16 × 32 at seed 628801 with exposed defaults, 64 × 16 at seed 628833 with tiling 5 and non-square expansion on, and 32 × 64 at seed 628865 with tiling 3 and expansion off. Set the node feeding the output to each of U8, U16, F16 and F32. The original and saved local buffers have the same raw words in every case.
+
+| Settings | U8 exact | U16 exact | F16 exact | F32 exact | Maximum error on all routes |
+|---|---:|---:|---:|---:|---:|
+| Established | 5,120/5,120 | 285,696/285,696 | 5,120/5,120 | 128,256/128,256 | 0 |
+| Additional rectangles | 3,584/3,584 | 3,584/3,584 | 3,584/3,584 | 3,584/3,584 | 0 |
+
+All 36 fresh original readbacks agree across the two processor counts and with their one-processor saved-file readbacks. Pattern Fibers 1 qualifies for parity in the measured cases.
+
+### Full Pattern Weave 2 comparisons at both processor counts
+
+On release `bd12ea4`, Pattern Weave 2 matches **3,139,840/3,139,840 pixels across all 95 established whole settings** on one processor, on eight, and in fresh ordinary saves opened in both applications. The earlier whole comparison differed at 351 pixels. Each fresh one-processor readback agrees with the corresponding archived original. This graph takes no image input. The measurements cover the original defaults and changed square and rectangular outputs, including different seeds, scales, disorder, 45-degree rotation and non-square expansion. [Seven sizes, fixed fields and reopen settings](#saved-splatter-and-weave-graphs-across-independent-fields) · [Earlier shape and oblique bounds controls](#fixed-and-input-driven-rotation-bounds-for-oblique-stamps)
+
+| Compared in each of the three routes | U8 exact | U16 exact | F16 exact | F32 exact | Maximum error |
+|---|---:|---:|---:|---:|---:|
+| Whole outputs | 400,896/400,896 | 1,174,016/1,174,016 | 402,944/402,944 | 1,161,984/1,161,984 | 0 |
+
+Separately reopen the previously saved packages and compare with the archived reference readbacks of those same files. The first 20 settings match 179,200/179,200 pixels, the second ten match 64,000/64,000, and the thirteen fixed-field settings match 26,624/26,624. All 43 saved renders match **269,824/269,824 pixels**, maximum zero. Pattern Weave 2 qualifies for parity in the measured cases.
 
 ### Full Arc Pavement comparisons across shape selections and ordinary saves
 
@@ -107,7 +1810,7 @@ For a direct arithmetic replay, interpret each word below as an IEEE binary32 ad
 | (33, 41) | `b8f3de8b b9254daf 39801678 bc578327 bbf6df9d bb108f40 babee2ea bb91c340 bbbb5b83 3c02e67b 3b026ca1` |
 | (46, 33) | `bc24af84 bb2e0f62 bc92ce6d bb977f92 3d185f5f 3cc996f0 3a2f311a 3b930c49 3c9319d8 ba1fdcfe bb553cf7` |
 
-With the stored background and eleven addends held fixed, 30,987,036 of 39,916,800 permutations give the reference word at (9, 9). At each of the other two pixels, 19,958,400 permutations give each of the two possible words. These results establish that addition order suffices to reproduce the three differences. The execution order of the full reference tree remains unresolved.
+In a local arithmetic replay with the stored background and eleven addends held fixed, 30,987,036 of 39,916,800 permutations give the reference word at (9, 9). At each of the other two pixels, 19,958,400 permutations give each of the two possible words. These results establish that addition order suffices to reproduce the three differences. The execution order of the full reference tree remains unresolved.
 
 Keep the complete source graph and change just the outer Iterate count on its final FX-Map. Evaluate its original count first in a Sequence, then return zero, one or two. Use the [four established sizes, settings and seeds](#seeded-quadrant-properties-with-a-live-tint-multiplier) in F32. At zero repeats all **23,552/23,552** background pixels match on both processor counts and after saving, maximum zero. The local ordinary save reproduces the original at every count and size.
 
@@ -375,7 +2078,7 @@ Set the FX-Map itself to F32 to read the sum before U16 conversion. At 32 × 32 
 
 Three drawing quadrants use the same branch offset and tint at successive depths. For grayscale analytic shapes whose only computed drawing properties are a branch offset and an optional tint, the evaluator can reuse their values by seed when both expressions are independent of position, depth, iteration and writable variables. The stamp uses the current depth and extent on every visit. An invisible parent of terminal draws can consume one previous skipped evaluation and one unit from the bounded cache allowance. Its children still run in their original order.
 
-The 128 × 32 U16 control visits 12,583,070 nodes. In an instrumented run with room to finish, using separate node and depth keys required 9,038,245 full property evaluations. Starting reuse before the first filled batch and sharing equivalent branch expressions gave 8,122,984 hits and 4,460,086 full evaluations. Both complete buffers have the same raw hash. The latter fits within the existing 5,242,880 full-evaluation limit. A version that kept separate keys for each node and depth still reached that limit.
+The 128 × 32 U16 control visits 12,583,070 nodes. In a diagnostic MaterialCraft build with room to finish, using separate node and depth keys required 9,038,245 full property evaluations. Starting reuse before the first filled batch and sharing equivalent branch expressions gave 8,122,984 hits and 4,460,086 full evaluations. Both complete buffers have the same raw hash. The latter fits within the existing 5,242,880 full-evaluation limit. A version that kept separate keys for each node and depth still reached that limit.
 
 A normal save gives the three expressions fresh function-node IDs. In a control made from that save, point the three quadrants to the same parameter data record. Keep every expression and connection. The intermediate renderer that keyed on the original IDs now produces the original U16 hash and matches 4,095/4,096 · 3 on one processor. The corrected renderer compares function wiring with relative node IDs for its cache key. Its regression also distinguishes a subtraction whose operands are exchanged.
 
@@ -635,7 +2338,7 @@ Render the complete Noise Dirt 1 v2 graph at those same settings. Compare the ch
 | 128 × 256 · 433678 · U16 | 32,766/32,768 · 1 | 32,762/32,768 · 1 | 32,762/32,768 · 1 |
 | 128 × 256 · 433678 · F32 | 28,180/32,768 · 2.38418579e-07 | 28,746/32,768 · 1.1920929e-07 | 27,949/32,768 · 2.38418579e-07 |
 
-At 16 × 32 and seed 299367, the earlier catalog measurement was 495/512 · 1.1920929e-07. The current release matches 512/512 F32 pixels on one processor. The 128 × 256 F32 image still differs while all three iteration counts agree. At the earlier [32 × 16 blocked setting](#streaming-deep-quadrants-that-draw-the-same-connected-image), the complete release graph still reaches its execution guard. The reduced depth-seven readout gives 131,072 / 90,211 / 90,211. Both reference worker counts and the ordinary save match 512/512 pixels with maximum zero. The 311,494 parents have 21 drawing quadrants each, requiring 6,541,374 draws. An instrumented run reaches its 5,242,880 full property evaluations at depth seven. At that point it has 909,311 traversal credits, 2,870 retained draws and zero property-cache hits. Both discrepancies remain open.
+At 16 × 32 and seed 299367, the earlier catalog measurement was 495/512 · 1.1920929e-07. The current release matches 512/512 F32 pixels on one processor. The 128 × 256 F32 image still differs while all three iteration counts agree. At the earlier [32 × 16 blocked setting](#streaming-deep-quadrants-that-draw-the-same-connected-image), the complete release graph still reaches its execution guard. The reduced depth-seven readout gives 131,072 / 90,211 / 90,211. Both reference worker counts and the ordinary save match 512/512 pixels with maximum zero. The 311,494 parents have 21 drawing quadrants each, requiring 6,541,374 draws. The instrumented MaterialCraft evaluator reaches its 5,242,880 full property evaluations at depth seven. At that point it has 909,311 traversal credits, 2,870 retained draws and zero property-cache hits. Both discrepancies remain open.
 
 For a separate Noise Dirt 1 repeat at 64 × 32, seed 649541 and disorder .8125, the [first two captures](#the-receiving-half-of-a-quadrant-in-two-tiled-trees) agreed at 1,991 locations. Three further one-processor reads match 2,048, 2,047 and 2,044 of 2,048 pixels. Across the one- and eight-processor reads and the save, all 1,965 invariant pixels match. Each local pixel appears in at least one read. At 32 × 16 and 128 × 64, respectively, one and 25 local pixels still differ from every reference read.
 
@@ -3140,7 +4843,7 @@ Construct a grayscale FX-Map with a .0625 background, zero roughness, overall op
 
 The production cook matched 7,159/7,168 desktop pixels in 28 completed settings. The reference produced a buffer for all 32. Save and reopen the depth-eight regular, depth-eleven regular, depth-ten returning and depth-ten narrow graphs. Repeat the F32 and U16 rectangles. The two applications matched 766/768 pixels in six completed reopens, maximum 5.96046448e−8. Across all eight, the reference reproduced 1,008/1,024 original pixels. Its 16 changed pixels were in the depth-eleven F32 image, maximum 2.98023224e−8.
 
-For the whole BNW Spots 3 v2 graph use 32² F32, seed 162174, scale 2, disorder .78125, speed 1.015625, anisotropy .390625, angle .40625 and tile offset (.1708984375,−.29296875). Complete this traversal and the two F32 square controls below in an instrumented cook with a higher visit allowance. On each saved graph select one or eight reference workers explicitly and render twice without changing the seed. The table gives exact pixels / total and maximum channel error.
+For the whole BNW Spots 3 v2 graph use 32² F32, seed 162174, scale 2, disorder .78125, speed 1.015625, anisotropy .390625, angle .40625 and tile offset (.1708984375,−.29296875). Complete this traversal and the two F32 square controls below in a diagnostic MaterialCraft build with a higher visit allowance. On each saved graph select one or eight reference workers explicitly and render twice without changing the seed. The table gives exact pixels / total and maximum channel error.
 
 | Graph | Completed traversal vs one worker, both runs | vs desktop | vs eight workers, first run | vs eight workers, second run | Eight-worker repeat |
 |---|---:|---:|---:|---:|---:|
@@ -4070,7 +5773,7 @@ Across the three disconnected-background reopens, 39,684 of 40,960 F32 pixels ma
 
 ### Eight-level two-child drawing across equal tile and render windows
 
-A complete eight-level additive pattern can draw a parent followed by two leaves at each of its 16,384 terminal branches. The one-processor reference uses batches of 5,460 physical tile copies even when the render and tiling windows extend beyond the unit square. MaterialCraft now counts each stamp using the actual common window when both axes wrap. This changes how overlapping F32 contributions accumulate. The measured path requires a single emitted tree and the existing checks on shape, opacity, subdivisions and batch boundaries. [Two-child batch construction](../crates/nodes/src/pattern/tile_runs/two_children.rs)
+A complete eight-level additive pattern can draw a parent followed by two leaves at each of its 16,384 terminal branches. The measured single-processor pixels agree with MaterialCraft's batch size of 5,460 physical tile copies when the render and tiling windows extend beyond the unit square. MaterialCraft now counts each stamp using the actual common window when both axes wrap. This changes how overlapping F32 contributions accumulate. The measured path requires a single emitted tree and the existing checks on shape, opacity, subdivisions and batch boundaries. [Two-child batch construction](../crates/nodes/src/pattern/tile_runs/two_children.rs)
 
 For the regression, start with a white grayscale F32 field. Place additive squares on all depth-seven parents and on their two leaves in slots 0 and 2. Superimpose the parent squares from second-level groups 0 and 5, assigning gains 2⁻²⁵ and −1 respectively. Keep all remaining draws active at gain .25. Use seed 158729, leaf width and height .875 in local coordinates, and leaf Y offset .5. Number the parents in a 32² readout in recursive child order. For each texel, interleave its five column and row bits, starting with the low column bit. [Regression geometry and readout](../crates/nodes/src/pattern/tests.rs)
 
@@ -4528,7 +6231,7 @@ For wider coverage, use shape selectors 2, 3, 4 and 6 with tiling off, horizonta
 
 The 128 full F32 frames matched 2,359,296/2,359,296 pixels. In the square graph repeat all four tiling modes with group pairs (9,11), (7,9), (5,11) and (5,7), moving the grandchild just over each seam in turn as in the regression. These 32 frames matched 524,288/524,288. Save and reopen rows 0, 3 and 6 for horizontal squares, both-axis shape 3 and untiled shape 6. Repeat with square edge settings 0, 3 and 6 under vertical tiling, visiting X then Y for each pair in the given order. Both applications preserved their originals and agreed on all 172,032/172,032 pixels across these 12 reopens. All maxima are zero.
 
-Test the copy threshold independently with square size .875, horizontal tiling and 128² F32. Leave the parent pairs overlapped. Each depth-three subtree has 5,376 draws. Move 0, 40, 80 or 83 grandchild squares to cross the left edge, dividing the extra copies equally among the four depth-four children and assigning remainders to the first children in Morton order. Use pairing rounds 0, 5, 17, 28, 41 and 62 in both polarities. All 48 frames match, 786,432/786,432 pixels with maximum zero. At 84 extra copies, a subtree fills a batch of 5,460 and the reference order can change. The three-level tiled implementation uses the measured order below that threshold when its splits remain in the measured subtree intervals.
+Test the copy threshold independently with square size .875, horizontal tiling and 128² F32. Leave the parent pairs overlapped. Each depth-three subtree has 5,376 draws. Move 0, 40, 80 or 83 grandchild squares to cross the left edge, dividing the extra copies equally among the four depth-four children and assigning remainders to the first children in Morton order. Use pairing rounds 0, 5, 17, 28, 41 and 62 in both polarities. All 48 frames match, 786,432/786,432 pixels with maximum zero. At 84 extra copies, a subtree fills a batch of 5,460 in MaterialCraft. At that threshold the marker pixels can indicate a different relative order. The three-level tiled implementation uses the measured order below that threshold when its splits remain in the measured subtree intervals.
 
 For the real generators, route the pattern node directly to the output. Request F32 at 256² seed 0, 128 × 64 seed 142327 and 256 × 128 seed 142453. Add 32², 32 × 64, 64 × 128, 128 × 64, 128² and 256 × 128 with seed 186377 + i + 71j, where i is the inventory index and j starts at zero. Dirt 5 matched all 175,104 pixels with tiling off and all 175,104 with both axes enabled. Dirt Gradient also matched 175,104/175,104 untiled, all maxima zero. With its original horizontal tiling it matched 60,028/175,104, maximum 1.19209290e−7. With both axes enabled it matched 42,464/175,104, maximum 1.34110451e−7.
 
@@ -4758,9 +6461,9 @@ The shared two-child draw path retained 1,792,256/1,792,256 pixels in the 97 one
 
 ### Eight full subtree pairs in Dirt Gradient
 
-When all eight adjacent pairs of depth-three subtrees in the final quadrant reach 10,920 physical tile copies, the generator draws their parents and descendants in a different order. A batch holds 5,460 copies. The clean-room renderer now applies the measured order when its cuts stay in the measured subtree intervals. The regression distinguishes a late continuation inside group 60.
+In this Dirt Gradient fixture, MaterialCraft counts 10,920 physical tile copies in each of eight adjacent pairs of depth-three subtrees in the final quadrant. The recorded pixels agree with a different ordering of the parent and descendant draws. MaterialCraft groups 5,460 copies per batch and applies that ordering when its cuts stay in the measured subtree intervals. The regression distinguishes a late continuation inside group 60.
 
-Start with a full four-child tree and additive squares at depths seven, eight and nine. Number stamps in depth-first order from zero. Each depth-seven parent and its descendants contribute 21 stamps. In every depth-four subtree move 24 depth-nine squares to the left seam. Select the first 24 cells in row-major order within its 32² depth-nine grid. This adds 96 copies per depth-three group. Use a 128² F32 white canvas and compare pairs of depth-seven markers at shared centers with gains −1 and 2⁻²⁵. The 73 frames gave 57,275 order readings, including all 32,766 adjacent comparisons in both gain assignments. The 16,384 parents fell into 59 runs. Individual stamp comparisons resolved 20 cuts inside parent groups. Two further sets of 2,066 comparisons placed stamps 327924 and 327935 after the 14,051st parent, between stamps 306306 and 330624. Eleven adjacent comparisons put the intervening stamps in ascending order. These last 12 stamps of group 60 form a separate run. [Single-pair probes and stamp coordinates](#individual-tile-copies-after-two-full-horizontal-batches)
+Start with a full four-child tree and additive squares at depths seven, eight and nine. Number stamps in depth-first order from zero. Each depth-seven parent and its descendants contribute 21 stamps. In every depth-four subtree move 24 depth-nine squares to the left seam. Select the first 24 cells in row-major order within its 32² depth-nine grid. This adds 96 copies per depth-three group. Use a 128² F32 white canvas and compare pairs of depth-seven markers at shared centers with gains −1 and 2⁻²⁵. The 73 frames gave 57,275 marker readings for stamp pairs, including all 32,766 adjacent comparisons in both gain assignments. For the 16,384 parents, a sequence of 59 runs fits those readings. Comparisons of individual stamps locate 20 cuts inside parent groups in that sequence. Two further sets of 2,066 comparisons placed stamps 327924 and 327935 after the 14,051st parent, between stamps 306306 and 330624. Eleven adjacent comparisons put the intervening stamps in ascending order. These last 12 stamps of group 60 form a separate run. [Single-pair probes and stamp coordinates](#individual-tile-copies-after-two-full-horizontal-batches)
 
 For the compact regression, place the extra copies on the first 24 stamps of each 1,344-stamp depth-four subtree in traversal order. Use seed 206407 and the same two gains. Put stamp pairs (327923,88021), (327924,91851), (327925,91651) and (327935,93255) at (16,24), (18,24), (20,24) and (22,24). At x = 24, 26, 28, 30, 32 and 34 on that row, use (344042,259673), (279529,324712), (85920,267859), (42912,267222), (10643,214976) and (10644,91692), respectively. Exchange gains and read the raw F32 image. All 20 marker readings and 32,768/32,768 image pixels match. The regression failed with the previous renderer. [Executable square regression](../crates/nodes/src/pattern/tests/paired_batches.rs)
 
@@ -5723,7 +7426,7 @@ For Clouds 1 and 2 (78 and 79), repeat the differing cases from the [32-setting 
 
 Use matrix case indices 7, 8 and 9 for Clouds 1, and 1, 6, 7, 8 and 9 for Clouds 2, with case 0 as the control. In Clouds 2 every one of the 12 initially differing stored values recurred as an exact match at least once. In Clouds 1 this happened at 21 of 22. The remaining coordinate was (126,211) in the 128 × 256 U16 case with seed 382396 and disorder .921875. It differed by four levels even in a reference render that matched all the other 32,767 pixels.
 
-To isolate that case, observe the three pattern generators in the original graph. The smaller generators match 8,192/8,192 and 2,048/2,048 U16 texels. In the full-size generator feeding the transform and the opacity mask, two texels differ by one level each on the instrumented render. Bind its MaterialCraft U16 output as the original graph's input at that node. Leave the two smaller generators running and change only the two listed texels. The following rows compare with the original reference outputs.
+To isolate that case, observe the three pattern generators in the original graph. The smaller generators match 8,192/8,192 and 2,048/2,048 U16 texels. In the full-size generator feeding the transform and the opacity mask, two texels differ by one level each in the render that records the three generator outputs. Bind its MaterialCraft U16 output as the original graph's input at that node. Leave the two smaller generators running and change only the two listed texels. The following rows compare with the original reference outputs.
 
 | U16 level at (35,174) | U16 level at (126,211) | U16 exact / total · max | F32 exact / total · max |
 |---:|---:|---:|---:|
@@ -7697,7 +9400,7 @@ In the spot generator’s [32², scale-two case](#moisture-spot-and-cell-fields-
 
 Use the [original paired-square tree](#untiled-draw-order-for-two-and-four-children-below-depth-seven), with 64 subtrees, 256 depth-seven parents per subtree and two depth-eight children per parent. Enable both tiling axes in the unit window. Each parent draws an interior square with gain −1 or 2⁻²⁵ on a white F32 background. Align pairs of subtrees in 32 separate areas of the upper half of the image. Draw the children lower down with gain .25. Use a child width of 2.25 and height .875 in its own cell. Place both children on the horizontal seam for parents with index modulo 16 equal to zero, zero or one, or seven in three separate graphs. Center the other children horizontally. Render all 63 pairing rounds at 256² with seed 137143 + 17r for zero-based round r.
 
-The reference changes the parent ordering at indices 211, 144 and 212 respectively within a divided subtree. Each graph has two parent ranges. Displacing the competing interior squares by opposing one-cell offsets distinguished 8,064 cross-subtree relations per graph. All three give the same sequence of 29 contiguous draw ranges when their split points are expressed in physical tile copies. Splits occur every 5,460 copies drawn in composite order. The first three divided prefixes may finish in either of the last two subtrees before their continuations end. Later cuts can change the order of entire subtrees. MaterialCraft checks those boundaries before using either measured sequence.
+The marker pixels are consistent with a change in parent order at indices 211, 144 and 212 respectively within a divided subtree. Each graph has two parent ranges. Displacing the competing interior squares by opposing one-cell offsets distinguished 8,064 cross-subtree relations per graph. One sequence of 29 contiguous draw ranges fits all three graphs when the splits are expressed in physical tile copies. In this sequence, splits occur every 5,460 copies drawn in composite order. The first three divided prefixes may finish in either of the last two subtrees before their continuations end. Later cuts can change the order of entire subtrees. MaterialCraft checks those boundaries before using either measured sequence.
 
 Six separately constructed graphs varied which parents put children on the seam. Use every 32nd parent, every 64th, every 16th in even subtrees, every 32nd shifted by three times the subtree index, every 16th except every 64th in subtrees 16–23, or every 16th in the first two of every four subtrees and every 32nd in the other two. Each selected sequence predicted 516,096/516,096 same-parent pair comparisons, maximum zero. The 26-range sequence applied to the every-64th case. A separate set used every 16th parent at the seam. Test each of the six two-slot combinations, then cycle through all six across the 64 subtrees. For rounds 3, 11, 24, 35, 43 and 58 render each gain orientation. In these seven graphs the complete F32 output improved from 4,391,856/5,505,024 to 5,505,024/5,505,024 pixels, maximum zero.
 
@@ -7989,7 +9692,7 @@ At 32² F32, seed 113, scale 2 and disorder .37, the first BnW Spots 3 and first
 
 ### Bounded traversal of deep patterns
 
-Four roots reached the traversal guard even at 4×4. An instrumented release cook raised the visit ceiling from 1,048,576 to 2,097,152 and the raster copy ceiling from 1,048,576 to 8,388,608 for this experiment. The 256,000,000-pixel-work guard remained active. Use defaults, F32, and seeds 106622, 106635, 106765 and 106778 in table order. Each process cooked one graph on one worker. Peak resident memory includes graph loading. The visit and stamp counts are for the most expensive pattern stage. Times are single observations.
+Four roots reached the traversal guard even at 4×4. A diagnostic MaterialCraft release build raised its visit ceiling from 1,048,576 to 2,097,152 and the raster copy ceiling from 1,048,576 to 8,388,608 for this experiment. The 256,000,000-pixel-work guard remained active. Use defaults, F32, and seeds 106622, 106635, 106765 and 106778 in table order. Each process cooked one graph on one worker. Peak resident memory includes graph loading. The visit and stamp counts are for the most expensive pattern stage. Times are single observations.
 
 | Package | Whole pixels exact | Maximum F32 error | Visits / emitted stamps | Cook seconds | Peak MiB | First differing stage |
 |---|---:|---:|---:|---:|---:|---|
@@ -8303,7 +10006,7 @@ For independent field set m=0…6 use dimensions 16², 32×16, 16×32, 32², 64�
 
 Set 0 uses defaults. For sets 1…6 choose shape types 11, 1, 4, 7, 11 and 2. Set X and Y counts to 2+(m mod 4) and 4−(m mod 3), amount to 7+m, distribution mode and output normal format to m mod 2, nonsquare expansion to m mod 3 = 1, and extrusion height to .40625+.125m with symmetry on for even sets. Enable displacement when m is divisible by three. Turn around the normal by (m−3)×.109375, set the pivot to (.09375(m−2),−.109375m,.03125), background opacity to .0625m, atlas grid to (2+(m mod 3),2), and pattern input count to 1+(m mod 3).
 
-The reference reopened a MaterialCraft-saved graph using the same public math calls. Its ten reference outputs reproduce all 11,520 original reference pixels bit for bit. On the seventh field set, changing only the shape type to 2 reproduces the full discrepancy, 339/2,048 F32 pixels exact. In 31 single-setting and shape/displacement controls, 18 shape-2 outputs each match 339/2,048 and the other 13 each match 2,048/2,048. Sampling, the active predicate, ray distance and atlas position each match 6,656/6,656 pixels across four instrumented cases. The cube normal and the subsequent stored normal each match 970/6,656. The value before encoding matches 4,947/6,656 and differs only on shape 2. The whole root remains in progress.
+The reference reopened a MaterialCraft-saved graph using the same public math calls. Its ten reference outputs reproduce all 11,520 original reference pixels bit for bit. On the seventh field set, changing only the shape type to 2 reproduces the full discrepancy, 339/2,048 F32 pixels exact. In 31 single-setting and shape/displacement controls, 18 shape-2 outputs each match 339/2,048 and the other 13 each match 2,048/2,048. Sampling, the active predicate, ray distance and atlas position each match 6,656/6,656 pixels in four cases that record those intermediate graph outputs. The cube normal and the subsequent stored normal each match 970/6,656. The value before encoding matches 4,947/6,656 and differs only on shape 2. The whole root remains in progress.
 
 ### Connectable numeric arguments in saved function graphs
 
@@ -8536,7 +10239,7 @@ Each series requests six frames from the original graph with identical settings.
 | 512×128, seed 18917, width 70.65625, height 153.71875, disorder .28125 | U16 | 65,524/65,536 · 5 | 6 | 24 · 6 | 2 · 5 |
 | Same rectangular setting | F32 | 65,522/65,536 · .0000780820847 | 6 | 22 · .0000780820847 | 0 · 0 |
 
-In the twelve earlier instrumented cases, the generator feeding the blend source matched 46,336/46,336 pixels. The generator feeding the destination and the blend each matched 46,334/46,336, maximum one U16 level. The independently requested final images matched 46,335/46,336, maximum .0000780224800 F32. The differing positions can change between requests for intermediate and final images. The stable 128² U16 discrepancy remains open. [Twelve stage settings](#scratches-messy-fibers-microscope-and-moisture)
+In the twelve earlier cases with intermediate graph outputs recorded, the generator feeding the blend source matched 46,336/46,336 pixels. The generator feeding the destination and the blend each matched 46,334/46,336, maximum one U16 level. The independently requested final images matched 46,335/46,336, maximum .0000780224800 F32. The differing positions can change between requests for intermediate and final images. The stable 128² U16 discrepancy remains open. [Twelve stage settings](#scratches-messy-fibers-microscope-and-moisture)
 
 ### Precision of two dense noise generators in custom regions
 
@@ -8745,7 +10448,7 @@ Across all inventory settings, both versions now agree on every U8 pixel. The fi
 
 ### Short directional blur tap order on rectangular inputs
 
-Fluid matches **25,969,920/25,969,920 final pixels across 121 distinct settings** through 2048 pixels per side. Both applications reopened the MaterialCraft package and reproduced every pixel of their originals over 28, 38 and 36 settings (498,688, 8,654,848 and 17,588,224 pixels). The three instrumented renders at 512×1024, 1024×512 and 1024² match 9,961,472/9,961,472 intermediate and final samples. [First differing stage and earlier settings](#fibers-1-and-fluid-through-1024-pixels-per-side)
+Fluid matches **25,969,920/25,969,920 final pixels across 121 distinct settings** through 2048 pixels per side. Both applications reopened the MaterialCraft package and reproduced every pixel of their originals over 28, 38 and 36 settings (498,688, 8,654,848 and 17,588,224 pixels). The three renders with intermediate graph outputs recorded at 512×1024, 1024×512 and 1024² match 9,961,472/9,961,472 intermediate and final samples. [First differing stage and earlier settings](#fibers-1-and-fluid-through-1024-pixels-per-side)
 
 | Storage | Distinct settings | Exact pixels | Maximum error |
 |---|---:|---:|---:|
@@ -9871,7 +11574,7 @@ A scan of the reachable pattern nodes in the 546 inventory graphs found 61 roots
 
 ### Texture sampling in pattern functions
 
-The Bevel Smooth debug position root matches **354,560/354,560 RGBA pixels in 38 renders**, maximum error zero. This includes 12,288 pixels in each of U8, U16 and F16 and 317,696 in F32. Previously the 22 recorded cases matched 285,715/285,952 and the 16 offset controls matched 68,394/68,608. At 64² on the [position field](#segment-mapping-and-normal-graph-rechecks), the incoming image was exact but the last FX-Map drew a 17-pixel diagonal at x=22…38, y=x+9. Its texture read determined the location and angle. The upstream processor, both FX-Maps and the input and output bridges now match 368,640/368,640 pixels across 18 instrumented renders.
+The Bevel Smooth debug position root matches **354,560/354,560 RGBA pixels in 38 renders**, maximum error zero. This includes 12,288 pixels in each of U8, U16 and F16 and 317,696 in F32. Previously the 22 recorded cases matched 285,715/285,952 and the 16 offset controls matched 68,394/68,608. At 64² on the [position field](#segment-mapping-and-normal-graph-rechecks), the incoming image was exact but the last FX-Map drew a 17-pixel diagonal at x=22…38, y=x+9. Its texture read determined the location and angle. The upstream processor, both FX-Maps and the input and output bridges now match 368,640/368,640 pixels across 18 renders comparing those graph outputs.
 
 A pattern function wraps both axes when sampling an image, including when output tiling is disabled. A nearest read on an exact negative texel boundary takes the preceding texel. For example, (−.125,−.25) in a 32² image selects (27,23). The [value-function filter](#value-processor-texture-filtering) also applies to pattern reads. Its bilinear fractions retain F32 precision. For a gray read from a color source, filter each channel and then evaluate ((G+B)+R) × float32(1/3).
 
@@ -9908,7 +11611,7 @@ The same change also reaches other unresolved roots. On the independent 32² F32
 
 ### Global blend opacity in Normal to Height
 
-Normal to Height matches **145,664/145,664 stored pixels across 18 renders**. U8 contributes 5,120 pixels in two renders, U16 121,856 in seven, F16 5,120 in two and F32 13,568 in seven. Each format has zero maximum error. The 11 renders instrumented before and after the fix previously matched 3,201/18,688 final pixels. At each of 92 reachable stages whose inputs and output fit within 128², the previous result was 2,181,843/2,796,800. The corrected result is 2,796,800/2,796,800, maximum zero across all 1,012 intermediate images.
+Normal to Height matches **145,664/145,664 stored pixels across 18 renders**. U8 contributes 5,120 pixels in two renders, U16 121,856 in seven, F16 5,120 in two and F32 13,568 in seven. Each format has zero maximum error. For the 11 renders with stage outputs recorded before and after the fix, the earlier build matched 3,201/18,688 final pixels. At each of 92 reachable stages whose inputs and output fit within 128², the previous result was 2,181,843/2,796,800. The corrected result is 2,796,800/2,796,800, maximum zero across all 1,012 intermediate images.
 
 The two earliest differences were 16² U16 Add Sub blends fed by transforms. Both inputs matched at both stages in all 11 renders. At a computed global opacity of 6.000000476837158, foreground 35,122 and background 32,767 give 37,476. A second foreground of 32,767 gives 32,766. Applying the authored opacity directly gave 61,021 and 32,761. The blend caps global opacity to [0,1] before applying the mask. With the same two inputs and F32 mask values 73/255 and 126/255 the expected levels are 34,115 and 32,767. The measured bound applies to the nine native blend modes, Copy through Divide. It is applied during rendering. Ordinary saves retain the authored opacity expression.
 
@@ -11128,7 +12831,7 @@ The ten directional generators produced **135 comparable whole outputs across 19
 | noise_directional_scratches | 19/19 | 119,970/144,640 | 1 / 1 / 0.00048828125 / 2.37524509e-05 |
 | noise_directional_scratches_v2 | 19/19 | 137,786/144,640 | 1 / 1 / 0.000244140625 / 2.8796494e-05 |
 
-Use the four archived defaults, seed and changed cases, the [four-format sweep and independent seed](#four-format-inventory-comparison), and ten stage-instrumented renders. For the latter, seed j is 100537+13i plus [0,1,2,2,2,2,6,7,8,9], with i = 251 through 260 in table order. Start at 16² F32 with defaults. Use A at 32² F32, B at 32² in U8/U16/F16/F32, C at 64×32 F32, B at 32×64 U16, D at 32² F32 and A at 64×32 F16.
+Use the four archived defaults, seed and changed cases, the [four-format sweep and independent seed](#four-format-inventory-comparison), and ten renders with intermediate graph outputs recorded. For the latter, seed j is 100537+13i plus [0,1,2,2,2,2,6,7,8,9], with i = 251 through 260 in table order. Start at 16² F32 with defaults. Use A at 32² F32, B at 32² in U8/U16/F16/F32, C at 64×32 F32, B at 32×64 U16, D at 32² F32 and A at 64×32 F16.
 
 | Exposed controls | A | B | C | D |
 |---|---|---|---|---|
@@ -11363,9 +13066,9 @@ The isolated Fibers primitives use Gaussian stamps. Both Fluid primitives use th
 
 ### Stored grayscale stops and scalar Levels controls
 
-Three fractal sum roots match **436,992/436,992 output pixels across 54 renders**, maximum error zero. Each root contributes 119,808 U16, 5,120 U8, 5,120 F16 and 15,616 F32 pixels. Use the nine inventory renders and the nine seed, size and parameter profiles recorded with the [box blur measurements](#box-blur-and-signed-pixel-sizes). The comparisons include defaults, changed roughness and opacity, restricted octave ranges and both rectangular orientations. All reachable stage images in the nine instrumented renders per root also match.
+Three fractal sum roots match **436,992/436,992 output pixels across 54 renders**, maximum error zero. Each root contributes 119,808 U16, 5,120 U8, 5,120 F16 and 15,616 F32 pixels. Use the nine inventory renders and the nine seed, size and parameter profiles recorded with the [box blur measurements](#box-blur-and-signed-pixel-sizes). The comparisons include defaults, changed roughness and opacity, restricted octave ranges and both rectangular orientations. All images from reachable graph stages matched in the nine renders per root that recorded intermediate outputs.
 
-| Package and root | Exact before / compared | Exact after / compared | Instrumented images | Exact stage pixels |
+| Package and root | Exact before / compared | Exact after / compared | Node output images compared | Exact stage pixels |
 |---|---:|---:|---:|---:|
 | `fractal_sum_base.sbs/fractal_sum_base` | 142,777/145,664 | 145,664/145,664 | 1,188 | 1,007,841,792 |
 | `noise_fractal_sum_base.sbs/fractal_sum_base` | 143,104/145,664 | 145,664/145,664 | 1,008 | 1,310,976 |
@@ -11407,7 +13110,7 @@ White Noise retained all 229,376 U16 pixels in five earlier renders. Eight more 
 
 ### Tone curve sampling and saved handles
 
-The `noise_upscale` root matched **142,592/142,592 output pixels across 17 renders**, maximum error zero. The eight instrumented renders also matched all 62,976 pixels across 48 images. Before the change the same root matched 2,687 output pixels, with maximum errors of 15 U8 levels, 3,791 U16 levels, .228057861 F16 and .228064887 F32. The curve is the first differing filter on the independent input.
+The `noise_upscale` root matched **142,592/142,592 output pixels across 17 renders**, maximum error zero. In the eight renders with intermediate graph outputs recorded, all 62,976 pixels across 48 images matched. Before the change the same root matched 2,687 output pixels, with maximum errors of 15 U8 levels, 3,791 U16 levels, .228057861 F16 and .228064887 F32. The curve is the first differing filter on the independent input.
 
 Use the [nine inventory renders](#four-format-inventory-comparison), then the [eight additional input profiles for the noise blend](#box-blur-and-signed-pixel-sizes) with a single grayscale input, graph defaults and seed 14604 in place of 14578. The 17 renders account for 119,808 U8, 5,120 U16, 5,120 F16 and 12,544 F32 output pixels. On the changed 32² floating case the U8 codes 32 and 128 entering the curve yield .250977516 and −.228034332. The latter measures the narrow descending segment between adjacent anchors.
 
@@ -11813,7 +13516,7 @@ For the last row draw a parent square with size (.375,.5), color (.75,.25,.5,1),
 
 The ten new path and caustic renders use the following (output side, input height, seed, format, setting). Use (16,16,4069,F32,default), (32,32,4093,F32,A), four at (64,64,4127,B) in U8/U16/F16/F32 order, (128,128,4159,F32,C), (32,16,4177,F32,A), (32,32,4201,F32,D) and (64,64,4229,F32,B). The four archived controls and five inventory cases are also included. An independent input repeated for stage inspection counts once. [Four-format inventory comparison](#four-format-inventory-comparison)
 
-For Paths Trace use the transformed five-point path for default, A and D and the seven-point path for B and C. The background stores ((37x+41y+7xy+583+61c+5xc) mod 509)/508 in channel c, starting at zero. In settings A/B/C/D enable corner tracing for A and B, vertex tracing for B and C, and set thickness to .75/1.625/2.75/.25. All four instrumented stages match on default, both A renders and D. The six remaining renders first differ in the FX-Map that draws the path. At 64² in U8 the output differs at 18 pixels, including (0,0), (1,0) and (63,0). [Path buffer coordinates](#marked-variable-reads-in-path-and-mipmap-graphs)
+For Paths Trace use the transformed five-point path for default, A and D and the seven-point path for B and C. The background stores ((37x+41y+7xy+583+61c+5xc) mod 509)/508 in channel c, starting at zero. In settings A/B/C/D enable corner tracing for A and B, vertex tracing for B and C, and set thickness to .75/1.625/2.75/.25. All four recorded stage outputs match at the default settings, in both A renders and in D. The six remaining renders first differ in the FX-Map that draws the path. At 64² in U8 the output differs at 18 pixels, including (0,0), (1,0) and (63,0). [Path buffer coordinates](#marked-variable-reads-in-path-and-mipmap-graphs)
 
 For RT Caustics Base supply height and noise H=((37x+41y+7xy+53j) mod 509)/508 at j=11 and 13. Store the normal field at j=12, using the normal and alpha construction below. For A/B/C/D use photon grid size 1/1/2/0, height scale .0625/.3125/.625/0, height position .125/.75/.375/.5, index of refraction 1.125/1.375/1.625/1, photon size 2/5.5/7.25/3 and jitter 0/.3125/.75/0. Place the light at (.3125,.6875) for A and B and (.75,.25) for C and D. The first differing stage is the photon FX-Map. At 64² in U16 it differs at (1,7) by one level and the final image matches. Across both matrices all 122,880 U8 output pixels match. U16 matches 8,185/8,192, F16 matches 8,181/8,192 and F32 matches 13,531/33,024. [Procedural normal fields](#normal-maps-panoramas-and-primitive-shapes)
 
@@ -11868,7 +13571,7 @@ For the independent stripes use U8 inputs at (side, radius) (32,2.375), (64,3.12
 
 For the code patches, assign k=16⌊y/16⌋+⌊x/16⌋ on a 256² field and store channels (k,k+1,k+67,k+129) modulo 256. The other inputs are 64² row fields or a 32² one-level pulse across four base levels. One row field uses `((31y+7y²+17) mod 128)+32+c`. The other uses `U=((117y+53y²+17) mod 251)`, with channels U, (U+12) mod 256 and the transposes of both. In the pulse field add one to (0,4,45,184) every eighth row. For the U16 inputs, scale each code by 257 and add 29c below code 255. Use the same four radii at .125 turns and seeds 3433–3436 in field order. Store each U8 source in U8, U16 and F32, and each U16 source in U16 and F32. All 299,008 U8 output pixels in this set match.
 
-The 38 instrumented color and grayscale anisotropic renders compare 304 graph images, including the input and output bridges. 2,560,000/2,560,000 pixels match, maximum stored-component error 0. Six other roots with a reachable directional blur retain all 790,528 exact pixels in 52 renders.
+The 38 color and grayscale anisotropic renders compare 304 graph images read at intermediate nodes and at the input and output bridges. 2,560,000/2,560,000 pixels match, maximum stored-component error 0. Six other roots with a reachable directional blur retain all 790,528 exact pixels in 52 renders.
 
 Four additional large and rectangular-source anisotropic stage captures match 278,528/278,528 pixels in 32 images. Reloading the package for each color or grayscale pair took 506.09 seconds in total. Repeating the same four captures with the open package took 4.14 seconds. All raw readbacks were byte-identical. The graph size, seed, numeric controls, source bindings and output format were restored between captures.
 

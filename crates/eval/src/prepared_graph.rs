@@ -33,7 +33,7 @@ impl<'a> PreparedGraph<'a> {
     pub fn input_base(&self, id: NodeId, cooked: &crate::Cooked) -> Option<crate::ResolvedBaseParameters> {
         let node = self.index.node(id)?;
         let definition = materialcraft_nodes::find(&node.def);
-        let primary = definition.and_then(|definition| definition.primary_input);
+        let primary = definition.and_then(|definition| if node.disabled { definition.bypass_input } else { definition.primary_input });
         let mut base = self
             .ports(id)
             .0

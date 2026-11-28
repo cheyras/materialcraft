@@ -37,12 +37,7 @@ pub(super) fn component(angle: f32, cosine: bool, scope: super::FunctionScope, l
     if literal {
         return if cosine { angle.cos() } else { angle.sin() };
     }
-    match scope {
-        super::FunctionScope::PixelProcessor => pixel_component(angle, cosine),
-        super::FunctionScope::Node | super::FunctionScope::RandomSeed | super::FunctionScope::ValueProcessor | super::FunctionScope::FxMap => {
-            uniform_component(angle, cosine)
-        }
-    }
+    if scope == super::FunctionScope::PixelProcessor { pixel_component(angle, cosine) } else { uniform_component(angle, cosine) }
 }
 
 pub(crate) fn pixel_sin_cos(angle: f32) -> (f32, f32) {
