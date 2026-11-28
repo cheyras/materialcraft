@@ -139,6 +139,29 @@ On a separate copy of the configured 64 × 16 graph, add output bridges to the t
 
 For the 8 × 2 and 16 × 4 sources, the listed values come from the pixel containing the same normalized position, (2,1) and (4,3) respectively.
 
+### Three larger rectangles in Directional Noise 3 v2
+
+The 512 × 128, 128 × 512 and 128 × 64 settings that hit the earlier work limit now render in U16 and F32. The 512 × 128 F32 output already matches both reference captures in revision `65998c9`. Each local file reopened after an ordinary save reproduces its original pixels. [Earlier precision settings and file routes](#seven-tiled-half-precision-settings-in-directional-noise-3-v2)
+
+Keep the original tiling, use the grayscale output and set the output precision on the final Levels node. Leave unlisted controls at their defaults. Save each configured graph and open that file in both applications.
+
+| Dimensions · seed | Scale | Disorder | Disorder speed | Anisotropy | Anisotropy angle | Angle | Angle random | Tile offset | Non-square expansion |
+|---|---:|---:|---:|---:|---:|---:|---:|---|---|
+| 512 × 128 · 412070 | 1 | 0.09375 | 0.09375 | 0.09375 | -0.15625 | -0.15625 | 0.09375 | (-0.25, 0.32421875) | On |
+| 128 × 512 · 412009 | 2 | 0.53125 | 0.53125 | 0.53125 | 0.28125 | 0.28125 | 0.53125 | (0.1875, -0.05859375) | Off |
+| 128 × 64 · 411765 | 2 | 0.96875 | 0.96875 | 0.96875 | 0.71875 | 0.71875 | 0.96875 | (0.625, -0.44140625) | Off |
+
+| Dimensions | Storage | Original on one · max | Original on eight · max | Fresh reopen on one · max | Fresh reopen on eight · max |
+|---|---|---:|---:|---:|---:|
+| 512 × 128 | U16 | 65,536/65,536 · 0 | 65,536/65,536 · 0 | 65,536/65,536 · 0 | 65,536/65,536 · 0 |
+| 512 × 128 | F32 | 65,536/65,536 · 0 | 65,536/65,536 · 0 | 65,536/65,536 · 0 | 65,536/65,536 · 0 |
+| 128 × 512 | U16 | 65,535/65,536 · 428 | 65,536/65,536 · 0 | 65,536/65,536 · 0 | 65,536/65,536 · 0 |
+| 128 × 512 | F32 | 65,536/65,536 · 0 | 65,536/65,536 · 0 | 65,536/65,536 · 0 | 65,536/65,536 · 0 |
+| 128 × 64 | U16 | 8,192/8,192 · 0 | 8,192/8,192 · 0 | 8,192/8,192 · 0 | 8,192/8,192 · 0 |
+| 128 × 64 | F32 | 8,192/8,192 · 0 | 8,192/8,192 · 0 | 8,192/8,192 · 0 | 8,192/8,192 · 0 |
+
+All three original F32 images match both reference captures, **139,264/139,264 · 0** per processor count. At (31,17) in the 128 × 512 U16 original, the one-processor reference reads 32,473. The eight-processor reference, both reference reopens and MaterialCraft read 32,045. Across all six settings, the ordinary reopens match **278,528/278,528** stored pixels on both processor counts. Directional Noise 3 v2 remains in progress.
+
 ### Floating-point modulo at a rounded period
 
 A runtime float modulo can round to the divisor when a very small input has the opposite sign. The reference returns zero at that endpoint. Constant expressions retain the rounded divisor. MaterialCraft now makes that distinction in the shared floating-point operator. The FX-Map drawing evaluator uses the same operator. The original graphs and their live functions supply all parameters. [Quadrant-path measurements](#locating-individual-waves-in-directional-noise-2-v2)
