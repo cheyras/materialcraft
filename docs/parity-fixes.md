@@ -236,6 +236,78 @@ The seven originals match **14,591/14,592** pixels, maximum .0068359375. Reopeni
 
 At 64 × 32, seed 195062, set scale 3, disorder, speed, anisotropy and angle randomness .34375, both angles .09375 and tile offset (0,.10546875). Enable non-square expansion and leave tiling at its default. Choose U8, U16, F16 and F32 on the Levels node feeding the output. Save each configuration and reopen it with the stored controls. **8,192/8,192** original pixels and **8,192/8,192** saved pixels match each reference processor count, maximum zero. The graph generates its own input.
 
+### Whole images for sixty Directional Noise 2 v2 settings
+
+Directional Noise 2 v2 now has whole-buffer comparisons for **60/60 established original settings** and **12/12 archived reopened settings** across the measured releases. The earlier sweep rendered 30 originals and five archived reopens. Subsequent measurements covered the remaining settings. Every archived local reopen reproduced its corresponding original buffer. Only successful grayscale cooks count. Integer maxima are storage levels.
+
+| Cases | U8 exact · max | U16 exact · max | F16 exact · max | F32 exact · max |
+|---|---:|---:|---:|---:|
+| All 60 originals, one | 137,470/137,472 · 1 | 251,405/251,648 · 581 | 90,362/90,368 · 0.005859375 | 140,000/254,976 · 0.00887396932 |
+| All 60 originals, eight | 137,471/137,472 · 1 | 251,458/251,648 · 581 | 90,356/90,368 · 0.005859375 | 153,037/254,976 · 0.00887396932 |
+| Earlier 30 originals, one | 109,822/109,824 · 1 | 80,557/80,640 · 389 | 79,100/79,104 · 0.005859375 | 47,084/79,872 · 0.00593535602 |
+| Additional 30 originals, one | 27,648/27,648 · 0 | 170,848/171,008 · 581 | 11,262/11,264 · 0.00170898438 | 92,916/175,104 · 0.00887396932 |
+| All 12 archived reopens, one | 30,720/30,720 · 0 | 6,394/6,400 · 389 | 1,024/1,024 · 0 | 45,322/84,992 · 0.00393900275 |
+
+<details>
+<summary>Original settings and archived reopens</summary>
+
+Use the graph’s procedural input and its authored tiling. Set the storage on the second FX-Map, which receives the first as its background. In the controls column the values are scale, disorder, disorder speed, anisotropy, anisotropy angle, angle, angle randomness, tile offset and non-square expansion. Angles use turns. A dash leaves the exposed value at default. Each archived reopen opens the saved package before applying the listed setting.
+
+| Size | Seed | Controls | Original formats | Archived reopen |
+|---|---:|---|---|---|
+| 128² | 0 | Defaults | U8 | U8 |
+| 256² | 0 | Defaults | U8, U16, F16, F32 | — |
+| 128² | 42 | Defaults | U8 | — |
+| 128² | 0 | 2, 0.37, 0.6, 0.3, 0.125, 0.125, 0.2, (0.17, 0.29), — | U8 | — |
+| 32² | 113 | 2, 0.37, 0.6, 0.3, 0.125, 0.125, 0.2, (0.17, 0.29), — | F32 | — |
+| 64² | 42 | 2, 0.37, 0.6, 0.3, 0.125, 0.125, 0.2, (0.17, 0.29), — | U8, U16, F16, F32 | U8 |
+| 16² | 103839 | Defaults | F32 | — |
+| 32² | 103840 | 1, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, (0.0, 0.0), on | F32 | — |
+| 32² | 103841 | 1, 0.3125, 0.6875, 0.25, 0.3125, 0.15625, 0.21875, (0.125, −0.1875), off | U8, U16, F16, F32 | — |
+| 64 × 32 | 103845 | 2, 0.6875, 1.4375, 0.625, −0.21875, −0.21875, 0.40625, (−0.3125, 0.4375), on | F32 | — |
+| 32 × 64 | 103846 | 1, 0.3125, 0.6875, 0.25, 0.3125, 0.15625, 0.21875, (0.125, −0.1875), off | U16 | — |
+| 32² | 103847 | 3, 0.125, 0.875, 0.125, 0.15625, 0.375, 0.03125, (−0.0625, 0.125), off | F32 | — |
+| 64 × 32 | 103848 | 1, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, (0.0, 0.0), on | F16 | — |
+| 16² | 0 | Defaults | U8, U16, F16, F32 | — |
+| 64 × 16 | 42 | 2, 0.03125, 0.03125, 0.03125, −0.21875, −0.21875, 0.03125, (−0.3125, 0.37890625), on | U8, U16, F16, F32 | — |
+| 16 × 64 | 411629 | 1, 0.875, 0.875, 0.875, 0.625, 0.625, 0.875, (0.53125, −0.359375), off | U16, F32 | — |
+| 64² | 411690 | 3, 0.34375, 0.34375, 0.34375, 0.09375, 0.09375, 0.34375, (0.0, 0.10546875), on | U8, U16, F16, F32 | — |
+| 128 × 64 | 411751 | 2, 0.96875, 0.96875, 0.96875, 0.71875, 0.71875, 0.96875, (0.625, −0.44140625), off | U16, F32 | — |
+| 64 × 128 | 411812 | 1, 0.1875, 0.1875, 0.1875, −0.0625, −0.0625, 0.1875, (−0.15625, 0.2421875), on | U8, U16, F16, F32 | U8 |
+| 128² | 411873 | 3, 0.65625, 0.65625, 0.65625, 0.40625, 0.40625, 0.65625, (0.3125, −0.16796875), off | U16, F32 | — |
+| 128 × 512 | 411995 | 2, 0.53125, 0.53125, 0.53125, 0.28125, 0.28125, 0.53125, (0.1875, −0.05859375), off | U16, F32 | — |
+| 512 × 128 | 412056 | 1, 0.09375, 0.09375, 0.09375, −0.15625, −0.15625, 0.09375, (−0.25, 0.32421875), on | U16, F32 | — |
+| 16 × 32 | 194953 | Defaults | U16, F32 | — |
+| 64 × 32 | 195000 | 3, 0.34375, 0.34375, 0.34375, 0.09375, 0.09375, 0.34375, (0.0, 0.10546875), on | U8, U16, F16, F32 | U8 |
+| 32 × 64 | 195047 | 1, 0.1875, 0.1875, 0.1875, −0.0625, −0.0625, 0.1875, (−0.15625, 0.2421875), on | U8, U16, F16, F32 | — |
+| 64² | 195094 | 2, 0.53125, 0.53125, 0.53125, 0.28125, 0.28125, 0.53125, (0.1875, −0.05859375), off | U16, F32 | — |
+
+</details>
+
+At 64 × 16 and seed 42, set the listed nine controls and store each of the four formats in its own ordinary save. Reopen each in both applications with the stored configuration. All 4,096/4,096 local saved pixels reproduce their originals. The two fresh reference worker counts agree on every saved pixel.
+
+| Storage | Original, one · max | Original, eight · max | Ordinary save, one and eight · max |
+|---|---:|---:|---:|
+| U8 | 1,024/1,024 · 0 | 1,024/1,024 · 0 | 1,024/1,024 · 0 |
+| U16 | 1,022/1,024 · 1 | 1,023/1,024 · 1 | 1,023/1,024 · 1 |
+| F16 | 1,024/1,024 · 0 | 1,024/1,024 · 0 | 1,024/1,024 · 0 |
+| F32 | 690/1,024 · 8.94069672e-08 | 751/1,024 · 5.96046448e-08 | 709/1,024 · 7.4505806e-08 |
+
+At 512 × 128 and seed 412056, fresh captures isolate nine F32 pixels with absolute errors above 0.00001. The largest occurs at (136, 65). MaterialCraft gives 0.183100328 and both reference counts give 0.174226359. The reference captures themselves give 32,745/65,536 · 2.98023224e-07.
+
+Both processing nodes are FX-Maps. The first supplies the background for the second. Make a procedural comparison copy for each control. Disable the second map’s drawing shapes to read its background. Separately disconnect the background and keep the second map’s additive waves. For the final control change those four wave parameter sets to maximum blending. Use F32 at 64² seed 42 and 512 × 128 seed 412056 with the respective exposed values in the settings table. Compare the raw output after each change.
+
+| Stage | 64², one · max | 64², eight · max | 512 × 128, one · max | 512 × 128, eight · max |
+|---|---:|---:|---:|---:|
+| Whole original | 2,032/4,096 · 0.0017003715 | 2,162/4,096 · 0.00170040131 | 33,830/65,536 · 0.00887396932 | 37,581/65,536 · 0.00887396932 |
+| First map as background | 4,096/4,096 · 0 | 4,096/4,096 · 0 | 65,536/65,536 · 0 | 65,536/65,536 · 0 |
+| Second map on black, additive | 2,017/4,096 · 0.00170036405 | 1,798/4,096 · 0.00170037895 | 28,160/65,536 · 0.00887396559 | 28,565/65,536 · 0.00887396932 |
+| Second map on black, maximum | 4,096/4,096 · 0 | 4,096/4,096 · 0 | 65,536/65,536 · 0 | 65,536/65,536 · 0 |
+
+The isolated additive map retains two differences above 0.00001 at 64² and nine at 512 × 128. At the latter size its largest remains at (136, 65). The maximum-blend controls match all 69,632 pixels on each processor count.
+
+[64² configured saves](#a-tiled-square-in-directional-noise-2-v2) · [64 × 32 configured saves](#floored-modulo-in-seeded-drawing-properties)
+
 ### A tiled square in Directional Noise 2 v2
 
 At 64², seed 195094, use scale 2, disorder, speed, anisotropy and angle randomness .53125, both angles .28125 and tile offset (.1875,−.05859375). Disable non-square expansion, keep the authored tiling and leave the other parameters at default. Choose each storage format on the node feeding the output, save the configuration and reopen the file with the stored controls. All four MaterialCraft saved buffers reproduce their originals, **16,384/16,384** pixels. [Related 64 × 32 setting and seeded drawing expression](#floored-modulo-in-seeded-drawing-properties)
