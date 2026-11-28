@@ -162,10 +162,7 @@ pub fn open_bytes_linked(session: &mut Session, bytes: &[u8], name: Option<Strin
     }
 
     let mut read = read_package_bytes(bytes, name.as_deref().unwrap_or(""), linked)?;
-    for (path, source) in &session.pkg.dependencies {
-        read.pkg.dependencies.entry(path.clone()).or_insert_with(|| source.clone());
-    }
-    let link_warnings = crate::linked_files::load(&mut read.pkg);
+    let link_warnings = session.load_file_links(&mut read.pkg);
     let (path, recovery_origin) = if read.warnings.is_empty() { (name, None) } else { (None, name) };
     read.warnings.extend(link_warnings);
     session.open_package(read.pkg, path)?;
@@ -375,7 +372,7 @@ fn save(s: &mut Session, p: &J) -> Result<J> {
 
     let bytes = write_package_at(s, &path)?;
     s.path = Some(path.clone());
-    s.refresh_links();
+    s.refresh_saved_links(&path);
     s.modified = false;
     s.log(format!("Saved {path}"));
     Ok(json!({"path": path, "bytes": bytes}))
