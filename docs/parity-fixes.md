@@ -59,6 +59,30 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-28 root comparisons
 
+### All Directional Noise 2 v2 settings after the modulo correction
+
+The release build at `65998c9` rendered all 60 original settings and all 12 archived reopens. Every local archived reopen reproduced its original stored pixels. [Settings, seeds and original file routes](#whole-images-for-sixty-directional-noise-2-v2-settings) · [Independent operator probes and five fresh file reopens](#floating-point-modulo-at-a-rounded-period)
+
+| Stored pixels | U8 exact · max | U16 exact · max | F16 exact · max | F32 exact · max |
+|---|---:|---:|---:|---:|
+| Earlier originals, one | 137,470/137,472 · 1 | 251,405/251,648 · 581 | 90,362/90,368 · 0.005859375 | 140,000/254,976 · 0.00887396932 |
+| Current originals, one | 137,471/137,472 · 1 | 251,423/251,648 · 1 | 90,365/90,368 · 0.000122070312 | 140,008/254,976 · 2.98023224e-07 |
+| Earlier originals, eight | 137,471/137,472 · 1 | 251,458/251,648 · 581 | 90,356/90,368 · 0.005859375 | 153,037/254,976 · 0.00887396932 |
+| Current originals, eight | 137,472/137,472 · 0 | 251,477/251,648 · 1 | 90,359/90,368 · 0.000244140625 | 153,050/254,976 · 2.98023224e-07 |
+| One reference compared with eight | 137,471/137,472 · 1 | 251,404/251,648 · 1 | 90,356/90,368 · 0.000244140625 | 126,510/254,976 · 3.57627869e-07 |
+| Current archived reopens, one | 30,720/30,720 · 0 | 6,395/6,400 · 1 | 1,024/1,024 · 0 | 45,326/84,992 · 2.98023224e-07 |
+
+A whole image matches when every stored pixel matches. The two reference captures use identical graph parameters.
+
+| Entire images matched | U8 | U16 | F16 | F32 |
+|---|---:|---:|---:|---:|
+| Current against one | 11/12 | 1/17 | 8/10 | 0/21 |
+| Current against eight | 12/12 | 2/17 | 8/10 | 0/21 |
+| One reference against eight | 11/12 | 1/17 | 8/10 | 0/21 |
+| Archived reopen against one | 4/4 | 1/3 | 1/1 | 0/4 |
+
+Across all storage formats, 20/60 complete original images match on one processor and 22/60 on eight. The reference outputs differ from each other in 40/60 settings. Directional Noise 2 v2 remains in progress.
+
 ### Floating-point modulo at a rounded period
 
 A runtime float modulo can round to the divisor when a very small input has the opposite sign. The reference returns zero at that endpoint. Constant expressions retain the rounded divisor. MaterialCraft now makes that distinction in the shared floating-point operator. The FX-Map drawing evaluator uses the same operator. The original graphs and their live functions supply all parameters. [Quadrant-path measurements](#locating-individual-waves-in-directional-noise-2-v2)
