@@ -15,8 +15,11 @@ for this inventory.
 - Input pins are reported for context: image inputs (type `1` or `2`) and value inputs with `isConnectable=1`. Ordinary exposed parameters are not input pins.
 - Paths retain package folders and exact graph identifiers; each link opens the containing SBS package. Paths are relative to `assets/sbs/`.
 
-This is a structural inventory for MaterialCraft's clean-room implementation. It does not
-assert that graphs cook successfully or are independent of bitmap resources.
+The inventory describes the structure of the repository's SBS files. A listed root can still
+need an external bitmap or fail to render. The project records the maintainer's authorship
+statement for the graph library and the individual resource licenses in its [asset attribution](../ATTRIBUTION.md).
+Each parity result links to measured outputs for specific cases. The [comparison method](parity-fixes.md#comparison-method-and-provenance)
+explains how to read the raw-pixel counts, typed values and local evaluator traces.
 
 ## Results
 
