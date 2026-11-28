@@ -59,6 +59,102 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 ## 2026-11-27 root comparisons
 
+### All sixty original Directional Noise 2 settings
+
+Directional Noise 2 has produced whole images for **60/60 established original settings and 12/12 archived saved-package settings** across two measured releases. Revision `e1e3c1e` produced 42 originals and six archived reopens. Revision `fdd01fb` produced all 18 originals and six reopens that had reached the execution limit. All twelve local archived reopens reproduced their corresponding original buffers on the release that rendered them. The first 19 settings now all have whole-image measurements. [Earlier 19-setting comparison](#directional-noise-and-scratch-pattern-sources)
+
+Compare stored grayscale pixels. Integer maxima are storage levels. Each entry gives exact pixels / total pixels and maximum absolute error. The archived reopens used one reference processor.
+
+| Measurement | U8 | U16 | F16 | F32 |
+|---|---:|---:|---:|---:|
+| 42 earlier originals, one | 81,152/81,152 · 0 | 211,311/211,712 · 1 | 83,185/83,200 · 0.00048828125 | 48,322/162,816 · 3.57627869e-07 |
+| 42 earlier originals, eight | 81,152/81,152 · 0 | 211,340/211,712 · 1 | 83,192/83,200 · 0.00048828125 | 58,386/162,816 · 3.57627869e-07 |
+| 18 recovered originals, one | 7,168/7,168 · 0 | 88,947/89,088 · 1 | 7,168/7,168 · 0 | 32,703/92,160 · 3.57627869e-07 |
+| 18 recovered originals, eight | 7,167/7,168 · 1 | 88,956/89,088 · 1 | 7,168/7,168 · 0 | 35,766/92,160 · 2.98023224e-07 |
+| Six earlier archived reopens | 12,288/12,288 · 0 | 18,653/18,688 · 1 | — | 297/1,024 · 2.98023224e-07 |
+| Six recovered archived reopens | 2,048/2,048 · 0 | 4,092/4,096 · 1 | 1,024/1,024 · 0 | 29,908/83,968 · 2.98023224e-07 |
+
+<details>
+<summary>Sizes, seeds and exposed values for all 60 settings</summary>
+
+Use the package’s own procedural input and keep tiling enabled. Set the storage on the FX-Map feeding the output. Controls are scale, disorder, angle in turns, random angle and non-square expansion, in that order. Leave omitted controls at default. The archived saved package was reopened before applying the listed settings. “All four” means U8, U16, F16 and F32.
+
+| Size | Seed | Controls | Original formats | Archived reopen | Formerly bounded original |
+|---|---:|---|---|---|---|
+| 128² | 0 | Defaults | U16 | U16 | — |
+| 256² | 0 | Defaults | All four | — | — |
+| 128² | 42 | Defaults | U16 | — | — |
+| 128² | 0 | 2, 0.37, 0.125, 0.2, default | U16 | — | — |
+| 32² | 113 | 2, 0.37, 0.125, 0.2, default | F32 | — | — |
+| 64² | 42 | 2, 0.37, 0.125, 0.2, default | All four | U8 | — |
+| 16² | 103826 | Defaults | F32 | — | — |
+| 32² | 103827 | 1, 0, 0, 0, on | F32 | F32 | — |
+| 32² | 103828 | 1, 0.3125, 0.15625, 0.21875, off | All four | — | — |
+| 64 × 32 | 103832 | 2, 0.6875, -0.21875, 0.40625, on | F32 | F32 | F32 |
+| 32 × 64 | 103833 | 1, 0.3125, 0.15625, 0.21875, off | U16 | — | — |
+| 32² | 103834 | 3, 0.125, 0.375, 0.03125, off | F32 | — | F32 |
+| 64 × 32 | 103835 | 1, 0, 0, 0, on | F16 | — | — |
+| 16² | 0 | Defaults | All four | U16 | — |
+| 64 × 16 | 42 | 2, 0.03125, -0.21875, 0.03125, on | All four | F16 | All four |
+| 16 × 64 | 411622 | 1, 0.875, 0.625, 0.875, off | U16, F32 | — | — |
+| 64² | 411683 | 3, 0.34375, 0.09375, 0.34375, on | All four | U16 | All four |
+| 128 × 64 | 411744 | 2, 0.96875, 0.71875, 0.96875, off | U16, F32 | — | — |
+| 64 × 128 | 411805 | 1, 0.1875, -0.0625, 0.1875, on | All four | U8 | — |
+| 128² | 411866 | 3, 0.65625, 0.40625, 0.65625, off | U16, F32 | F32 | U16, F32 |
+| 128 × 512 | 411988 | 2, 0.53125, 0.28125, 0.53125, off | U16, F32 | F32 | U16, F32 |
+| 512 × 128 | 412049 | 1, 0.09375, -0.15625, 0.09375, on | U16, F32 | — | — |
+| 16 × 32 | 194922 | Defaults | U16, F32 | — | — |
+| 64 × 32 | 194969 | 3, 0.34375, 0.09375, 0.34375, on | All four | U8 | All four |
+| 32 × 64 | 195016 | 1, 0.1875, -0.0625, 0.1875, on | All four | U16 | — |
+| 64² | 195063 | 2, 0.53125, 0.28125, 0.53125, off | U16, F32 | — | — |
+
+</details>
+
+For six additional comparisons, set the graph size, seed, controls and storage before using ordinary Save. Open each file afresh in both applications and read its stored configuration. All **7,168/7,168** MaterialCraft pixels reproduced their original values. The two fresh reference processor counts agreed at every saved pixel. In the last column, retain only pixels where both original and both saved reference captures gave the same value.
+
+| Size · seed · storage | Original, one · max | Original, eight · max | Saved, one and eight · max | Matches at fixed reference pixels · max |
+|---|---:|---:|---:|---:|
+| 64 × 16 · 42 · U8 | 1,024/1,024 · 0 | 1,024/1,024 · 0 | 1,024/1,024 · 0 | 1,024/1,024 · 0 |
+| 64 × 16 · 42 · U16 | 1,021/1,024 · 1 | 1,021/1,024 · 1 | 1,021/1,024 · 1 | 1,020/1,021 · 1 |
+| 64 × 16 · 42 · F16 | 1,024/1,024 · 0 | 1,024/1,024 · 0 | 1,024/1,024 · 0 | 1,024/1,024 · 0 |
+| 64 × 16 · 42 · F32 | 342/1,024 · 1.78813934e-07 | 385/1,024 · 1.78813934e-07 | 351/1,024 · 2.38418579e-07 | 78/163 · 1.1920929e-07 |
+| 64 × 32 · 103832 · F32 | 720/2,048 · 1.78813934e-07 | 804/2,048 · 2.38418579e-07 | 738/2,048 · 2.38418579e-07 | 244/438 · 1.78813934e-07 |
+| 32² · 103834 · F32 | 411/1,024 · 3.57627869e-07 | 398/1,024 · 2.38418579e-07 | 360/1,024 · 2.98023224e-07 | 115/227 · 1.1920929e-07 |
+
+At 64 × 16 and seed 42, the original F32 reference runs themselves match 318/1,024 pixels, maximum 2.38418579e-07. One U16 pixel differs by one level at a position where all four reference captures agree. These differences keep the root in progress. [Five repeated captures per worker count](#repeated-f32-captures-of-28-noise-roots)
+
+### Additive wave overlaps in Directional Noise 2
+
+The only processing node is an FX-Map connected directly to the output. Use F32 at 16², seed 103826 and defaults, then 32², seed 103834 with the controls above. Start with the authored wave shapes and additive blending. For the maximum control, change only the blending mode on the two drawing parameter sets. For the additive path controls, successively retain child slots 0, 3, 1, 2, 0 and 3 at the first six four-way quadrant subdivisions. Leave later connections, iterates, seeds and drawing properties as authored. Use the same linked math functions for each control.
+
+| Drawing control | 16², one · max | 16², eight · max | 32², one · max | 32², eight · max |
+|---|---:|---:|---:|---:|
+| All additive branches | 75/256 · 1.49011612e-07 | 87/256 · 1.49011612e-07 | 359/1,024 · 2.98023224e-07 | 411/1,024 · 2.38418579e-07 |
+| Maximum on both drawing parameter sets | 256/256 · 0 | 256/256 · 0 | 1,024/1,024 · 0 | 1,024/1,024 · 0 |
+| Additive, first subdivision restricted | 166/256 · 5.96046448e-08 | 164/256 · 8.94069672e-08 | 644/1,024 · 8.94069672e-08 | 679/1,024 · 8.94069672e-08 |
+| Additive, first 2 subdivisions restricted | 214/256 · 2.98023224e-08 | 218/256 · 2.98023224e-08 | 907/1,024 · 2.98023224e-08 | 902/1,024 · 4.47034836e-08 |
+| Additive, first 3 subdivisions restricted | 238/256 · 2.98023224e-08 | 238/256 · 2.98023224e-08 | 994/1,024 · 1.49011612e-08 | 973/1,024 · 1.49011612e-08 |
+| Additive, first 4 subdivisions restricted | 256/256 · 0 | 256/256 · 0 | 1,024/1,024 · 0 | 1,024/1,024 · 0 |
+| Additive, first 5 subdivisions restricted | 256/256 · 0 | 256/256 · 0 | 1,024/1,024 · 0 | 1,024/1,024 · 0 |
+| Additive, first 6 subdivisions restricted | 256/256 · 0 | 256/256 · 0 | 1,024/1,024 · 0 | 1,024/1,024 · 0 |
+
+Maximum blending gives 256 and 1,024 distinct values in the two images. The six-subdivision additive path gives 191 and 1,010. Both controls match on each processor count. The full additive sums still vary between reference captures. [Independent overlapping-wave comparison](#addition-and-maximum-blending-in-directional-noise-1-v2)
+
+Retain slots 0, 3 and 1 at the first three subdivisions. At the fourth, test each of the four child slots by itself and each of the six unordered pairs. An empty fourth subdivision also produces a nonconstant image from the preceding draws. It matches 256/256 and 1,024/1,024 pixels at both processor counts, maximum zero.
+
+| Fourth subdivision | 16², one · max | 16², eight · max | 32², one · max | 32², eight · max |
+|---|---:|---:|---:|---:|
+| Four single-child controls | 1,024/1,024 · 0 | 1,024/1,024 · 0 | 4,096/4,096 · 0 | 4,096/4,096 · 0 |
+| Six two-child controls | 1,502/1,536 · 2.98023224e-08 | 1,502/1,536 · 2.98023224e-08 | 6,085/6,144 · 1.49011612e-08 | 6,035/6,144 · 1.49011612e-08 |
+
+At the fourth subdivision retain only slots 0 and 1. Read the two sizes alternately three more times per worker count. All **eight 16² reference images** have identical words. MaterialCraft matches 253/256, maximum 3.7252903e-09. Each differing MaterialCraft word is one representable value below the reference. At 32² the eight reference images contain three distinct buffers. MaterialCraft matches 997/999 pixels that stayed fixed, maximum 3.7252903e-09.
+
+| 16² coordinate | MaterialCraft F32 word | Reference F32 word on all eight reads |
+|---|---:|---:|
+| (7,2) | `3d37495f` | `3d374960` |
+| (4,4) | `3d29886d` | `3d29886e` |
+| (9,5) | `3b95abfc` | `3b95abfd` |
+
 ### Seven tiled half-precision settings in Directional Noise 3 v2
 
 All seven previously recorded F16 settings now render in MaterialCraft, including the 64 × 32 output at seed 195062 and the 64² output at seed 411704. The three settings that previously reached the execution limit produce 7,168/7,168 exact pixels on each reference processor count, on the originals and their configured saves. [Earlier precision results and exposed parameter values](#half-precision-inputs-to-levels)
