@@ -168,6 +168,64 @@ Keep one emitted tree and follow quadrant slots 1, 0, 1 to the next fork. All fo
 
 Replaying each child’s measured contributions as a contiguous group fails to reproduce the reference in four of six pairs and three of four triples, even after trying every child order. The same individual stamp contributions, grouped one level deeper, admit six possible relative orders that reproduce all 16 affected positions in every pair. These settings narrow the draw-order discrepancy. Directional Noise 3 remains in progress.
 
+### All sixty settings in Directional Noise 3 v2
+
+The same release at `ffd0927` rendered all 60 original settings and all 12 archived file reopens. The earlier complete sweep produced eleven originals and two archived reopens. Every current local archived reopen reproduces the corresponding original stored pixels. The six additional configured files preserve their sizes, seeds and parameters on ordinary Save. [Six configured reopens](#three-larger-rectangles-in-directional-noise-3-v2) · [Independent half-precision and rectangular controls](#seven-tiled-half-precision-settings-in-directional-noise-3-v2)
+
+| Comparison | U8 exact · max | U16 exact · max | F16 exact · max | F32 exact · max | Whole images |
+|---|---:|---:|---:|---:|---:|
+| Original, one | 137,470/137,472 · 2 | 251,645/251,648 · 446 | 90,366/90,368 · 0.0068359375 | 254,975/254,976 · 0.00680267811 | 52/60 |
+| Original, eight | 137,470/137,472 · 2 | 251,647/251,648 · 446 | 90,366/90,368 · 0.0068359375 | 254,975/254,976 · 0.00680267811 | 54/60 |
+| One reference against eight | 137,472/137,472 · 0 | 251,646/251,648 · 446 | 90,368/90,368 · 0 | 254,976/254,976 · 0 | 58/60 |
+| Archived reopen, one | 30,720/30,720 · 0 | 6,400/6,400 · 0 | 1,024/1,024 · 0 | 84,991/84,992 · 0.00652578473 | 11/12 |
+
+A whole image counts when every stored pixel is exact. Integer errors are storage levels. For F16 and F32 the maximum is the largest absolute difference between stored values.
+
+| Images exact by precision | U8 | U16 | F16 | F32 |
+|---|---:|---:|---:|---:|
+| Original, one | 10/12 | 14/17 | 8/10 | 20/21 |
+| Original, eight | 10/12 | 16/17 | 8/10 | 20/21 |
+| One reference against eight | 12/12 | 15/17 | 10/10 | 21/21 |
+| Archived reopen, one | 4/4 | 3/3 | 1/1 | 3/4 |
+
+<details>
+<summary>Original settings and archived file routes</summary>
+
+Use the authored tiling and set the grayscale storage on the final Levels node. The control values are scale, disorder, disorder speed, anisotropy, anisotropy angle, angle, angle randomness, tile offset and non-square expansion. A dash keeps the default. Angles use turns. On the archived route open the saved package and then apply the setting.
+
+| Size | Seed | Control values | Original storage | Archived reopen |
+|---|---:|---|---|---|
+| 128² | 0 | Defaults | U8 | U8 |
+| 256² | 0 | Defaults | U8, U16, F16, F32 | — |
+| 128² | 42 | Defaults | U8 | — |
+| 128² | 0 | 2, 0.37, 0.6, 0.3, 0.125, 0.125, 0.2, (0.17, 0.29), — | U8 | — |
+| 32² | 113 | 2, 0.37, 0.6, 0.3, 0.125, 0.125, 0.2, (0.17, 0.29), — | F32 | — |
+| 64² | 42 | 2, 0.37, 0.6, 0.3, 0.125, 0.125, 0.2, (0.17, 0.29), — | U8, U16, F16, F32 | U8 |
+| 16² | 103865 | Defaults | F32 | — |
+| 32² | 103866 | 1, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, (0.0, 0.0), on | F32 | F32 |
+| 32² | 103867 | 1, 0.3125, 0.6875, 0.25, 0.3125, 0.15625, 0.21875, (0.125, −0.1875), off | U8, U16, F16, F32 | — |
+| 64 × 32 | 103871 | 2, 0.6875, 1.4375, 0.625, −0.21875, −0.21875, 0.40625, (−0.3125, 0.4375), on | F32 | F32 |
+| 32 × 64 | 103872 | 1, 0.3125, 0.6875, 0.25, 0.3125, 0.15625, 0.21875, (0.125, −0.1875), off | U16 | — |
+| 32² | 103873 | 3, 0.125, 0.875, 0.125, 0.15625, 0.375, 0.03125, (−0.0625, 0.125), off | F32 | — |
+| 64 × 32 | 103874 | 1, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, (0.0, 0.0), on | F16 | — |
+| 16² | 0 | Defaults | U8, U16, F16, F32 | U16 |
+| 64 × 16 | 42 | 2, 0.03125, 0.03125, 0.03125, −0.21875, −0.21875, 0.03125, (−0.3125, 0.37890625), on | U8, U16, F16, F32 | F16 |
+| 16 × 64 | 411643 | 1, 0.875, 0.875, 0.875, 0.625, 0.625, 0.875, (0.53125, −0.359375), off | U16, F32 | — |
+| 64² | 411704 | 3, 0.34375, 0.34375, 0.34375, 0.09375, 0.09375, 0.34375, (0.0, 0.10546875), on | U8, U16, F16, F32 | U16 |
+| 128 × 64 | 411765 | 2, 0.96875, 0.96875, 0.96875, 0.71875, 0.71875, 0.96875, (0.625, −0.44140625), off | U16, F32 | — |
+| 64 × 128 | 411826 | 1, 0.1875, 0.1875, 0.1875, −0.0625, −0.0625, 0.1875, (−0.15625, 0.2421875), on | U8, U16, F16, F32 | U8 |
+| 128² | 411887 | 3, 0.65625, 0.65625, 0.65625, 0.40625, 0.40625, 0.65625, (0.3125, −0.16796875), off | U16, F32 | F32 |
+| 128 × 512 | 412009 | 2, 0.53125, 0.53125, 0.53125, 0.28125, 0.28125, 0.53125, (0.1875, −0.05859375), off | U16, F32 | F32 |
+| 512 × 128 | 412070 | 1, 0.09375, 0.09375, 0.09375, −0.15625, −0.15625, 0.09375, (−0.25, 0.32421875), on | U16, F32 | — |
+| 16 × 32 | 195015 | Defaults | U16, F32 | — |
+| 64 × 32 | 195062 | 3, 0.34375, 0.34375, 0.34375, 0.09375, 0.09375, 0.34375, (0.0, 0.10546875), on | U8, U16, F16, F32 | U8 |
+| 32 × 64 | 195109 | 1, 0.1875, 0.1875, 0.1875, −0.0625, −0.0625, 0.1875, (−0.15625, 0.2421875), on | U8, U16, F16, F32 | U16 |
+| 64² | 195156 | 2, 0.53125, 0.53125, 0.53125, 0.28125, 0.28125, 0.53125, (0.1875, −0.05859375), off | U16, F32 | — |
+
+</details>
+
+Across all formats MaterialCraft matches 734,456/734,464 original pixels on one processor and 734,458/734,464 on eight. The reference captures disagree with one another in 2 of the 60 original images. At 32² and seed 103867, the original F16 captures both differ at one pixel by .0068359375. The fresh configured reopen is exact on both processor counts. Directional Noise 3 v2 remains in progress. [Repeated values at the source and output](#a-recovered-rectangle-and-repeated-outputs-in-directional-noise-3-v2)
+
 ### Three larger rectangles in Directional Noise 3 v2
 
 The 512 × 128, 128 × 512 and 128 × 64 settings that hit the earlier work limit now render in U16 and F32. The 512 × 128 F32 output already matches both reference captures in revision `65998c9`. Each local file reopened after an ordinary save reproduces its original pixels. [Earlier precision settings and file routes](#seven-tiled-half-precision-settings-in-directional-noise-3-v2)
