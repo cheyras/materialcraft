@@ -3703,6 +3703,7 @@ dependencies = [
  "craft-image-codecs",
  "craft-mcmat",
  "craft-mesh",
+ "craft-mime",
  "craft-sbs",
  "craft-svg",
  "craft-texture",
@@ -3738,9 +3739,16 @@ dependencies = [
 name = "materialcraft-nodes"
 version = "0.4.1"
 dependencies = [
+ "craft-font-catalog",
  "craft-texture",
+ "half",
+ "harfrust 0.13.3",
  "materialcraft-core",
  "rayon",
+ "read-fonts 0.43.3",
+ "serde_json",
+ "unicode-bidi",
+ "vello_common",
 ]
 
 [[package]]
