@@ -118,6 +118,7 @@ impl<'a> DrawingExpressions<'a> {
         &mut self,
         visit: &super::pattern_visit::PatternVisit,
         tint: Option<(&ConditionalTint<'_>, TintScale)>,
+        placement: bool,
         programs: &'a super::evaluation::PropertyPrograms<'_>,
         variables: &BTreeMap<String, Value>,
         assigned: &BTreeSet<&str>,
@@ -133,8 +134,14 @@ impl<'a> DrawingExpressions<'a> {
             .or_insert_with(|| {
                 let mut fields = BTreeMap::new();
                 let (mut compact, mut ordinary) = (16, 16);
-                let drawn = ["opacity", "branchoffset", "patternsize", "patternrotation"];
-                let active = if tint.is_some() { &drawn[..] } else { &["branchoffset"][..] };
+                let active: &[&str] = if tint.is_some() {
+                    &["opacity", "branchoffset", "patternsize", "patternrotation"]
+                } else if placement {
+                    // The stamp cache verified that only these seeded fields vary for this quadrant.
+                    &["opacity", "frameoffset", "patternrotation"]
+                } else {
+                    &["branchoffset"]
+                };
                 for &field in active {
                     if let Some((program, _)) = programs.get(&(visit.node, field)) {
                         let tint = tint.filter(|_| field == "opacity").map(|(tint, _)| (tint.base, scaled));

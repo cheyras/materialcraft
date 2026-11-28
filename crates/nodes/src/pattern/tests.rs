@@ -2394,6 +2394,52 @@ fn streamed_quadrant_children_reuse_fixed_image_properties() {
 }
 
 #[test]
+fn seeded_placement_fields_keep_sparse_draws_within_the_work_budget() {
+    let mut graph = nested_square_draws(24);
+    let mut offset = FunctionGraph::default();
+    let range = offset.add_constant(Value::Float(0.75));
+    let x = offset.add("rand", &[range], None);
+    let y = offset.add("rand", &[range], None);
+    let right = offset.add_constant(Value::Float(0.0625));
+    let down = offset.add_constant(Value::Float(-0.0625));
+    let x = offset.add("add", &[x, right], None);
+    let y = offset.add("add", &[y, down], None);
+    let point = offset.add("vector2", &[x, y], None);
+    offset.output = Some(point);
+
+    let mut rotation = FunctionGraph::default();
+    let quarter = rotation.add_constant(Value::Float(0.25));
+    let turn = rotation.add("rand", &[quarter], None);
+    let base = rotation.add_constant(Value::Float(0.125));
+    rotation.output = Some(rotation.add("add", &[base, turn], None));
+    let mut tint = FunctionGraph::default();
+    let one = tint.add_constant(Value::Float(1.0));
+    tint.output = Some(tint.add("rand", &[one], None));
+
+    let child = graph.add(PatternNodeKind::Quadrant).unwrap();
+    graph.nodes[9].children.fill(Some(child));
+    graph.nodes[9].parameters.extend([
+        ("frameoffset".into(), Value::Function(Box::new(offset.clone()))),
+        ("patternrotation".into(), Value::Function(Box::new(rotation))),
+        ("opacity".into(), Value::Function(Box::new(tint))),
+        ("patternsize".into(), Value::Float2([2.0, 8.0])),
+    ]);
+    graph.nodes[10].parameters = graph.nodes[9].parameters.clone();
+    let mut ordinary = graph.clone();
+    // The Sequence preserves both random coordinates and evaluates the offset through the full VM.
+    let zero = offset.add_constant(Value::Float(0.0));
+    offset.output = Some(offset.add("sequence", &[zero, point], None));
+    for node in &mut ordinary.nodes[9..] {
+        node.parameters.insert("frameoffset".into(), Value::Function(Box::new(offset.clone())));
+    }
+    let expected = render_with_visit_limit(&ordinary, 4096).unwrap().remove(0);
+    assert!(expected.data().windows(2).any(|v| v[0] != v[1]));
+    assert!(render_with_visit_limit(&ordinary, 80).unwrap_err().contains("execution budget"));
+    assert_eq!(render_with_visit_limit(&graph, 80).unwrap()[0].data(), expected.data());
+    assert!(render_with_visit_limit(&graph, 32).unwrap_err().contains("execution budget"));
+}
+
+#[test]
 fn repeated_image_space_offsets_and_rotations_reuse_the_parent_draw() {
     let mut graph = nested_square_draws(55);
     graph.nodes[7].parameters.insert("numberadded".into(), Value::Int(2));

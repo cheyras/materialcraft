@@ -510,8 +510,9 @@ fn evaluate(context: &CookContext, base_level_only: &[bool], visit_limit: usize,
         let scale = tint_plan.and_then(|plan| plan.scale(&variables.drawing));
         let mut base_tint = None;
         let tint = tint_plan.zip(scale);
-        let mut bound = if tint.is_some() || branch_offsets.contains(&node.id) {
-            expressions.for_draw(&visit, tint, &functions, &variables.drawing, &assigned)
+        let placement = matches!(reusable.get(&node.id), Some(Storage::Placement));
+        let mut bound = if tint.is_some() || placement || branch_offsets.contains(&node.id) {
+            expressions.for_draw(&visit, tint, placement, &functions, &variables.drawing, &assigned)
         } else {
             None
         };
@@ -538,7 +539,7 @@ fn evaluate(context: &CookContext, base_level_only: &[bool], visit_limit: usize,
                     base_tint = base.is_finite().then_some(base);
                     return Ok(Some(Value::Float(scale.apply(base))));
                 }
-                if value.as_vec4().is_some_and(|channels| channels.iter().any(|v| !v.is_finite())) {
+                if id != "opacity" && value.as_vec4().is_some_and(|channels| channels.iter().any(|v| !v.is_finite())) {
                     return Err("function produced a non-finite output".into());
                 }
                 return Ok(Some(value));

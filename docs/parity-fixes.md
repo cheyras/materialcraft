@@ -83,6 +83,62 @@ A whole image matches when every stored pixel matches. The two reference capture
 
 Across all storage formats, 20/60 complete original images match on one processor and 22/60 on eight. The reference outputs differ from each other in 40/60 settings. Directional Noise 2 v2 remains in progress.
 
+### Seeded placement in the remaining Directional Noise 3 rectangles
+
+The shared FX-Map evaluator now binds pure grayscale frame offsets, rotations and luminosities for eligible drawing quadrants. It evaluates each random stream at its original property and charges the arithmetic that runs. A drawing function with unsupported instructions or a mutable input uses the ordinary evaluator. The visit, property-work, raster and cache ceilings still apply. The 64 × 16 and 64 × 32 settings previously exhausted the property budget in F32. Their sixteen and eighteen emitted trees have 6,275,400 and 6,785,426 distinct node, depth and seed combinations. [Earlier eight recoveries and seed-count method](#drawing-parents-and-terminal-children-in-directional-noise-3)
+
+Open Directional Noise 3 with default tiling and grayscale output. At 64 × 16 use seed 42, scale 2, disorder .03125, angle −.21875 and angle random .03125. At 64 × 32 use seed 195031, scale 3, disorder .34375, angle .09375 and angle random .34375. Enable non-square expansion for both. Keep the other defaults, set each output storage on the Levels node feeding the output, save normally, then open the configured file in both applications. Count whole stored pixels. The integer maxima are storage levels.
+
+| Size | Storage | Original on one · max | Original on eight · max | Fresh reopen on one · max | Fresh reopen on eight · max |
+|---|---|---:|---:|---:|---:|
+| 64 × 16 | U8 | 1,024/1,024 · 0 | 1,024/1,024 · 0 | 1,024/1,024 · 0 | 1,024/1,024 · 0 |
+| 64 × 16 | U16 | 1,021/1,024 · 2 | 1,022/1,024 · 2 | 1,023/1,024 · 2 | 1,023/1,024 · 2 |
+| 64 × 16 | F16 | 1,024/1,024 · 0 | 1,024/1,024 · 0 | 1,024/1,024 · 0 | 1,024/1,024 · 0 |
+| 64 × 16 | F32 | 1,023/1,024 · 2.46167183e-05 | 1,022/1,024 · 2.65836716e-05 | 1,022/1,024 · 2.46167183e-05 | 1,022/1,024 · 2.46167183e-05 |
+| 64 × 32 | U8 | 2,048/2,048 · 0 | 2,048/2,048 · 0 | 2,048/2,048 · 0 | 2,048/2,048 · 0 |
+| 64 × 32 | U16 | 2,041/2,048 · 2 | 2,043/2,048 · 2 | 2,040/2,048 · 2 | 2,040/2,048 · 2 |
+| 64 × 32 | F16 | 2,048/2,048 · 0 | 2,047/2,048 · 0.000244140625 | 2,048/2,048 · 0 | 2,048/2,048 · 0 |
+| 64 × 32 | F32 | 2,041/2,048 · 2.90572643e-05 | 2,044/2,048 · 2.48551369e-05 | 2,040/2,048 · 2.65538692e-05 | 2,040/2,048 · 2.65538692e-05 |
+
+All eight fresh reopens preserve the 12,288 original local pixels. At 64 × 16 the archived F16 reopen matches 1,024/1,024 · 0 on one processor. At 64 × 32 the archived U8 reopen matches 2,048/2,048 · 0. Both local archived buffers also reproduce the original.
+
+The cumulative table combines the eight current originals with the 52 previously compared originals and the two current archived reopens with the earlier ten. Each of the 60 settings has now rendered. [Full panel and earlier per-format coverage](#rectangular-and-additional-seed-coverage-in-directional-noise-3)
+
+| Recorded panel | Entire images exact | U8 pixels · max | U16 pixels · max | F16 pixels · max | F32 pixels · max |
+|---|---:|---:|---:|---:|---:|
+| Original on one | 20/60 | 88,320/88,320 · 0 | 299,978/300,800 · 3 | 90,354/90,368 · 0.00048828125 | 254,265/254,976 · 4.7326088e-05 |
+| Original on eight | 21/60 | 88,319/88,320 · 1 | 300,016/300,800 · 3 | 90,353/90,368 · 0.00048828125 | 254,391/254,976 · 4.7326088e-05 |
+| Archived reopen on one | 5/12 | 14,336/14,336 · 0 | 22,733/22,784 · 2 | 1,024/1,024 · 0 | 84,783/84,992 · 4.7326088e-05 |
+
+For an independent control, connect four outer by 24 inner iterations to a wave quadrant. Add four connections to a second wave quadrant in the child variant. Use maximum blending, zero roughness, unit opacity scale and size (.1875,.375). Use a uniform random luminosity up to 1, two independent uniform random offsets up to .75 plus (−.3125,−.40625), and rotation .125 plus a uniform draw up to .25 turns. Compare both graphs at 16² seed 0 and 32 × 16 seed 42, in U8, U16, F16 and F32. All 16 originals and their 16 configured ordinary saves each give **6,144/6,144 · 0** on one and eight processors. The earlier evaluator also matches all 16 originals.
+
+Two earlier complete F32 outputs retain every local word. Against one and eight processors, the 16² default controls at seed 103852 give 256/256 · 0. At 32², seed 103854, scale 1, disorder .3125, angle .15625, angle random .21875 and non-square expansion off, the counts are 1,020/1,024 and 1,021/1,024 with maximum .0000265836716 on both. The remaining worker-dependent and local pixel differences keep this root in progress.
+
+The release regression follows seven empty quadrants with four outer by 24 inner iterations. A square parent connects all four slots to a second square with the same seeded properties. With a visit limit of 80 the bound properties reproduce every 4 × 4 output word from an ordinary calculation with limit 4,096. The earlier evaluator exhausts the limit at 80. The bound fixture still exhausts a limit of 32. All 515 release node tests passed, as did formatting, strict workspace Clippy, crate layering and WebAssembly checks.
+
+For the three remaining comparisons below, capture the original four times on each processor count and one fresh ordinary reopen on each. Count a pixel as stable only when all ten reference words agree. The final column includes pixels where the local word appeared in any of the ten captures.
+
+| Size | Storage | Stable words matched · total stable | Local word observed · all pixels |
+|---|---|---:|---:|
+| 64 × 16 | F32 | 1,020/1,021 | 1,023/1,024 |
+| 64 × 32 | U16 | 2,032/2,032 | 2,048/2,048 |
+| 64 × 32 | F32 | 2,033/2,033 | 2,048/2,048 |
+
+At (19,14) in the 64 × 16 F32 output, all ten reference captures read .5435265899 and MaterialCraft reads .5435512066. This is the only local word absent from the ten captures for this image. At 64 × 32 every local F32 and U16 word appears at the same coordinate in at least one of the ten returns.
+
+On a separate copy of the configured 64 × 16 graph, add output bridges to the three FX-Maps and both blends. Keep all existing connections, properties, output formats and the original Levels output. Both reference processor counts returned identical images for all six outputs. The local Levels output reproduced its original F32 buffer. At (19,14) the first difference appears in the third FX-Map.
+
+| Output in evaluation order | Dimensions and storage | Exact on one or eight · max | Local value | Reference value |
+|---|---|---:|---:|---:|
+| First FX-Map | 8 × 2 U16 | 16/16 · 0 | 32621 | 32621 |
+| Second FX-Map | 16 × 4 U16 | 64/64 · 0 | 11019 | 11019 |
+| First Blend | 64 × 16 U16 | 1,024/1,024 · 0 | 28376 | 28376 |
+| Third FX-Map | 64 × 16 U16 | 1,023/1,024 · 1 | 20789 | 20788 |
+| Second Blend | 64 × 16 U16 | 1,023/1,024 · 1 | 39704 | 39703 |
+| Levels | 64 × 16 F32 | 1,023/1,024 · 2.46167183e-05 | 0.5435512066 | 0.5435265899 |
+
+For the 8 × 2 and 16 × 4 sources, the listed values come from the pixel containing the same normalized position, (2,1) and (4,3) respectively.
+
 ### Floating-point modulo at a rounded period
 
 A runtime float modulo can round to the divisor when a very small input has the opposite sign. The reference returns zero at that endpoint. Constant expressions retain the rounded divisor. MaterialCraft now makes that distinction in the shared floating-point operator. The FX-Map drawing evaluator uses the same operator. The original graphs and their live functions supply all parameters. [Quadrant-path measurements](#locating-individual-waves-in-directional-noise-2-v2)
