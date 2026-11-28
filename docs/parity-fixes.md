@@ -57,6 +57,91 @@ The first pass classifies all 546 roots: 166 Parity and 380 Too hard. These meas
 
 - **2026-11-13 - Unconnected output images:** Unconnected output bridges now produce transparent RGBA instead of grayscale. The importer separately retains each output's declared image type so saving an unconnected output preserves the graph interface. Both material templates match all 1,179,648 RGBA8 pixels across six recorded cases. All 2,560 direct grayscale/color declaration probe pixels also match, and both declared image types survive save/reload.
 
+## 2026-11-28 root comparisons
+
+### Floating-point modulo at a rounded period
+
+A runtime float modulo can round to the divisor when a very small input has the opposite sign. The reference returns zero at that endpoint. Constant expressions retain the rounded divisor. MaterialCraft now makes that distinction in the shared floating-point operator. The FX-Map drawing evaluator uses the same operator. The original graphs and their live functions supply all parameters. [Quadrant-path measurements](#locating-individual-waves-in-directional-noise-2-v2)
+
+Use a grayscale square over black with unit opacity and zero roughness. Drive its luminosity with two exposed scalar values passed to modulo. Repeat in a grayscale Uniform and a grayscale Pixel Processor. Read stored F32 at 16². For each divisor 1, −1, .125, 3 and −1.5, let g be the difference between its magnitude and the next smaller positive F32. Multiply g by the divisor sign and each of −1.125, −1, −.75, −.5, −.25, .25, .5, .75 and 1.25. Also test the divisor itself and the values immediately to either side. The last six signed operand pairs are (.3125000298023224, 1), (−.3125000298023224, 1), (.2, .3), (−.2, .3), (−1.25, 3) and (1.25, −3). Use seeds 42, 43 and 44 cyclically.
+
+| Original independent F32 control | Before · one · max | Current · one · max | Current · eight · max |
+|---|---:|---:|---:|
+| Drawing property | 14,336/16,896 · 3 | 16,896/16,896 · 0 | 16,896/16,896 · 0 |
+| Uniform property | 14,336/16,896 · 3 | 16,896/16,896 · 0 | 16,896/16,896 · 0 |
+| Pixel Processor | 14,336/16,896 · 3 | 16,896/16,896 · 0 | 16,896/16,896 · 0 |
+
+The nine literal controls give 2,304/2,304 · 0 on both processor counts. With divisor 1, literal −2⁻²⁵ gives 1 and a live input of the same value gives zero. A live input of −.75 × 2⁻²⁴ gives the predecessor of 1. Mirror the signs for a negative divisor. In a separate Pixel Processor select the input or its negative using the horizontal pixel coordinate. Thirteen split images improve from 2,304/3,328 · 3 to **3,328/3,328 · 0** on one processor. The same current result holds on eight.
+
+The 36 earlier seeded offset settings and 36 ordinary reopens each retain 15,360/15,360 pixels on one and eight processors, maximum zero. [Seeded modulo controls and four storage formats](#floored-modulo-in-seeded-drawing-properties)
+
+For the two isolated waves, keep the graph tiling and source expressions. Make a square with unit opacity scaling and zero roughness. After evaluating the active quadrant’s branch offset, return the negative of its incoming position. Evaluate its original frame offset, size and rotation before returning the center of the render region, (12, 12) and zero respectively. To read an intermediate value, store it at the operation being measured, retain the rest of the original expression and return the stored component as luminosity. The marker covers nine pixels at 64² and 36 pixels at 512 × 128.
+
+| Size · outer/inner cap | Marker | Before · one · max | Current · one · max | Current · eight · max |
+|---|---|---:|---:|---:|
+| 64² · 1/2 | Draw count | 4,096/4,096 · 0 | 4,096/4,096 · 0 | 4,096/4,096 · 0 |
+| 64² · 1/2 | Vertical offset before modulo | 4,096/4,096 · 0 | 4,096/4,096 · 0 | 4,096/4,096 · 0 |
+| 64² · 1/2 | Vertical offset after modulo | 4,087/4,096 · 0.999999978 | 4,096/4,096 · 0 | 4,096/4,096 · 0 |
+| 64² · 1/2 | Luminosity | 4,087/4,096 · 0.0317136049 | 4,096/4,096 · 0 | 4,096/4,096 · 0 |
+| 512 × 128 · 34/1 | Draw count | 65,536/65,536 · 0 | 65,536/65,536 · 0 | 65,536/65,536 · 0 |
+| 512 × 128 · 34/1 | Vertical offset before modulo | 65,536/65,536 · 0 | 65,536/65,536 · 0 | 65,536/65,536 · 0 |
+| 512 × 128 · 34/1 | Vertical offset after modulo | 65,500/65,536 · 1 | 65,536/65,536 · 0 | 65,536/65,536 · 0 |
+| 512 × 128 · 34/1 | Luminosity | 65,500/65,536 · 0.0398881435 | 65,536/65,536 · 0 | 65,536/65,536 · 0 |
+
+With the original wave shape and position restored, four isolated paths give **139,264/139,264 · 0** on each processor count. At wide pixel (136, 65) the extra .00887397118 disappears. At square pixel (52, 23) the missing .00170036184 is recovered.
+
+Set the output storage on the second FX-Map. Save the configured graph normally and reopen each file at its stored size, seed and parameters in both applications. Each local reopen reproduces its original buffer. The table compares whole root images. Integer maxima are storage levels. [Exact exposed settings and earlier 60-image sweep](#whole-images-for-sixty-directional-noise-2-v2-settings)
+
+| Size · seed · storage | Previous original · one · max | Current original · one · max | Current original · eight · max | Current ordinary save · one · max | Current ordinary save · eight · max |
+|---|---:|---:|---:|---:|---:|
+| 64² · 42 · U16 | 4,091/4,096 · 111 | 4,093/4,096 · 1 | 4,092/4,096 · 1 | 4,093/4,096 · 1 | 4,093/4,096 · 1 |
+| 64² · 42 · F16 | 4,094/4,096 · 0.00170898438 | 4,096/4,096 · 0 | 4,096/4,096 · 0 | 4,096/4,096 · 0 | 4,096/4,096 · 0 |
+| 64² · 42 · F32 | 2,204/4,096 · 0.00170040131 | 2,205/4,096 · 1.78813934e-07 | 2,366/4,096 · 1.78813934e-07 | 2,186/4,096 · 1.1920929e-07 | 2,186/4,096 · 1.1920929e-07 |
+| 512 × 128 · 412056 · U16 | 65,489/65,536 · 581 | 65,498/65,536 · 1 | 65,509/65,536 · 1 | 65,494/65,536 · 1 | 65,494/65,536 · 1 |
+| 512 × 128 · 412056 · F32 | 33,830/65,536 · 0.00887396932 | 33,832/65,536 · 2.98023224e-07 | 37,854/65,536 · 1.78813934e-07 | 33,299/65,536 · 2.98023224e-07 | 33,299/65,536 · 2.98023224e-07 |
+
+Reference runs at identical settings still differ. They agree at 1,904/4,096 · 1.78813934e-07 for the square F32 image and 31,716/65,536 · 2.38418579e-07 for the wide F32 image. These differences keep Directional Noise 2 v2 in progress.
+
+Other root controls used the same released evaluator. Compare the two local buffers at each setting and score the current raw F32 output against each reference capture.
+
+| Root | Size · seed | Local buffer compared with previous release | Current · one · max | Current · eight · max |
+|---|---|---|---:|---:|
+| Spots 1 | 32 × 16 · 456654 | Identical | 451/512 · 1.1920929e-07 | 439/512 · 1.1920929e-07 |
+| Spots 3 | 16 × 16 · 0 | Identical | 256/256 · 0 | 256/256 · 0 |
+| Clouds 1 | 32 × 32 · 113 | Identical | 1,024/1,024 · 0 | 1,024/1,024 · 0 |
+| Directional Noise 2 | 32 × 32 · 103827 | Identical | 297/1,024 · 2.98023224e-07 | 298/1,024 · 2.38418579e-07 |
+| Directional Noise 3 | 16 × 16 · 103852 | Identical | 256/256 · 0 | 256/256 · 0 |
+| Directional Noise 4 | 32 × 32 · 103879 | Identical | 503/1,024 · 2.68220901e-07 | 561/1,024 · 2.98023224e-07 |
+
+The new floating-point regression failed on the preceding release and passed with the shared operator change. All 514 release node tests, formatting, strict workspace Clippy, the layer check and the WebAssembly check passed.
+
+### Locating individual waves in Directional Noise 2 v2
+
+These measurements use revision `f40f6a5`, before the shared modulo correction. The preceding section reports the same paths after the fix.
+
+Use the two F32 settings in the [sixty-setting comparison](#whole-images-for-sixty-directional-noise-2-v2-settings). At 64², seed 42, inspect pixel (52, 23). At 512 × 128, seed 412056, inspect (136, 65). Use the second FX-Map over black and retain its live math links. Four reachable drawing quadrants at depths six through nine share their parameters. To measure one depth, give the other three a copy of their property set. In that copy, evaluate the original size expression, including its random draw, then return (0, 0). Read the grayscale F32 words.
+
+| Drawing depth | 64² · one · max | 64² · eight · max | 512 × 128 · one · max | 512 × 128 · eight · max |
+|---:|---:|---:|---:|---:|
+| 6 | 2,251/4,096 · 2.98023224e-08 | 2,368/4,096 · 2.98023224e-08 | 45,843/65,536 · 2.98023224e-08 | 45,637/65,536 · 2.98023224e-08 |
+| 7 | 3,021/4,096 · 0.0017003566 | 3,032/4,096 · 0.0017003566 | 50,422/65,536 · 2.98023224e-08 | 50,424/65,536 · 2.98023224e-08 |
+| 8 | 3,077/4,096 · 2.23517418e-08 | 3,236/4,096 · 2.98023224e-08 | 51,653/65,536 · 0.00887397118 | 55,384/65,536 · 0.00887397083 |
+| 9 | 3,068/4,096 · 6.07538968e-05 | 3,251/4,096 · 6.07538968e-05 | 50,930/65,536 · 8.99098814e-06 | 54,643/65,536 · 8.99471343e-06 |
+
+The depth-eight wide image contains all nine pixels with absolute error over 0.00001. At each subdivision keep each of the four slots in turn. At the target pixel compare the sum of those four returns with the previous image, then follow the child carrying the discrepancy. The wide path uses slots 0, 2, 3, 3, 1, 2, 2, 3. The square path reaches depth seven through slots 3, 2, 1, 3, 2, 0, 3. An outgoing connection below the drawing quadrant has no effect on its wave.
+
+To select an iteration, evaluate its original count and take the smaller of that count and an integer cap. This retains the count expression's assignments. Use an additive wave with the original tint, size, offsets and rotation. The following captures agreed at every reference pixel between one and eight processors.
+
+| Size | Outer cap | Inner cap | Exact pixels · max, each processor count | At target, MaterialCraft | At target, reference |
+|---|---:|---:|---:|---:|---:|
+| 512 × 128 | 33 | 1 | 65,536/65,536 · 0 | 0 | 0 |
+| 512 × 128 | 34 | 0 | 65,536/65,536 · 0 | 0 | 0 |
+| 512 × 128 | 34 | 1 | 65,533/65,536 · 0.00887397118 | 0.008873971179 | 0 |
+| 64² | 1 | 1 | 4,096/4,096 · 0 | 0 | 0 |
+| 64² | 1 | 2 | 4,095/4,096 · 0.00170036184 | 0 | 0.001700361841 |
+
+On the isolated wide path, a single local wave contributes 0.00887397118. Its center is (−1.43517566, .193142891), its effective size is (.005859375, .0227996614), its rotation is .0986371785 turns, and its tint is .584212303. The two applications return the same render and tiling bounds, (−2.5, 1.5, −.32421875, .67578125). In a separate single-quadrant graph put that wave at the recorded center, over black, with unit opacity and zero roughness. With the original render region a computed rotation gives .303792685 at the target in both applications. Repeating with a literal rotation, a square pattern and a unit region gives **524,288/524,288 exact F32 pixels** across eight configurations at each processor count, maximum zero.
+
 ## 2026-11-27 root comparisons
 
 ### All sixty original Directional Noise 2 settings

@@ -189,6 +189,16 @@ fn scoped_operation(scope: super::FunctionScope, op: &str, operands: &[Value], l
 }
 
 #[test]
+fn floating_modulo_wraps_a_rounded_period_to_zero() {
+    let gap = 1.0 - 1.0_f32.next_down();
+    let inputs = [Value::Float4([-gap * 0.5, gap * 0.25, -gap * 0.75, gap]), Value::Float4([1.0, -1.0, 1.0, -1.0])];
+    for scope in [super::FunctionScope::FxMap, super::FunctionScope::Node, super::FunctionScope::PixelProcessor] {
+        assert_eq!(scoped_operation(scope, "mod", &inputs, false), Value::Float4([0.0, 0.0, 1.0 - gap, -1.0 + gap]));
+        assert_eq!(scoped_operation(scope, "mod", &inputs, true), Value::Float4([1.0, -1.0, 1.0 - gap, -1.0 + gap]));
+    }
+}
+
+#[test]
 fn runtime_arithmetic_flushes_subnormal_operands_and_results_with_their_signs() {
     for scope in [super::FunctionScope::Node, super::FunctionScope::ValueProcessor, super::FunctionScope::PixelProcessor, super::FunctionScope::FxMap] {
         for (op, a, b, expected) in [

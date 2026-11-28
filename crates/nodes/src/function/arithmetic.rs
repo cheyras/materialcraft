@@ -98,8 +98,11 @@ pub(crate) fn evaluate(
             "mul" | "mulscalar" => left * right,
             "div" if pixel_math => super::reciprocal::divide_by(left, right, instruction.literal_divisor),
             "div" => left / right,
-            // Floored modulo wraps negative coordinates; remainder keeps their sign
-            "mod" => left - right * (left / right).floor(),
+            "mod" => {
+                let wrapped = left - right * (left / right).floor();
+                // Rounding a tiny offset can reach the period itself. Only a literal expression keeps that endpoint.
+                if !instruction.literal && wrapped == right { 0.0 } else { wrapped }
+            }
             "neg" => -left,
             "abs" => left.abs(),
             "min" => left.min(right),
