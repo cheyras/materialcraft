@@ -1246,7 +1246,7 @@ fn missing_slots_at_the_last_two_subdivisions_keep_the_grandchild_boundaries() {
 #[test]
 fn sparse_quadrant_streams_preserve_the_order_of_their_own_draws() {
     let mut graph = PatternGraph::with_root(PatternNodeKind::Quadrant);
-    let weights = [-1.409_263_6, 0.452_831_5, f32::EPSILON * 0.5, 0.124_022_64];
+    let weights = [-1.409_263_6, 0.452_831_5, f32::EPSILON * 0.5, 0.124_022_64_f32];
     for (group, slot) in [0, 2].into_iter().enumerate() {
         let parent = graph.add(PatternNodeKind::Quadrant).unwrap();
         graph.nodes[0].children[slot] = Some(parent);
