@@ -47,6 +47,7 @@ pub(crate) fn cook_node(
     cooked: &Cooked,
     graph_variables: &BTreeMap<String, Value>,
     options: &Options,
+    input_image: Option<&Image>,
     cache: &Mutex<Cache>,
 ) -> NodeResult {
     let (input_ports, output_ports) = prepared.ports(node.id);
@@ -211,22 +212,23 @@ pub(crate) fn cook_node(
 
     let tile = base.tiling[0] && base.tiling[1];
 
-    // Input nodes read the caller's image for their identifier
-    let input_image = node.def.starts_with("input_").then(|| identifier(node)).and_then(|name| {
-        if let Some(image) = options.inputs.get(&name) {
+    // Reuse the graph's decoded input while retaining its storage and binding metadata.
+    let input_image = input_image.map(|image| {
+        let name = identifier(node);
+        if options.inputs.contains_key(&name) {
             let format = options.input_formats.get(&name).copied();
-            return Some((image.clone(), format, options.bitmap_formats.get(&name).copied(), options.base_level_inputs.contains(&name)));
+            return (image.clone(), format, options.bitmap_formats.get(&name).copied(), options.base_level_inputs.contains(&name));
         }
-        let graph = package.graphs.get(graph_index)?;
-        let binding = graph.input_images.get(&name)?;
-        let image = (options.resource)(&craft_texture::resource_key(binding, graph.input_images_linear.contains(&name)))?;
-        let bitmap =
-            if image.integer_sampling() { package.resource(binding).and_then(|r| materialcraft_core::png_sample_format(r.bytes.as_slice())) } else { None };
-        Some((image, None, bitmap, false))
+        let bitmap = if image.integer_sampling() {
+            package.graphs.get(graph_index).and_then(|graph| graph.input_images.get(&name)).and_then(|binding| package.resource(binding))
+                .and_then(|resource| materialcraft_core::png_sample_format(resource.bytes.as_slice()))
+        } else {
+            None
+        };
+        (image.clone(), None, bitmap, false)
     });
     let wired = options.depth != 0 && input_image.as_ref().is_some_and(|(_, upstream, _, _)| upstream.is_some());
-    let resource_hash = match parameters.get(crate::cache_key::resource_parameter(node)) {
-        Some(Value::Text(name)) => package.resource(name).map_or(0, |r| r.bytes.content_hash()),
+    let resource_hash = match parameters.get(crate::cache_key::resource_parameter(node)) {        Some(Value::Text(name)) => package.resource(name).map_or(0, |r| r.bytes.content_hash()),
         _ => 0,
     };
 

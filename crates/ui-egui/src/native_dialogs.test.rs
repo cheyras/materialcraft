@@ -7,6 +7,21 @@ fn app() -> MaterialCraftApp {
     MaterialCraftApp::headless(materialcraft_engine::sample_session(), UiState::default())
 }
 
+#[test]
+fn exported_log_keeps_events_and_strips_raw_document_details() {
+    let mut app = app();
+    app.session.log("Opened C:\\My projects\\Client sample.sbs");
+    app.session.warn("Invalid resource at /home/person/private textures/input.png");
+
+    let report = log_for_export(&app.session);
+
+    assert!(report.contains("Opened package"));
+    assert!(report.contains("Package warning"));
+    assert!(report.contains("Node errors in the active graph: 0"));
+    assert!(!report.contains("Client sample"));
+    assert!(!report.contains("/home/person"));
+}
+
 /// Answer every queued dialog with `answer` and collect what was asked
 fn answer_all(app: &mut MaterialCraftApp, answer: impl Fn() -> Answer + 'static) -> Vec<Request> {
     let asked = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
@@ -233,7 +248,7 @@ fn the_prompts_save_with_a_path_saves_and_runs_the_action_at_once() {
 
 #[test]
 fn the_app_shows_a_requested_dialog_and_applies_its_answer() {
-    let mut harness = egui_kittest::Harness::builder().build_eframe(|_| app());
+    let mut harness = egui_kittest::Harness::builder().with_context_setup(crate::framework::install_headless).build_eframe(|_| app());
     harness.step();
     harness.step();
     let path = temp("frames.sbs");
@@ -340,7 +355,7 @@ fn geometry_dialog_exports_the_mesh_captured_before_a_scene_change() {
     let target = path.clone();
     answer_all(&mut app, move || Answer::Paths(vec![target.clone()]));
 
-    assert_eq!(std::fs::read_to_string(&path).unwrap(), materialcraft_engine::formats::mesh::obj_text(&mesh));
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), materialcraft_engine::formats::mesh::obj_text(&mesh).unwrap());
     assert_eq!(std::sync::Arc::strong_count(&mesh), 1, "the answered dialog retained the mesh");
     assert!(app.session.finish_display_handoff().is_none());
     std::fs::remove_file(path).unwrap();
@@ -360,7 +375,7 @@ fn export_dialogs_keep_native_non_utf8_destinations() {
             ask(&mut app, FileDialog::save(), Then::ExportGeometry(mesh.clone()));
             let target = path.clone();
             answer_all(&mut app, move || Answer::Paths(vec![target.clone()]));
-            assert_eq!(std::fs::read_to_string(&path).unwrap(), materialcraft_engine::formats::mesh::obj_text(&mesh));
+            assert_eq!(std::fs::read_to_string(&path).unwrap(), materialcraft_engine::formats::mesh::obj_text(&mesh).unwrap());
         } else {
             ask(&mut app, FileDialog::save(), Then::SaveRender(Box::new((1, 1, std::sync::Arc::new(vec![5, 19, 77, 255])))));
             let target = path.clone();
@@ -437,29 +452,31 @@ fn a_held_close_waits_for_the_save_dialog() {
     answer_prompt_with_save(&mut app);
     app.session.modified = false;
     let ctx = egui::Context::default();
+    crate::framework::install_headless(&ctx);
     let mut input = egui::RawInput::default();
     input.viewports.entry(egui::ViewportId::ROOT).or_default().events.push(egui::ViewportEvent::Close);
-    let mut output = ctx.run_ui(input, |ui| crate::unsaved::handle_close(&mut app, ui.ctx()));
+    let mut output = ctx.run_ui(input, |ui| app.close_path(ui.ctx()));
     output.textures_delta.clear();
     let commands = output.viewport_output.remove(&egui::ViewportId::ROOT).map(|root| root.commands).unwrap_or_default();
     assert!(commands.contains(&egui::ViewportCommand::CancelClose));
 }
 
+/// The runtime brings a held window forward, a minimized one included, so the prompt can show.
 #[test]
 fn a_held_close_restores_a_minimized_window() {
-    for (minimized, restored) in [(Some(true), true), (Some(false), false), (None, false)] {
-        let mut app = modified_app_asking_to_quit();
-        app.ui.windows.unsaved = None;
-        let ctx = egui::Context::default();
-        let mut input = egui::RawInput::default();
-        let root = input.viewports.entry(egui::ViewportId::ROOT).or_default();
-        root.minimized = minimized;
-        root.events.push(egui::ViewportEvent::Close);
-        let mut output = ctx.run_ui(input, |ui| crate::unsaved::handle_close(&mut app, ui.ctx()));
-        output.textures_delta.clear();
-        let commands = output.viewport_output.remove(&egui::ViewportId::ROOT).map(|root| root.commands).unwrap_or_default();
-        assert_eq!(commands.contains(&egui::ViewportCommand::Minimized(false)), restored, "{minimized:?}");
-    }
+    let mut app = modified_app_asking_to_quit();
+    app.ui.windows.unsaved = None;
+    let ctx = egui::Context::default();
+    crate::framework::install_headless(&ctx);
+    let mut input = egui::RawInput::default();
+    let root = input.viewports.entry(egui::ViewportId::ROOT).or_default();
+    root.minimized = Some(true);
+    root.events.push(egui::ViewportEvent::Close);
+    let mut output = ctx.run_ui(input, |ui| app.close_path(ui.ctx()));
+    output.textures_delta.clear();
+    let commands = output.viewport_output.remove(&egui::ViewportId::ROOT).map(|root| root.commands).unwrap_or_default();
+    assert!(commands.contains(&egui::ViewportCommand::Minimized(false)), "{commands:?}");
+    assert!(app.ui.windows.unsaved.is_some(), "the prompt asks");
 }
 
 #[test]
@@ -470,12 +487,14 @@ fn a_saved_package_goes_to_the_document_that_asked() {
     let second = app.session.document_id;
     assert_ne!(first, second, "a second package is open");
 
-    let path = temp("first.sbs");
+    // Keep adjacent SBS resources in an exclusive directory
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("first.sbs");
+
     let saved = save_to(&mut app, first, false, &path.display().to_string());
-    assert!(saved);
+    assert!(saved, "{}", app.toasts.last().map_or("no error toast", |toast| toast.text.as_str()));
     assert_eq!(app.session.document_id, first, "the asking package is active again");
     assert_eq!(app.session.path.as_deref().map(std::path::PathBuf::from), std::fs::canonicalize(&path).ok());
-    std::fs::remove_file(path).ok();
 }
 
 #[test]

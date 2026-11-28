@@ -1,11 +1,10 @@
 use super::{
     constant::{SELF_DEPENDENCY, SELF_DEPENDENCY_UID, UPDATER_VERSION},
     sbs_writer::SbsWriter,
-    xml::xml_escape,
 };
 use crate::Result;
 use materialcraft_core::Package;
-use std::{collections::BTreeMap, fmt::Write as _};
+use std::collections::BTreeMap;
 
 /// Schema revision to declare when writing a package, including packages with older app-release headers.
 pub fn output_format_version(imported: Option<&str>) -> &str {
@@ -25,28 +24,6 @@ pub fn write_sbs(pkg: &Package) -> Result<Vec<u8>> {
     super::group_layout::write(&mut content, pkg, &mut writer, SELF_DEPENDENCY_UID)?;
     content.push_str("</content>");
 
-    let mut out = String::with_capacity(content.len() + 4096);
-    let _ = write!(
-        out,
-        "<?xml version=\"1.0\" encoding=\"UTF-8\"?><package><identifier v=\"{}\"/><formatVersion v=\"{}\"/><updaterVersion v=\"{UPDATER_VERSION}\"/><fileUID v=\"0\"/><versionUID v=\"0\"/><dependencies>",
-        xml_escape(&pkg.name),
-        xml_escape(format_version)
-    );
-    let write_dependency = |out: &mut String, file: &str, uid: u64| {
-        let _ = write!(
-            out,
-            "<dependency><filename v=\"{}\"/><uid v=\"{uid}\"/><type v=\"package\"/><fileUID v=\"0\"/><versionUID v=\"0\"/></dependency>",
-            xml_escape(file)
-        );
-    };
-
-    write_dependency(&mut out, SELF_DEPENDENCY, SELF_DEPENDENCY_UID);
-    for (file, uid) in &writer.external_packages {
-        write_dependency(&mut out, file, *uid);
-    }
-    out.push_str("</dependencies>");
-    out.push_str(&content);
-
-    out.push_str("</package>\n");
-    Ok(out.into_bytes())
+    let dependencies = std::iter::once((SELF_DEPENDENCY, SELF_DEPENDENCY_UID)).chain(writer.external_packages.iter().map(|(file, uid)| (file.as_str(), *uid)));
+    Ok(craft_sbs::write_package(&pkg.name, format_version, UPDATER_VERSION, dependencies, &content))
 }

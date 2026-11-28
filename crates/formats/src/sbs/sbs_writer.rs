@@ -93,6 +93,10 @@ impl SbsWriter {
             let (x, y) = (node.pos[0] + NODE_HALF_SIZE[0], node.pos[1] + NODE_HALF_SIZE[1]);
             let _ = write!(out, "<compNode><uid v=\"{uid}\"/><GUILayout><gpos v=\"{} {} 0\"/></GUILayout>", format_float(x), format_float(y));
 
+            if node.disabled {
+                out.push_str("<materialcraftDisabled v=\"1\"/>");
+            }
+
             if !node.input_values.is_empty() {
                 out.push_str("<inputValues>");
                 for (identifier, value) in &node.input_values {
@@ -217,7 +221,10 @@ impl SbsWriter {
             out.push_str("</paraminput>");
         }
 
+        let mut exposed_uids = HashMap::new();
         for exposed in &graph.exposed {
+            let uid = self.next_uid();
+            exposed_uids.insert(exposed.id.clone(), uid);
             let default =
                 input_default_xml(graph.inputs.get(&exposed.id).unwrap_or(&exposed.default)).unwrap_or_else(|| "<constantValueFloat1 v=\"0\"/>".into());
             let group = if exposed.group.is_empty() { String::new() } else { format!("<group v=\"{}\"/>", xml_escape(&exposed.group)) };
@@ -227,16 +234,20 @@ impl SbsWriter {
                 out,
                 "<paraminput><identifier v=\"{}\"/><uid v=\"{}\"/>{connection}<attributes><label v=\"{}\"/><description v=\"{}\"/></attributes><type v=\"{}\"/><defaultValue>{default}</defaultValue>",
                 xml_escape(&exposed.id),
-                self.next_uid(),
+                uid,
                 xml_escape(&exposed.label),
                 xml_escape(&exposed.description),
                 exposed_type_code(&exposed.default)
             );
+            if let Some(current) = graph.inputs.get(&exposed.id).and_then(constant_xml) {
+                let _ = write!(out, "<materialcraftValue>{current}</materialcraftValue>");
+            }
             super::parameter_widget::write(out, exposed);
             let _ = write!(out, "{group}</paraminput>");
         }
 
         out.push_str("</paraminputs>");
+        super::presets::write(out, graph, &exposed_uids);
         entries
     }
 
@@ -308,6 +319,9 @@ impl SbsWriter {
                     xml_escape(&sub_graph),
                     dependency
                 );
+                if let Some(instance) = &node.instance {
+                    super::instance_interface::write(out, &instance.inputs).map_err(FormatError::Io)?;
+                }
                 write_bridgings(out, outputs);
                 out.push_str("</compInstance>");
             }
