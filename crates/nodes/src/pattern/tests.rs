@@ -587,8 +587,7 @@ fn additive_square(weight: f32, offset: [f32; 2], frame: [f32; 2]) -> BTreeMap<S
     ])
 }
 
-#[test]
-fn an_empty_later_quadrant_changes_when_its_sibling_draws() {
+fn square_fork(parent_gain: f32) -> PatternGraph {
     let mut graph = PatternGraph::with_root(PatternNodeKind::Quadrant);
     let mut parent = graph.root.unwrap();
     for depth in 1..=9 {
@@ -600,13 +599,19 @@ fn an_empty_later_quadrant_changes_when_its_sibling_draws() {
             slots.fill(Some(child));
         }
         if depth == 1 || depth == 9 {
-            let (gain, size) = if depth == 1 { (-1.0, 2.0) } else { (f32::EPSILON * 0.25, 1.375) };
+            let (gain, size) = if depth == 1 { (parent_gain, 2.0) } else { (f32::EPSILON * 0.25, 1.375) };
             let mut parameters = additive_square(gain, [0.0; 2], [0.0; 2]);
             parameters.insert("patternsize".into(), Value::Float2([size; 2]));
             graph.nodes[(child - 1) as usize].parameters = parameters;
         }
         parent = child;
     }
+    graph
+}
+
+#[test]
+fn an_empty_later_quadrant_changes_when_its_sibling_draws() {
+    let mut graph = square_fork(-1.0);
     let empty = graph.add(PatternNodeKind::Quadrant).unwrap();
     let active = graph.nodes[3].children[0];
     for (children, surviving_pixel) in [
@@ -624,6 +629,22 @@ fn an_empty_later_quadrant_changes_when_its_sibling_draws() {
                 assert_eq!(image.get_gray(x, y, false).to_bits(), value.to_bits(), "pixel ({x}, {y}), children {children:?}");
             }
         }
+    }
+}
+
+#[test]
+fn two_repetitions_share_the_parent_and_last_child_draws() {
+    let mut graph = square_fork(-0.5);
+    let empty = graph.add(PatternNodeKind::Quadrant).unwrap();
+    let iterate = graph.add(PatternNodeKind::Iterate).unwrap();
+    graph.nodes[(iterate - 1) as usize].children[1] = graph.root;
+    graph.nodes[(iterate - 1) as usize].parameters.insert("numberadded".into(), Value::Int(2));
+    graph.root = Some(iterate);
+    let active = graph.nodes[3].children[0];
+    for (sibling, expected) in [(None, [f32::EPSILON, 0.0]), (Some(empty), [0.0; 2]), (active, [0.0, f32::EPSILON])] {
+        graph.nodes[3].children[1] = sibling;
+        let image = cook_in_regions(graph.clone(), &BTreeMap::new(), 0, [16; 2], [[0.0, 1.0, 0.0, 1.0]; 2], 1.0).unwrap().remove(0);
+        assert_eq!([6, 7].map(|x| image.get_gray(x, 4, false).to_bits()), expected.map(f32::to_bits), "sibling {sibling:?}");
     }
 }
 

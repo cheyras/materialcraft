@@ -155,6 +155,30 @@ At the fourth subdivision retain only slots 0 and 1. Read the two sizes alternat
 | (4,4) | `3d29886d` | `3d29886e` |
 | (9,5) | `3b95abfc` | `3b95abfd` |
 
+### An unfinished draw batch across repeated quadrant pairs
+
+When an outer Iterate emits multiple two-child quadrant trees, each first child can draw before the shared path and the second child from all repetitions. The continuation contains the shared path and the last connected child of each tree. MaterialCraft counts its physical tile copies, including copies of draws that miss the pixel grid. The measured order applies while this continuation holds fewer than 5,460 copies. [Single-tree draw order and procedural construction](#drawing-a-shared-quadrant-path-with-its-last-child)
+
+Use the linked nine-subdivision wave graph at 32 × 16, seed 42, F32. Add an outer Iterate with only the repeated port wired. With a drawing slot followed by an empty quadrant, one, two, three, five and nine repetitions now give **2,560/2,560 · 0** on one and eight processors. Keeping just the drawing slot also gives 2,560/2,560. With two drawing slots, one, two and three repetitions give 1,536/1,536. At five and nine repetitions the two drawing slots can fill the continuation and reference outputs vary.
+
+To locate the boundary, use four repetitions of the two-wave-child graph. Each path contributes 13 wrapped copies per repetition ahead of the fork. The unpruned second branch contributes 1,365. Remove complete leading subtrees from that second child, counting each removed quadrant draw. For a partial subtree, follow its first child recursively. Leave the first drawing child and the parent path intact. Compare F32 words at 32 × 16 and retain the same wave properties.
+
+| Draws removed per repetition | Continuation copies | Original traversal against one reference · max | Current against one · max | Current against eight · max |
+|---:|---:|---:|---:|---:|
+| 0 | 5,512 | 503/512 · 1.1920929e-07 | 503/512 · 1.1920929e-07 | 508/512 · 5.96046448e-08 |
+| 10 | 5,472 | 503/512 · 1.1920929e-07 | 503/512 · 1.1920929e-07 | 508/512 · 5.96046448e-08 |
+| 12 | 5,464 | 503/512 · 1.1920929e-07 | 503/512 · 1.1920929e-07 | 508/512 · 5.96046448e-08 |
+| 13 | 5,460 | 503/512 · 1.1920929e-07 | 503/512 · 1.1920929e-07 | 503/512 · 1.1920929e-07 |
+| 14 | 5,456 | 508/512 · 5.96046448e-08 | 512/512 · 0 | 512/512 · 0 |
+| 18 | 5,440 | 508/512 · 5.96046448e-08 | 512/512 · 0 | 512/512 · 0 |
+| 25 | 5,412 | 508/512 · 5.96046448e-08 | 512/512 · 0 | 512/512 · 0 |
+
+The square regression uses two repetitions and a depth-one gain of −.5 on white. With just the drawing child, pixel (6, 4) retains 2⁻²³. With the later empty child it gives zero. With two drawing children only (7, 4) retains 2⁻²³. The previous release failed at (6, 4). An eight-repetition two-drawing-child control has distinct reference outputs at the same settings.
+
+Repeat three independent wave controls at 16² seed zero and 32 × 16 seed 42 in U8, U16, F16 and F32. Use nine repetitions with the empty sibling, three with both drawing children, and the four-repetition boundary with 14 draws removed. Across the 24 original settings the exact pixel count rises from 9,192/9,216 · 2.38418579e-07 to **9,216/9,216 · 0** on one reference processor. The current release matches all original pixels at eight processors and all 9,216 reopened pixels independently at each count. Every local reopen reproduces its original buffer.
+
+On the Directional Noise 2 control with one active branch and a later empty quadrant, 32² seed 103834 improves from 1,000/1,024 · 1.49011612e-08 to **1,024/1,024 · 0**. The 16² seed 103826 graph stays exact. Both configured ordinary saves match every pixel at both processor counts. The connected and disconnected files with identical identifiers also match all their alternating reference reads. The nine-tree two-drawing-child controls and the full root retain differences. [Root controls, sizes and parameters](#a-second-branch-beside-a-wrapped-wave)
+
 ### Drawing a shared quadrant path with its last child
 
 In a grayscale additive FX-Map, follow a single path to its first fork with six more quadrant subdivisions to the deepest leaf. On a single emitted tree, the earlier connected children draw in slot order, then the shared path draws, then the last connected child draws. A connected empty quadrant can occupy that last slot. MaterialCraft now orders the raster ranges after evaluating the drawing properties. The ordinary package retains its connections.

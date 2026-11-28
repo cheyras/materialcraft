@@ -8,6 +8,7 @@ mod footprint;
 mod mixed_depth_runs;
 mod pattern_stamp;
 mod pattern_visit;
+mod quadrant_fork;
 mod raster;
 mod region;
 mod repeated_quadrants;
