@@ -436,6 +436,38 @@ fn published_disabled_and_typed_instance_cooks_match_source() {
 }
 
 #[test]
+fn material_resize_uses_overridden_size_expression_without_editing_the_document() {
+    use materialcraft_core::{ExposedParameter, FunctionGraph, ValueType};
+
+    let mut session = fixture();
+    let graph = session.graph_mut().unwrap();
+    graph.exposed.push(ExposedParameter {
+        id: "axes".into(),
+        label: "Axes".into(),
+        default: Value::Int2([4, 5]),
+        connectable: false,
+        min: 0.0,
+        max: 13.0,
+        clamp: false,
+        step: None,
+        editor: None,
+        description: String::new(),
+        group: String::new(),
+        options: Vec::new(),
+    });
+    graph.absolute_output_size = Some([4, 5]);
+    graph.output_size_function = Some(FunctionGraph::input("axes", ValueType::Integer2));
+    let before = session.pkg.clone();
+    let options =
+        MaterialOptions { size: Some(crate::ExportSize::LargerSide(64)), values: [("axes".into(), Value::Int2([6, 4]))].into(), ..Default::default() };
+    let cooked = options.cook(&session, session.graph, None, None).unwrap();
+    let output = session.graph().unwrap().nodes.iter().find(|node| node.def == "output").unwrap();
+    let image = cooked.image(output.id, 0).unwrap();
+    assert_eq!((image.width(), image.height()), (64, 16), "resize must preserve the overridden aspect ratio");
+    assert_eq!(session.pkg, before);
+}
+
+#[test]
 fn material_options_ignore_stale_presets_but_validate_explicit_values() {
     let mut session = fixture();
     let graph = session.graph_mut().unwrap();
