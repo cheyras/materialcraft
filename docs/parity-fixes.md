@@ -139,6 +139,35 @@ On a separate copy of the configured 64 × 16 graph, add output bridges to the t
 
 For the 8 × 2 and 16 × 4 sources, the listed values come from the pixel containing the same normalized position, (2,1) and (4,3) respectively.
 
+### An additive wave at a 16-bit storage boundary
+
+Use the 64 × 16 Directional Noise 3 setting with seed 42 and the 64 × 32 setting with seed 195031. For each selected format, collect four original renders on one processor and four on eight, then reopen an ordinary save on each processor count. At 64 × 32 every local U16 and F32 word occurs in at least one of the ten corresponding reference returns. At 64 × 16 in F32, one local value falls outside all ten returns. At (19, 14) MaterialCraft gives .5435512066 and all ten reference returns give .5435265899. [Full settings and file routes](#seeded-placement-in-the-remaining-directional-noise-3-rectangles)
+
+Add outputs to the three wave patterns and the two blends in the configured 64 × 16 graph. Keep the original normalization and storage. The first two patterns match all 16 and 64 U16 pixels, and the first blend matches all 1,024. The third pattern gives 20,789 at (19, 14) in MaterialCraft and 20,788 in both reference captures. The second blend carries that difference to 39,704 and 39,703. The final Levels output retains the measured F32 difference.
+
+Set only the third pattern to F32 and read the draws before integer storage. Compare the original additive setting with maximum blending on its wave quadrants. Both processor counts give the following whole-image comparisons.
+
+| Output at 64 × 16 | Additive exact · max | Maximum blending exact · max |
+|---|---:|---:|
+| Third pattern | 326/1,024 · 1.78813934e-07 | 1,024/1,024 · 0 |
+| Following blend | 627/1,024 · 1.78813934e-07 | 1,024/1,024 · 0 |
+| Levels | 637/1,024 · 3.57627869e-07 | 1,024/1,024 · 0 |
+
+At (19, 14) the additive pattern gives .317213088274 in MaterialCraft and .317212998867 in both reference captures. Flooring these values at 20 fractional bits gives 332,622 and 332,621. Converting each application’s F32 values through the normalized U16 store reproduces its own **1,024/1,024** original U16 words. The difference is already present in the floating-point sum.
+
+Connect the third pattern directly to the output, keeping its graph settings, and cap only the outer iteration count. Both reference processor counts agree on every pixel of each reduced case.
+
+| Emitted trees | F32 exact · maximum |
+|---:|---:|
+| 1 | 959/1,024 · 1.1920929e-07 |
+| 2 | 952/1,024 · 1.1920929e-07 |
+| 4 | 911/1,024 · 2.68220901e-07 |
+| 8 | 764/1,024 · 1.78813934e-07 |
+
+Keep one emitted tree and follow quadrant slots 1, 0, 1 to the next fork. All four child subtrees measured individually match 1,024/1,024. All sixteen grandchildren also match individually, **16,384/16,384**. With two child slots connected, the six pairs together give **6,137/6,144 · 3.7252903e-09**. With three connected, the four combinations give **4,089/4,096 · 7.4505806e-09**. Both processor counts give these results.
+
+Replaying each child’s measured contributions as a contiguous group fails to reproduce the reference in four of six pairs and three of four triples, even after trying every child order. The same individual stamp contributions, grouped one level deeper, admit six possible relative orders that reproduce all 16 affected positions in every pair. These settings narrow the draw-order discrepancy. Directional Noise 3 remains in progress.
+
 ### Three larger rectangles in Directional Noise 3 v2
 
 The 512 × 128, 128 × 512 and 128 × 64 settings that hit the earlier work limit now render in U16 and F32. The 512 × 128 F32 output already matches both reference captures in revision `65998c9`. Each local file reopened after an ordinary save reproduces its original pixels. [Earlier precision settings and file routes](#seven-tiled-half-precision-settings-in-directional-noise-3-v2)
