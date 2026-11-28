@@ -436,6 +436,23 @@ fn published_disabled_and_typed_instance_cooks_match_source() {
 }
 
 #[test]
+fn rebinding_the_same_file_preserves_its_authored_color_interpretation() {
+    let mut session = fixture();
+    let bytes = encode(&Image::filled(16, 16, Kind::Color, [0.5, 0.5, 0.5, 1.0]), "png", Depth::U8, true).unwrap();
+    session.pkg.resources.push(Resource::new("bound_input", "input.png", ResourceBytes::new(bytes.clone())));
+    let graph = session.graph_mut().unwrap();
+    graph.input_images.insert("curvature".into(), "bound_input".into());
+    graph.input_images_from_file.insert("curvature".into());
+    let output = graph.nodes.iter().find(|node| node.def == "output" && materialcraft_eval::identifier(node) == "mesh").unwrap().id;
+    let original = MaterialOptions::default().cook(&session, session.graph, None, Some(16)).unwrap();
+    let options = MaterialOptions::from_params(session.graph().unwrap(), &json!({"inputs":{"curvature":"replacement.png"}}), |_| Ok(bytes.clone())).unwrap();
+    let rebound = options.cook(&session, session.graph, None, Some(16)).unwrap();
+    let expected = original.image(output, 0).unwrap();
+    assert!(expected.get(0, 0, false)[0] > 0.4, "the authored file is linear");
+    assert_eq!(rebound.image(output, 0).unwrap().data(), expected.data());
+}
+
+#[test]
 fn material_resize_uses_overridden_size_expression_without_editing_the_document() {
     use materialcraft_core::{ExposedParameter, FunctionGraph, ValueType};
 

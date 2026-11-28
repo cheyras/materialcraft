@@ -335,7 +335,10 @@ impl<'text> SbsReader<'text, '_> {
                 continue;
             }
 
-            let default = exposed_default(code, child_element(input, "defaultValue").and_then(sbs_constant).as_ref());
+            let default = exposed_default(
+                code,
+                child_element(input, "materialcraftDefault").or_else(|| child_element(input, "defaultValue")).and_then(sbs_constant).as_ref(),
+            );
             let connectable = child_value(input, "isConnectable") == Some("1");
             if connectable && !element.has_tag_name("function") {
                 image_inputs.insert(

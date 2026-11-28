@@ -278,8 +278,8 @@ pub(crate) fn cook_node(
         &input_keys,
         resource_hash,
         subgraph_hash,
-        // A cached graph instance includes results evaluated with its host environment
-        (node.def == "graph_instance").then(|| serde_json::to_string(&options.environment).unwrap_or_default()),
+        // Child outputs can exceed the instance size, so their cap is independent of w/h.
+        (node.def == "graph_instance").then(|| (options.max_size, serde_json::to_string(&options.environment).unwrap_or_default())),
         input_image.as_ref().map(|(image, upstream, bitmap, base_level)| (image_key(image, cache), upstream, bitmap, wired, base_level)),
         (variable_key(node, &parameters, &bindings), &instance_literals),
     ));

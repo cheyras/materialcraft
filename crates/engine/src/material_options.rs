@@ -1,6 +1,7 @@
 use craft_texture::Image;
 use materialcraft_core::{BaseParameter, Graph, OutputFormat, SizeMode, Value};
 use materialcraft_eval::{Cooked, Options};
+use materialcraft_nodes::BitmapColorSpace;
 use serde_json::Value as J;
 use std::{borrow::Cow, collections::BTreeMap};
 
@@ -48,15 +49,21 @@ impl MaterialOptions {
             let mut remaining = MAX_DECODED_INPUT_BYTES;
             for (id, path) in value.as_object().ok_or_else(|| invalid("inputs must map image identifiers to file paths".into()))? {
                 let input = declared.iter().find(|input| input.identifier == *id).ok_or_else(|| invalid(format!("unknown image input `{id}`")))?;
-                let linear = if graph.input_images.contains_key(id) {
-                    graph.input_images_linear.contains(id)
+                let space = if graph.input_images.contains_key(id) {
+                    if graph.input_images_from_file.contains(id) {
+                        BitmapColorSpace::FromFile
+                    } else if graph.input_images_linear.contains(id) {
+                        BitmapColorSpace::Linear
+                    } else {
+                        BitmapColorSpace::Srgb
+                    }
                 } else {
                     let usage = if input.usage == "any" { id } else { &input.usage };
-                    !materialcraft_formats::material::srgb_usage(usage)
+                    if materialcraft_formats::material::srgb_usage(usage) { BitmapColorSpace::Srgb } else { BitmapColorSpace::Linear }
                 };
                 let path = path.as_str().ok_or_else(|| invalid(format!("inputs.{id} must be an image path")))?;
                 let bytes = read(path)?;
-                let image = materialcraft_formats::decode(&bytes, linear)?;
+                let image = materialcraft_formats::decode_with_color_space(&bytes, space)?;
                 if image.integer_sampling()
                     && let Some(format) = materialcraft_core::png_sample_format(&bytes)
                 {

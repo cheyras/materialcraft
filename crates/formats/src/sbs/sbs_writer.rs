@@ -241,6 +241,11 @@ impl SbsWriter {
             );
             if let Some(current) = graph.inputs.get(&exposed.id).and_then(constant_xml) {
                 let _ = write!(out, "<materialcraftValue>{current}</materialcraftValue>");
+                // SBS consumers use the current value as the declared default. Retain the
+                // authored reset value separately for our project and portable-material round trip.
+                if let Some(authored) = input_default_xml(&exposed.default) {
+                    let _ = write!(out, "<materialcraftDefault>{authored}</materialcraftDefault>");
+                }
             }
             super::parameter_widget::write(out, exposed);
             let _ = write!(out, "{group}</paraminput>");
