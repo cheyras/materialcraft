@@ -127,7 +127,7 @@ fn export_size_keeps_proportions_and_clamps() {
     s.pkg.graphs[0].size = [u32::MAX, u32::MAX];
 
     assert!(dims(&s, json!(32)).iter().all(|d| *d == (32, 32)));
-    assert!(dims(&s, json!([1, u64::MAX])).iter().all(|d| *d == (16, 8192)), "sides clamp to 16..8192");
+    assert!(dims(&s, json!([1, u64::MAX])).iter().all(|d| *d == (1, 8192)), "sides clamp to 1..8192");
 
     s.pkg.graphs[0].absolute_output_size = Some([6, 5]);
     assert!(dims(&s, json!(0)).iter().all(|d| *d == (64, 32)));
