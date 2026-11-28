@@ -155,6 +155,27 @@ At the fourth subdivision retain only slots 0 and 1. Read the two sizes alternat
 | (4,4) | `3d29886d` | `3d29886e` |
 | (9,5) | `3b95abfc` | `3b95abfd` |
 
+### Drawing a shared quadrant path with its last child
+
+In a grayscale additive FX-Map, follow a single path to its first fork with six more quadrant subdivisions to the deepest leaf. On a single emitted tree, the earlier connected children draw in slot order, then the shared path draws, then the last connected child draws. A connected empty quadrant can occupy that last slot. MaterialCraft now orders the raster ranges after evaluating the drawing properties. The ordinary package retains its connections.
+
+Build an FX-Map with nine quadrant subdivisions on a white background with roughness zero and opacity one. Follow child slots 0, 3, 1 to the fork. Draw a square at depth one with size (2, 2) and gain −1. From the fork, fill each active child subtree to depth nine. Draw only the terminal squares, with size (1.375, 1.375) and gain 2⁻²⁵. At 16², seed zero, one active slot leaves 2⁻²³ at (6, 4). Connecting an empty quadrant immediately after it gives zero there. With two, three or four drawing slots, only (7, 4), (6, 5) or (7, 5) retains 2⁻²³, respectively. All other pixels are zero. The regression first failed at (6, 4) with the exact prior F32 word.
+
+For the depth controls, use unit terminal squares. Move the fork through depths one to four, retaining an earlier drawing slot and a later empty slot. Compare five and six subdivisions below each fork. Test slots (0, 1), (1, 0), (2, 3) and (3, 1) at depth three. The square draws before the parent when its slot comes first and after the parent when its slot comes last. Across 22 connected and disconnected files, at 32² and 256² or 512², the new release matches **3,037,184/3,037,184** pixels on each processor count, maximum zero. Four-way, three-way, two-way and single-path descent controls also distinguish depth from leaf count.
+
+To distinguish the order among four occupied slots, shift the four children onto the first child with branch offsets of 0 or −1/16 per axis. Draw a unit square at each terminal quadrant. Permute gains of 1, −1, 2⁻²⁵ and zero among the shared path and the four children. Eighteen black-background settings and four white-background settings identify the same order on one and eight reference processors at 64², seed 17.
+
+An independent wave control uses a black background with roughness and opacity .5. From depth one, cycle through gains .3125, −.71875, .59375, .84375 and −.34375 and rotations .25, −.125 and .0625 turns. Set the frame offset to (.109375, −.09375), the first size to (1.5, 7), then alternate (1.5, 2.75) and (.875, 3.25). Use two or four connected drawing slots. Run both wave controls and the connected square control at 16² seed zero and 32 × 16 seed 42, in U8, U16, F16 and F32. Save each configured graph and reopen it in both applications. The original files and the 24 ordinary saves each give **9,216/9,216 · 0** on one and eight processors. The prior release gave 9,187/9,216 · 1.1920929e-07 on each file route.
+
+| Directional Noise 2 at 16², seed 103826, F32 | Prior exact pixels · maximum | Current exact pixels · maximum |
+|---|---:|---:|
+| Each of six possible two-child connections at the fourth subdivision, combined | 1,502/1,536 · 2.98023224e-08 | 1,536/1,536 · 0 |
+| Four connected drawing children | 238/256 · 2.98023224e-08 | 256/256 · 0 |
+| One drawing child followed by an empty quadrant | 251/256 · 7.4505806e-09 | 256/256 · 0 |
+| Ordinary save of the two-child graph with slots 0 and 1 | 253/256 · 3.7252903e-09 | 256/256 · 0 |
+
+Both reference processor counts give these 16² results. At 32², seed 103834 emits nine trees, and the six two-child controls give 6,085/6,144 · 1.49011612e-08 on one processor and 6,035/6,144 · 1.49011612e-08 on eight. Connecting the empty child still gives 1,000/1,024 · 1.49011612e-08 on both. The full additive root also retains its measured differences. [Whole-root settings](#all-sixty-original-directional-noise-2-settings) · [Original captures and single-wire controls](#a-second-branch-beside-a-wrapped-wave)
+
 ### A second branch beside a wrapped wave
 
 Save the two-child Directional Noise 2 control with each size, seed, F32 storage and parameter set in its own file. The local reopens reproduce all 1,280 original pixels. Both reference worker counts give 253/256 at 16², maximum 3.7252903e-09, and 1,016/1,024 at 32², maximum 7.4505806e-09. The same three 16² words differ after reopening. [Two-child control and reference words](#additive-wave-overlaps-in-directional-noise-2)

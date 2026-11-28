@@ -107,6 +107,55 @@ struct TerminalSiblings {
     discarded: bool,
 }
 
+/// A single path splits into child draws six subdivisions above the leaves.
+/// The last connected child continues the parent stream, even when that child is empty.
+struct QuadrantFork {
+    depth: u32,
+    children_left: Option<usize>,
+    first_child: Option<usize>,
+    last_child: Option<usize>,
+}
+
+impl QuadrantFork {
+    fn visit(&mut self, node: &PatternNode, depth: u32, retained: usize) -> bool {
+        if node.kind != PatternNodeKind::Quadrant {
+            // An outer gate can emit just one tree. Repetitions within a child can interleave its draws.
+            return depth == 0 || node.kind == PatternNodeKind::Dot;
+        }
+        if depth <= self.depth {
+            if self.children_left.is_some() {
+                return false;
+            }
+            let count = node.children.iter().flatten().count();
+            if depth < self.depth {
+                return count == 1;
+            }
+            self.children_left = Some(count);
+            return count >= 2;
+        }
+        if depth == self.depth + 1 {
+            let Some(left) = self.children_left.and_then(|count| count.checked_sub(1)) else { return false };
+            self.children_left = Some(left);
+            self.first_child.get_or_insert(retained);
+            if left == 0 {
+                self.last_child = Some(retained);
+            }
+        }
+        true
+    }
+
+    fn runs<'a>(self, stamps: &'a [PatternStamp]) -> Option<Vec<super::pattern_stamp::DrawRun<'a>>> {
+        let first = self.first_child?;
+        let last = self.last_child?;
+        let pattern = stamps.first()?.pattern;
+        if !(2..=16).contains(&pattern) || !stamps.iter().all(|stamp| stamp.blend == 0 && stamp.pattern == pattern) {
+            return None;
+        }
+        let groups = [stamps.get(first..last)?, stamps.get(..first)?, stamps.get(last..)?];
+        Some(groups.into_iter().map(super::pattern_stamp::DrawRun::whole).collect())
+    }
+}
+
 fn uniform_deep_draws(root: Option<u32>, nodes: &PatternNodes) -> bool {
     let mut pending: Vec<_> = root.into_iter().map(|id| (id, 0_u8)).collect();
     let mut seen = BTreeSet::new();
@@ -422,6 +471,12 @@ fn evaluate(context: &CookContext, base_level_only: &[bool], visit_limit: usize,
     let mut uniform_order = None;
     let mut raster_work = raster::RasterWork::new();
     let mut repeated_roots = None;
+    let mut quadrant_fork = (grayscale && opacity_depth > 6 && !context.b("cull_outside")).then(|| QuadrantFork {
+        depth: opacity_depth - 6,
+        children_left: None,
+        first_child: None,
+        last_child: None,
+    });
     let mut repeated_six_level: Option<super::repeated_six_level::RepeatedSixLevelRuns> = None;
     let mut terminal_quadrants = (grayscale && opacity_depth == 8 && !context.b("cull_outside")).then(super::terminal_quadrants::TerminalQuadrants::default);
     let mut seven_level_runs = (grayscale && opacity_depth == 7).then(SevenLevelRuns::default);
@@ -470,6 +525,9 @@ fn evaluate(context: &CookContext, base_level_only: &[bool], visit_limit: usize,
             pending.push((next, repeats_left - 1));
         }
         let &(node, literal_geometry, quadrant_children) = nodes.get(&visit.node).ok_or("missing pattern node")?;
+        if quadrant_fork.as_mut().is_some_and(|fork| !fork.visit(node, visit.depth, stamps.len())) {
+            quadrant_fork = None;
+        }
         if underfilled.as_mut().is_some_and(|runs| !runs.visit(node, visit.depth, stamps.len())) {
             underfilled = None;
         }
@@ -889,6 +947,8 @@ fn evaluate(context: &CookContext, base_level_only: &[bool], visit_limit: usize,
         {
             // Other cached draws, including direct repetitions, have a separate bounded allowance.
             let cached_credit = (stamps.len() - accounted_stamps).min(cached_stream_allowance);
+            // These stamps have already been composited when the next chunk starts.
+            quadrant_fork = None;
             raster_work.streaming = true;
             let group = [super::pattern_stamp::DrawRun::whole(&stamps)];
             let image = raster::render(context, &group, &opacities, nonfinite_gray_opacity, base_level_only, runtime_image_selector, &mut raster_work)?;
@@ -949,7 +1009,8 @@ fn evaluate(context: &CookContext, base_level_only: &[bool], visit_limit: usize,
         .or_else(|| sparse_runs.and_then(|runs| runs.finish(&stamps)))
         .or_else(|| underfilled.and_then(|runs| runs.finish(&stamps)))
         .or_else(|| repeated_six_level.and_then(|runs| runs.finish(&stamps, repeated_roots.unwrap_or_default())))
-        .or_else(|| repeated_roots.and_then(|repeats| super::repeated_quadrants::runs(context, &stamps, repeats, max_depth)));
+        .or_else(|| repeated_roots.and_then(|repeats| super::repeated_quadrants::runs(context, &stamps, repeats, max_depth)))
+        .or_else(|| quadrant_fork.and_then(|fork| fork.runs(&stamps)));
     let image = raster::render(
         context,
         mixed_groups.as_deref().unwrap_or(&groups),

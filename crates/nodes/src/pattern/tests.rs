@@ -588,6 +588,46 @@ fn additive_square(weight: f32, offset: [f32; 2], frame: [f32; 2]) -> BTreeMap<S
 }
 
 #[test]
+fn an_empty_later_quadrant_changes_when_its_sibling_draws() {
+    let mut graph = PatternGraph::with_root(PatternNodeKind::Quadrant);
+    let mut parent = graph.root.unwrap();
+    for depth in 1..=9 {
+        let child = graph.add(PatternNodeKind::Quadrant).unwrap();
+        let slots = &mut graph.nodes[(parent - 1) as usize].children;
+        if let Some(&slot) = [0, 3, 1, 0].get(depth - 1) {
+            slots[slot] = Some(child);
+        } else {
+            slots.fill(Some(child));
+        }
+        if depth == 1 || depth == 9 {
+            let (gain, size) = if depth == 1 { (-1.0, 2.0) } else { (f32::EPSILON * 0.25, 1.375) };
+            let mut parameters = additive_square(gain, [0.0; 2], [0.0; 2]);
+            parameters.insert("patternsize".into(), Value::Float2([size; 2]));
+            graph.nodes[(child - 1) as usize].parameters = parameters;
+        }
+        parent = child;
+    }
+    let empty = graph.add(PatternNodeKind::Quadrant).unwrap();
+    let active = graph.nodes[3].children[0];
+    for (children, surviving_pixel) in [
+        ([active, None, None, None], Some((6, 4))),
+        ([active, Some(empty), None, None], None),
+        ([active, active, None, None], Some((7, 4))),
+        ([active, active, active, None], Some((6, 5))),
+        ([active; 4], Some((7, 5))),
+    ] {
+        graph.nodes[3].children.copy_from_slice(&children);
+        let image = cook_in_regions(graph.clone(), &BTreeMap::new(), 0, [16; 2], [[0.0, 1.0, 0.0, 1.0]; 2], 1.0).unwrap().remove(0);
+        for y in 0..16 {
+            for x in 0..16 {
+                let value = if Some((x, y)) == surviving_pixel { f32::EPSILON } else { 0.0 };
+                assert_eq!(image.get_gray(x, y, false).to_bits(), value.to_bits(), "pixel ({x}, {y}), children {children:?}");
+            }
+        }
+    }
+}
+
+#[test]
 fn seven_quadrant_levels_order_leaf_runs_before_discarding_missed_stamps() {
     let tiny = f32::EPSILON * 0.25;
     for (negative, positive, miss_other_stamps, missing_slot, expected) in
